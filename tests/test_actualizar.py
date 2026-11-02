@@ -356,9 +356,9 @@ class TestGdeltRigor(Base):
         filas += [fila_gdelt("19", "Kassala, Kassala, Sudan", 15.4, 36.4, url="https://medio/repetida") for _ in range(10)]
         # Medio estatal: cuenta la mitad
         filas += [fila_gdelt("19", "Kassala, Kassala, Sudan", 15.4, 36.4, url=f"https://www.rt.com/a{i}") for i in range(4)]
-        # Desescalada: negociaciones
-        filas += [fila_gdelt("04", "Jeddah, Makkah, Saudi Arabia", 21.5, 39.2, base="046", actor="GOV") for _ in range(2)]
-        filas += [fila_gdelt("04", "Khartoum, Khartoum, Sudan", 15.5, 32.5, base="046", actor="GOV") for _ in range(6)]
+        # Desescalada: alto el fuego
+        filas += [fila_gdelt("08", "Jeddah, Makkah, Saudi Arabia", 21.5, 39.2, base="087", actor="GOV") for _ in range(2)]
+        filas += [fila_gdelt("08", "Khartoum, Khartoum, Sudan", 15.5, 32.5, base="087", actor="GOV") for _ in range(6)]
         return filas
 
     def test_deduplicado_estatales_regiones_actores(self):

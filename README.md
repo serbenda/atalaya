@@ -49,12 +49,13 @@ Tres ideas lo guían:
 | Parte | Para qué sirve |
 |---|---|
 | **Mapa** | Globo 3D que se gira (con día y noche reales) o mapa plano. El color de cada país es su nivel; los que empeoran laten. Los puntos son eventos: conflictos, protestas, terremotos, desastres, epidemias, cortes de internet y censura. Los rombos dorados son rutas marítimas estratégicas. |
-| **Informe** | Lo que contaría un gabinete de crisis: conclusión principal, juicios clave con su confianza, qué vigilar en las próximas 72 horas, interés para España, regiones con más tensión, rutas marítimas, acierto de los pronósticos y estado de las fuentes. |
+| **Informe** | Lo que contaría un gabinete de crisis: tus países seguidos, conclusión principal, juicios clave con su confianza, qué vigilar en las próximas 72 horas, interés para España, regiones con más tensión, fechas clave (elecciones), rutas marítimas, acierto y rendimiento de los pronósticos y estado de las fuentes. |
 | **Simulación** | Qué podría pasar en 7 días en cada crisis: tres ramas con probabilidad aproximada, contagio a los vecinos (rayados en el mapa) e impacto para España. Siempre con su aviso de que no tiene validez oficial. |
 | **Países** | Todos los países con actividad, ordenados por nivel. |
 | **Eventos** | Avisos de viaje, epidemias, cortes de internet, lugares con más conflictos y protestas, terremotos y desastres. |
 | **Titulares** | Prensa en español de las últimas horas (Google Noticias, EFE, RTVE y El País). |
-| **Ficha de país** | Nivel, motivos, confianza, gráfica de evolución, pronóstico, escenarios con sus indicadores, recomendación de Exteriores, intereses de España, análisis de expertos (Elcano, IEEE, CIDOB), prensa española y eventos. |
+| **Ficha de país** | Nivel, motivos, confianza, gráfica de evolución, pronóstico, escenarios con sus indicadores, análisis (dónde se concentra la violencia, quién contra quién, señales en contra, otras explicaciones y qué lo desmentiría), señales tempranas (moneda, elecciones), recomendación de Exteriores, intereses de España, análisis de expertos (Elcano, IEEE, CIDOB), prensa española y eventos. Con ☆ se sigue el país. |
+| **Avisos** | Canal de Telegram y feed RSS con los cambios de nivel y las señales clave, y un resumen diario. |
 | **Histórico** | *Ver otro día* muestra el mundo tal como estaba cualquier día pasado. En la gráfica de un país, pinchar un día lleva a ese día. |
 | **Reproducir la semana** | Anima los eventos de los últimos 7 días. |
 
@@ -76,7 +77,8 @@ flowchart TB
     A2["inteligencia.py<br/>escenarios, pronóstico, informe"]
     A3["simulacion.py<br/>ramas, contagio, España"]
     A4["salud.py<br/>vigila las fuentes"]
-    A1 --> A2 --> A3 --> A4
+    A5["telegram.py<br/>avisos y RSS"]
+    A1 --> A2 --> A3 --> A5 --> A4
   end
 
   subgraph Repo["Repositorio serbenda/atalaya"]
@@ -89,6 +91,7 @@ flowchart TB
   Fuentes --> A1
   A3 -->|force push| D
   A4 -->|si una fuente cae 3 h| I["Issue<br/>Fuentes de datos caídas"]
+  A5 --> T["Telegram"]
   M -->|despliegue| W
   D -->|raw.githubusercontent.com| W
   U(("Persona")) --> W
@@ -125,7 +128,7 @@ flowchart TB
 
 | Workflow | Cuándo se ejecuta | Qué hace |
 |---|---|---|
-| [`actualizar.yml`](.github/workflows/actualizar.yml) | Cada 30 min (`7,37 * * * *`), al fusionar cambios de código en `main` y a mano | Recupera los datos anteriores, descarga las fuentes, calcula alertas y publica en `datos`. |
+| [`actualizar.yml`](.github/workflows/actualizar.yml) | Cada 30 min (`7,37 * * * *`), al fusionar cambios de código en `main` y a mano | Recupera los datos anteriores, reconstruye días pasados si se pide, descarga las fuentes, calcula alertas, manda los avisos y publica en `datos`. |
 | [`pruebas.yml`](.github/workflows/pruebas.yml) | En cada PR y en cada push a `development` | Ejecuta las pruebas con `unittest`. |
 
 ```mermaid
@@ -196,6 +199,26 @@ git fetch origin datos-prueba
 git show origin/datos-prueba:data/alertas.json | python3 -m json.tool | less
 ```
 
+### Reconstruir el pasado (backtesting)
+
+Para medir el modelo sin esperar semanas: Actions → *Actualizar datos* → *Run workflow* con **retroceso_dias** (por ejemplo `30`, como mucho `90`). [`retroceso.py`](scripts/retroceso.py) descarga una muestra de los ficheros históricos de GDELT de cada día (12 de 96) y aplica las mismas reglas: puntuación, nivel, escenarios y pronóstico. Los días reconstruidos van a `historico.json`, se apuntan en `retroceso.json` y alimentan la medición del rendimiento.
+
+Límites: solo usa GDELT, porque terremotos, desastres, epidemias o cortes de internet no tienen un archivo histórico fácil de reprocesar; y nunca toca `historial.json`, que es la línea base real de "lo habitual". Un día ya medido con todas las fuentes no se sobrescribe.
+
+### Avisos por Telegram y RSS
+
+[`telegram.py`](scripts/telegram.py) se ejecuta tras calcular las alertas y avisa solo de lo nuevo respecto a la ejecución anterior: un país sube de nivel o empieza a empeorar, un corte de internet o bloqueo de mensajería nuevo, una subida de aviso de viaje, un desastre o brote grave, o una ruta marítima en riesgo alto. Cada día, a partir de las 7:00 UTC, manda además un resumen del informe. No repite un aviso del mismo país en 6 horas (salvo que pase a *alerta*) y, si hay más de 5 a la vez, los agrupa en un mensaje. Cada mensaje recuerda que no tiene validez oficial.
+
+Para activarlo:
+
+1. En Telegram, habla con [@BotFather](https://t.me/BotFather), envía `/newbot` y guarda el token.
+2. Crea un canal o grupo, añade el bot como administrador y consigue el identificador del chat: para un canal público vale `@nombre_del_canal`; para un grupo, escribe algo y mira `chat.id` en `https://api.telegram.org/bot<TOKEN>/getUpdates`.
+3. En el repositorio, añade los secretos `TELEGRAM_TOKEN` y `TELEGRAM_CHAT`.
+
+La primera ejecución solo guarda el estado, para no mandar de golpe todo lo que ya está en marcha. Un fallo de Telegram nunca rompe la actualización.
+
+El mismo contenido se publica siempre, haya bot o no, como feed RSS en `data/avisos.xml` de la rama `datos` (enlazado en *Cómo se calcula*).
+
 ### Variables y secretos
 
 Settings → Secrets and variables → Actions. Todos son opcionales: sin ellos, la fuente simplemente no se usa.
@@ -206,6 +229,9 @@ Settings → Secrets and variables → Actions. Todos son opcionales: sin ellos,
 | `UCDP_VERSION` | Variable | Versión mensual de UCDP (por defecto `26.0.9`) | La última versión candidata de la misma página |
 | `CLOUDFLARE_TOKEN` | Secreto | Cortes de internet de Cloudflare Radar, con su causa | Token de API con permiso de lectura de Radar |
 | `RELIEFWEB_APPNAME` | Variable | Crisis humanitarias de ReliefWeb (OCHA) | Nombre de aplicación aprobado en [apidoc.reliefweb.int](https://apidoc.reliefweb.int/) |
+| `TELEGRAM_TOKEN` | Secreto | Avisos por Telegram | [@BotFather](https://t.me/BotFather) |
+| `TELEGRAM_CHAT` | Secreto | El canal o grupo donde se avisa | Ver *Avisos por Telegram y RSS* |
+| `ATALAYA_URL` | Variable | Enlace de los avisos a la web (por defecto `https://serbenda.github.io/atalaya/`) | La dirección de GitHub Pages |
 
 Los permisos del workflow son los mínimos: `contents: write` para publicar los datos e `issues: write` para avisar.
 
@@ -239,13 +265,16 @@ atalaya/
 ├── data/
 │   ├── mundo.geojson          Fronteras de 180 países (dominio público)
 │   ├── paises.json            ISO 3166, con nombres en inglés y en español
-│   └── intereses_espana.json  Intereses de España por país (orientativo, editable)
+│   ├── intereses_espana.json  Intereses de España por país (orientativo, editable)
+│   └── modelo.json            Versión del modelo, cambios y errores reconocidos
 ├── scripts/
 │   ├── actualizar.py          Fuentes, normalización, puntuación, alertas e histórico
 │   ├── inteligencia.py        Escenarios, pronóstico, regiones, España e informe
 │   ├── simulacion.py          Ramas, contagio e impacto para España
+│   ├── telegram.py            Avisos por Telegram y feed RSS
+│   ├── retroceso.py           Reconstrucción del pasado con GDELT (backtesting)
 │   └── salud.py               Comprueba el estado de las fuentes
-├── tests/test_actualizar.py   Pruebas con respuestas de ejemplo de cada fuente
+├── tests/                     Pruebas con respuestas de ejemplo de cada fuente
 └── .github/workflows/         actualizar.yml y pruebas.yml
 ```
 
@@ -279,7 +308,7 @@ Cada evento tiene esta forma:
 ```jsonc
 {
   "id": "usgs-us7000abcd",        // único y estable entre ejecuciones
-  "tipo": "terremoto",            // conflicto, protesta, terremoto, desastre, epidemia, internet, censura, aviso o crisis
+  "tipo": "terremoto",            // conflicto, protesta, terremoto, desastre, epidemia, internet, censura, aviso, crisis o economia
   "titulo": "Terremoto de magnitud 6.8",
   "lugar": "120 km SSW of Kokopo, Papua New Guinea",
   "pais": "PNG",                  // ISO alfa-3, o null en el mar
@@ -323,6 +352,9 @@ Todo vive en la rama `datos`, carpeta `data/`:
 | `archivo/AAAA-MM-DD.json` | La foto de cada día: niveles, informe, simulación, rutas y los 300 eventos más relevantes | Para siempre |
 | `archivo/indice.json` | Los días disponibles | Para siempre |
 | `avisos.json` y `exteriores.json` | Último nivel de los avisos de viaje y sus cambios | Se reemplaza |
+| `divisas_historial.json` | Tipo de cambio diario frente al dólar | Ventana de 30 días |
+| `retroceso.json` | Días reconstruidos con GDELT | Para siempre |
+| `telegram.json`, `rss.json` y `avisos.xml` | Lo ya avisado (para no repetir) y el feed RSS | Se reemplaza |
 
 ---
 
@@ -347,8 +379,11 @@ Cada país suma puntos con lo ocurrido en las últimas 48 horas (30 días para e
 | Exteriores sube su recomendación | 5 por cada nivel |
 | EE. UU. sube su aviso de viaje | 4 por cada nivel |
 | Crisis humanitaria en alerta (ReliefWeb) | 6 |
+| La moneda pierde ≥ 8 % frente al dólar en 7 días | 1,5, o 3 si pierde ≥ 15 % |
 
 **Para no confundir delincuencia con conflicto**, de GDELT solo cuentan los hechos principales de cada noticia (`IsRootEvent`) y la violencia en la que intervienen ejércitos, rebeldes, insurgentes, gobiernos, grupos armados conocidos o dos países distintos. La policía no cuenta como actor político, porque en la prensa casi siempre es crónica de sucesos.
+
+**Rigor con las fuentes.** Una misma noticia genera a menudo varios hechos en GDELT: se cuenta una vez por noticia (URL). Los medios de propiedad o control estatal en países sin prensa libre (RT, Sputnik, TASS, Xinhua, Global Times, CGTN, Press TV, IRNA, Tasnim, KCNA, Telesur…) cuentan la mitad: no se descartan, porque a veces son la única fuente, pero no pueden encender un país por sí solos.
 
 ### Nivel: gravedad, escalada y confianza
 
@@ -372,7 +407,7 @@ flowchart TD
 | **Vigilar** | Puntuación ≥ 25 · alerta oficial naranja · 1,5 desviaciones sobre lo habitual con ≥ 10 puntos · 3 días seguidos subiendo con ≥ 10 puntos · media ≥ 18 · crisis humanitaria abierta · más de 100 muertes verificadas · Exteriores o EE. UU. desaconsejan viajar y hay actividad propia |
 
 - **Escalada**: el país está por encima de lo que es normal para él o lleva tres días subiendo. En el mapa, late.
-- **Confianza**: *alta* si coinciden dos o más familias de fuente, *media* si hay una fuente oficial, técnica o sanitaria, *baja* si solo lo recoge la prensa.
+- **Confianza** (cuánto está contrastado, no lo grave que es): *muy contrastado* si coinciden dos o más familias de fuente, *contrastado* si hay una fuente oficial, técnica o sanitaria, *solo prensa* si únicamente lo cuentan las noticias.
 - Los avisos de viaje **refuerzan, pero no colorean solos** un país: también reflejan la política exterior de quien los emite.
 - Durante la primera semana solo cuentan los umbrales absolutos, porque aún no hay histórico para saber qué es lo habitual.
 
@@ -383,17 +418,39 @@ Es el método de *indicadores y alertas* de los equipos de alerta temprana: cada
 | Escenario | Indicadores |
 |---|---|
 | **Escalada militar** | **La violencia sube**, **enfrentamientos entre países**, hechos con ejército o grupos armados, un gobierno sube su aviso, España desaconseja viajar, vecinos en alerta, ruta marítima en riesgo |
-| **Golpe o crisis de gobierno** | **Corte de internet**, **bloqueo de mensajería**, **la prensa habla de golpe**, hechos con ejército, protestas al alza, un gobierno sube su aviso |
-| **Disturbios graves** | **Protestas al alza**, **disturbios**, bloqueo de mensajería, corte de internet, la violencia sube |
+| **Golpe o crisis de gobierno** | **Corte de internet**, **bloqueo de mensajería**, **la prensa habla de golpe**, hechos con ejército, protestas al alza, un gobierno sube su aviso, la moneda se hunde, elecciones próximas |
+| **Disturbios graves** | **Protestas al alza**, **disturbios**, bloqueo de mensajería, corte de internet, la violencia sube, la moneda se hunde, elecciones próximas |
 | **Emergencia humanitaria** | **Desastre con alerta oficial**, **brote grave**, **crisis humanitaria abierta**, violencia intensa, muertes verificadas, España desaconseja viajar |
 
 Si se enciende más de la mitad del peso, el escenario es *probable*; con dos puntos, *posible*; si no, *poco probable*. Los umbrales de cada indicador son relativos al volumen de noticias del país.
+
+**Señales en contra.** Si hay señales de desescalada (negociaciones, alto el fuego o acceso humanitario en GDELT, códigos CAMEO 046, 086 y 087; o la prensa habla de tregua), el escenario de escalada baja un grado y la simulación da más peso a que la crisis se contenga.
+
+### Análisis estructurado
+
+Para no quedarse con la explicación más alarmante, cada ficha incluye lo que haría un analista:
+
+- **Dónde se concentra la violencia**: las regiones con más hechos y su porcentaje. Si casi todo pasa en un solo sitio, puede ser un problema local.
+- **Quién contra quién**: las parejas de actores más citadas, tal como las codifica GDELT.
+- **Señales en contra**: desescalada, negociaciones o tregua.
+- **Otras explicaciones posibles** (hipótesis alternativas): propaganda de medios estatales, un pico mediático por un hecho aislado, un problema local, un conflicto exterior, o una crisis que simplemente dura.
+- **Qué desmentiría** el escenario principal (abogado del diablo): las señales que, si aparecen, indican que el escenario era erróneo.
+
+### Señales tempranas
+
+- **Monedas**: una caída brusca frente al dólar (≥ 8 % en 7 días) suele adelantarse a protestas, escasez o crisis de gobierno.
+- **Elecciones y referendos** en los próximos 45 días, según Wikidata: aparecen en *Fechas clave* y como indicador.
+- Quedan fuera, porque necesitan claves o acuerdos de uso: barcos (AIS), espacio aéreo (OpenSky), incendios por satélite (FIRMS) y desplazamientos (OIM DTM, ACNUR).
 
 ### Pronóstico a 7 días y su acierto
 
 El pronóstico combina la **pendiente** de la última semana (mínimos cuadrados), los escenarios y la escalada, y se expresa con lenguaje estimativo: es *probable*, *posible* o *poco probable* que el país empeore.
 
 Cada pronóstico se guarda en `historico.json`. Siete días después se comprueba si el país subió de nivel o empeoró, y el informe muestra el porcentaje de acierto de los últimos 30 días. Es la única forma honesta de saber si las reglas sirven.
+
+**Rendimiento.** Además del acierto, se calcula la [puntuación de Brier](https://es.wikipedia.org/wiki/Puntuaci%C3%B3n_de_Brier) de los últimos 60 días (cada grado de pronóstico equivale a una probabilidad: 40, 25 y 10 %) y se compara con dos referencias ingenuas: decir siempre la frecuencia media, y fiarse solo del nivel actual de cada país (persistencia). Si el modelo no mejora a las referencias, las reglas no aportan. La tabla de **calibración** compara la probabilidad que da cada grado con la frecuencia con que el país empeoró de verdad.
+
+**Versión y errores.** [`data/modelo.json`](data/modelo.json) guarda la versión del modelo, sus cambios y los errores reconocidos y corregidos; la web los muestra en *Cómo se calcula*.
 
 ### Simulación
 
@@ -419,6 +476,9 @@ Cada caso muestra **por qué** tiene esas probabilidades, el **contagio** a sus 
 |---|---|
 | La prensa habla más de unos países que de otros | Proporción de violencia en lugar de volumen y umbrales relativos a cada país |
 | GDELT confunde sucesos con conflicto | Solo hechos principales y con actores políticos |
+| La misma noticia repetida infla un país | Se cuenta una vez por noticia |
+| Propaganda de medios estatales | Cuentan la mitad, y la ficha avisa si son una parte importante de la cobertura |
+| Quedarse con la explicación más alarmante | Señales en contra, hipótesis alternativas y qué desmentiría cada escenario |
 | Las guerras largas dejan de ser noticia | Gravedad estructural: media de 30 días, Exteriores y UCDP |
 | Los avisos de viaje son también política | Solo refuerzan lo que ya muestran los datos propios |
 | Las reglas son una elección, no una verdad | Son visibles, se pueden discutir y se mide su acierto |
@@ -454,6 +514,8 @@ Cada caso muestra **por qué** tiene esas probabilidades, el **contagio** a sus 
 | [UCDP](https://ucdp.uu.se/) | Muertes en conflictos verificadas | Token |
 | [Cloudflare Radar](https://radar.cloudflare.com/) | Cortes de internet y su causa | Token |
 | [ReliefWeb](https://reliefweb.int/) | Crisis humanitarias (OCHA) | Nombre de aplicación |
+| [ExchangeRate-API](https://www.exchangerate-api.com/) | Tipos de cambio diarios frente al dólar | Libre |
+| [Wikidata](https://www.wikidata.org/) | Elecciones y referendos próximos | Libre (SPARQL) |
 | [world.geo.json](https://github.com/johan/world.geo.json) | Fronteras de los países | Dominio público |
 
 ---
@@ -462,10 +524,12 @@ Cada caso muestra **por qué** tiene esas probabilidades, el **contagio** a sus 
 
 - [ ] Activar UCDP, Cloudflare Radar y ReliefWeb con sus tokens.
 - [ ] Revisar `intereses_espana.json` con fuentes oficiales.
-- [ ] Ajustar los umbrales con un mes de histórico y el acierto medido de los pronósticos.
-- [ ] Avisos por Telegram o RSS cuando un país pase a *alerta*.
+- [ ] Ajustar los umbrales con un mes de histórico, la reconstrucción del pasado y el rendimiento medido.
+- [x] Avisos por Telegram y RSS.
+- [x] Medir el rendimiento frente a referencias (Brier y calibración).
 - [ ] Barcos (AIS) en las rutas marítimas y espacio aéreo cerrado (OpenSky, EASA).
-- [ ] Alimentos y desplazamientos (WFP, IPC, ACNUR) como señales tempranas de crisis humanitarias.
+- [ ] Alimentos y desplazamientos (WFP, IPC, ACNUR, OIM DTM) como señales tempranas de crisis humanitarias.
+- [ ] Incendios por satélite (NASA FIRMS) en zonas de conflicto.
 - [ ] Vista de tabla accesible como alternativa al mapa.
 
 ---

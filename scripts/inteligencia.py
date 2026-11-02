@@ -108,7 +108,7 @@ def analisis(a3, p, ctx, escs):
     g = ctx["gdelt"].get(a3, {})
     conflicto = g.get("conflicto", 0)
     contra = []
-    if g.get("desescalada", 0) >= max(3, 0.2 * conflicto):
+    if g.get("desescalada", 0) >= max(3, 0.25 * conflicto):
         contra.append(NOMBRE_INDICADOR_CONTRA["desescalada"])
     if a3 in ctx.get("tregua_en_prensa", ()):
         contra.append(NOMBRE_INDICADOR_CONTRA["tregua_en_prensa"])
@@ -204,8 +204,10 @@ def indicadores(a3, p, ctx):
 
 
 def desescalando(a3, ctx):
+    """Desescalada medida en GDELT (alto el fuego, acceso humanitario). Que la prensa hable de tregua
+    se muestra como señal en contra, pero por sí solo no rebaja el escenario."""
     g = ctx["gdelt"].get(a3, {})
-    return g.get("desescalada", 0) >= max(3, 0.2 * g.get("conflicto", 0)) or a3 in ctx.get("tregua_en_prensa", ())
+    return g.get("desescalada", 0) >= max(3, 0.25 * g.get("conflicto", 0))
 
 
 def escenarios(a3, p, ctx):
@@ -293,6 +295,10 @@ def rendimiento(historico, reconstruidos=(), dias=60):
     for i, d in enumerate(fechas):
         siguientes = fechas[i + 1:i + 8]
         if len(siguientes) < 7:
+            continue
+        # Un día reconstruido (solo GDELT) no se compara con días reales (todas las fuentes): el salto
+        # de fuentes parecería un empeoramiento
+        if len({x in reconstruidos for x in [d, *siguientes]}) > 1:
             continue
         for a3, v in historico[d].items():
             if len(v) < 4:

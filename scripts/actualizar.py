@@ -478,9 +478,9 @@ GDELT_PROTESTA = {"14"}
 # ejército, rebeldes, insurgentes, separatistas, fuerzas armadas no estatales, gobierno,
 # inteligencia y oposición. La policía (COP) no entra: en la prensa casi siempre es crónica de sucesos.
 ACTORES_POLITICOS = {"MIL", "REB", "INS", "SEP", "UAF", "GOV", "SPY", "OPP"}
-# Señales de desescalada (CAMEO): 046 negociar, 086 permitir ayuda humanitaria, 087 desescalada
-# militar (incluye 0871, declarar un alto el fuego)
-GDELT_DESESCALADA = {"046", "086", "087"}
+# Señales de desescalada (CAMEO): 086 permitir ayuda humanitaria, 087 desescalada militar
+# (incluye 0871, declarar un alto el fuego). "Negociar" (046) no entra: aparece a diario en todas partes.
+GDELT_DESESCALADA = {"086", "087"}
 # Medios de propiedad o control estatal en países sin prensa libre. Sus noticias cuentan la mitad:
 # no se descartan (a veces son la única fuente), pero no pueden encender un país por sí solas.
 MEDIOS_ESTATALES = ("rt.com", "sputniknews", "sputnikglobe", "tass.ru", "tass.com", "ria.ru", "xinhuanet",
@@ -503,11 +503,11 @@ def es_estatal(url):
 
 
 def region_de(nombre_geo):
-    """'Jartum, Khartoum, Sudan' -> 'Khartoum'; 'Darfur, Sudan' -> 'Darfur'."""
+    """Primera división administrativa: 'Al Fashir, Northern Darfur, Sudan' -> 'Northern Darfur';
+    'Darfur, Sudan' -> 'Darfur'. Las zonas genéricas ('Israel (general)') no cuentan."""
     partes = [x.strip() for x in (nombre_geo or "").split(",") if x.strip()]
-    if len(partes) >= 3:
-        return partes[-2]
-    return partes[0] if len(partes) == 2 else None
+    region = partes[1] if len(partes) >= 3 else partes[0] if len(partes) == 2 else None
+    return None if not region or "(general)" in region else region
 
 
 def es_politico(f):
@@ -640,7 +640,7 @@ def gdelt(paises, filas=None):
                 agg["regiones"] = [[r, round(n / total_reg, 2)] for r, n in
                                    sorted(regiones[pais].items(), key=lambda x: -x[1])[:3] if n / total_reg >= 0.1]
             agg["actores"] = [[a, b, round(n, 1)] for (a, b), n in
-                              sorted(parejas.get(pais, {}).items(), key=lambda x: -x[1])[:3] if n >= 2]
+                              sorted(parejas.get(pais, {}).items(), key=lambda x: -x[1])[:3] if n >= 3]
 
     eventos = []
     # Solo los lugares con más cobertura, para que el mapa siga siendo legible
@@ -1472,7 +1472,8 @@ def elecciones(paises):
     desde = AHORA.strftime("%Y-%m-%dT00:00:00Z")
     hasta = (AHORA + timedelta(days=DIAS_ELECCIONES)).strftime("%Y-%m-%dT00:00:00Z")
     consulta = f"""SELECT ?e ?eLabel ?fecha ?iso WHERE {{
-      ?e wdt:P31 ?tipo . ?tipo wdt:P279* wd:Q40231 .
+      VALUES ?tipo {{ wd:Q40231 wd:Q152450 wd:Q858439 wd:Q1076105 wd:Q43109 }}
+      ?e wdt:P31/wdt:P279? ?tipo .
       ?e wdt:P585 ?fecha . ?e wdt:P17 ?pais . ?pais wdt:P298 ?iso .
       FILTER(?fecha >= "{desde}"^^xsd:dateTime && ?fecha < "{hasta}"^^xsd:dateTime)
       SERVICE wikibase:label {{ bd:serviceParam wikibase:language "es,en". }}
