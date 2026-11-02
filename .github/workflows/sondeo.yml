@@ -1,5 +1,8 @@
 name: Sondeo de fuentes
-on: workflow_dispatch
+on:
+  push:
+    branches: [development]
+    paths: ["scripts/sondeo.py", ".github/workflows/sondeo.yml"]
 jobs:
   sondeo:
     runs-on: ubuntu-latest
