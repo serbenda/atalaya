@@ -437,7 +437,7 @@ This is the *indicators and warnings* method used by early-warning teams: each s
 
 If more than half of the weight is switched on, the scenario is *likely*; with two points, *possible*; otherwise, *unlikely*. Each indicator's thresholds are relative to the country's news volume.
 
-**Signals against.** If there are de-escalation signals (negotiations, ceasefire or humanitarian access in GDELT, CAMEO codes 046, 086 and 087; or the press talks about a truce), the escalation scenario is lowered one step and the simulation gives more weight to the crisis being contained.
+**Signals against.** If there are de-escalation signals (ceasefire or humanitarian access in GDELT, CAMEO codes 086 and 087), the escalation scenario is lowered one step and the simulation gives more weight to the crisis being contained.
 
 ### Structured analysis
 

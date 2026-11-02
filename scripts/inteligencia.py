@@ -97,7 +97,7 @@ DESMENTIRIA = {
                     "Que no haya desplazamientos masivos"],
 }
 NOMBRE_INDICADOR_CONTRA = {
-    "desescalada": "Señales de desescalada: negociaciones, alto el fuego o acceso humanitario",
+    "desescalada": "Señales de desescalada: alto el fuego o acceso humanitario",
     "tregua_en_prensa": "La prensa habla de tregua o negociaciones de paz",
 }
 

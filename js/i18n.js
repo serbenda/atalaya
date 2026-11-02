@@ -340,7 +340,7 @@
     "Ruta clave para la energía y el comercio de España": "Key route for Spain's energy and trade",
 
     // Análisis estructurado
-    "Señales de desescalada: negociaciones, alto el fuego o acceso humanitario": "De-escalation signals: negotiations, ceasefire or humanitarian access",
+    "Señales de desescalada: alto el fuego o acceso humanitario": "De-escalation signals: ceasefire or humanitarian access",
     "La prensa habla de tregua o negociaciones de paz": "The press is talking about a truce or peace talks",
     "Una parte importante de la cobertura viene de medios estatales: puede ser propaganda": "A large part of the coverage comes from state media: it may be propaganda",
     "Solo lo recoge la prensa: puede ser un pico mediático por un hecho aislado": "Only the press reports it: it may be a media spike over an isolated event",
@@ -400,7 +400,7 @@
     "baja en la última semana": "falling over the last week",
     "se frena en las últimas 12 horas": "slowing down in the last 12 hours",
     "ya está en alerta": "already on alert",
-    "hay señales de desescalada (negociaciones, tregua o acceso humanitario)": "there are de-escalation signals (negotiations, truce or humanitarian access)",
+    "hay señales de desescalada (alto el fuego o acceso humanitario)": "there are de-escalation signals (ceasefire or humanitarian access)",
     "crisis prolongada: difícil que se resuelva en una semana": "protracted crisis: unlikely to be resolved in a week",
 
     // Interés para España (data/intereses_espana.json)
@@ -503,7 +503,7 @@
     // data/modelo.json
     "Cada noticia cuenta una sola vez aunque GDELT saque varios hechos de ella": "Each news story counts only once, even when GDELT extracts several events from it",
     "Los medios estatales de países sin prensa libre cuentan la mitad": "State media from countries without a free press count half",
-    "Señales de desescalada (negociaciones, alto el fuego, acceso humanitario) que rebajan el escenario de escalada": "De-escalation signals (negotiations, ceasefire, humanitarian access) that lower the escalation scenario",
+    "Señales de desescalada (alto el fuego, acceso humanitario) que rebajan el escenario de escalada": "De-escalation signals (ceasefire, humanitarian access) that lower the escalation scenario",
     "Señales tempranas nuevas: caída brusca de la moneda y elecciones próximas": "New early signals: sharp currency falls and upcoming elections",
     "Análisis por país: dónde se concentra la violencia, quién contra quién, otras explicaciones y qué lo desmentiría": "Country analysis: where violence is concentrated, who against whom, other explanations and what would disprove it",
     "Medición del rendimiento con la puntuación de Brier frente a referencias ingenuas, y reconstrucción del pasado con GDELT": "Performance measured with the Brier score against naive baselines, and reconstruction of the past with GDELT",

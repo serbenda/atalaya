@@ -428,7 +428,7 @@ Es el método de *indicadores y alertas* de los equipos de alerta temprana: cada
 
 Si se enciende más de la mitad del peso, el escenario es *probable*; con dos puntos, *posible*; si no, *poco probable*. Los umbrales de cada indicador son relativos al volumen de noticias del país.
 
-**Señales en contra.** Si hay señales de desescalada (negociaciones, alto el fuego o acceso humanitario en GDELT, códigos CAMEO 046, 086 y 087; o la prensa habla de tregua), el escenario de escalada baja un grado y la simulación da más peso a que la crisis se contenga.
+**Señales en contra.** Si hay señales de desescalada (alto el fuego o acceso humanitario en GDELT, códigos CAMEO 086 y 087), el escenario de escalada baja un grado y la simulación da más peso a que la crisis se contenga.
 
 ### Análisis estructurado
 

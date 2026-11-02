@@ -4,7 +4,7 @@
     {"version": "2.0", "fecha": "2026-11-02", "cambios": [
       "Cada noticia cuenta una sola vez aunque GDELT saque varios hechos de ella",
       "Los medios estatales de países sin prensa libre cuentan la mitad",
-      "Señales de desescalada (negociaciones, alto el fuego, acceso humanitario) que rebajan el escenario de escalada",
+      "Señales de desescalada (alto el fuego, acceso humanitario) que rebajan el escenario de escalada",
       "Señales tempranas nuevas: caída brusca de la moneda y elecciones próximas",
       "Análisis por país: dónde se concentra la violencia, quién contra quién, otras explicaciones y qué lo desmentiría",
       "Medición del rendimiento con la puntuación de Brier frente a referencias ingenuas, y reconstrucción del pasado con GDELT",

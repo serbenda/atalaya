@@ -120,7 +120,7 @@ def probabilidades(p, escenario, vecinos_mal, pesos=None):
         factores.append("ya está en alerta")
     if p.get("desescalada"):
         escala -= 0.08
-        factores.append("hay señales de desescalada (negociaciones, tregua o acceso humanitario)")
+        factores.append("hay señales de desescalada (alto el fuego o acceso humanitario)")
     # Unas protestas en un país estable no "escalan" como una guerra: tope más bajo
     tope = 0.40 if escenario and escenario.get("id") == "disturbios" and p.get("nivel") == "verde" else 0.75
     escala = max(0.05, min(tope, escala))
