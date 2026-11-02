@@ -5,7 +5,11 @@ name: Actualizar datos
 
 on:
   schedule:
-    - cron: "7,37 * * * *"   # cada 30 minutos
+    - cron: "7,37 * * * *"   # cada 30 minutos (GitHub puede retrasarlo o saltarse alguno)
+  # Tras cada merge se recalculan los datos con el código nuevo, sin esperar al siguiente turno
+  push:
+    branches: [main]
+    paths: ["scripts/**", "data/paises.json", "data/mundo.geojson", ".github/workflows/actualizar.yml"]
   workflow_dispatch:
     inputs:
       publicar:
@@ -29,7 +33,7 @@ jobs:
       ATALAYA_SALIDA: ${{ github.workspace }}/salida/data
       GH_TOKEN: ${{ github.token }}
       RELIEFWEB_APPNAME: ${{ vars.RELIEFWEB_APPNAME }}
-      PUBLICAR: ${{ github.event_name == 'schedule' || inputs.publicar }}
+      PUBLICAR: ${{ github.event_name != 'workflow_dispatch' || inputs.publicar }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,14 +41,25 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Si no se pueden leer los datos anteriores, la ejecución falla en vez de empezar de cero:
+      # empezar de cero borraría el historial de 30 días al publicar
       - name: Recuperar los datos anteriores
         run: |
           mkdir -p salida/data
-          if git fetch --depth=1 origin datos; then
+          set +e
+          git ls-remote --exit-code --heads origin datos > /dev/null
+          existe=$?
+          set -e
+          if [ "$existe" = "2" ]; then
+            echo "La rama datos aún no existe: se empieza de cero"
+          elif [ "$existe" = "0" ]; then
+            git fetch --depth=1 origin datos
             git --work-tree=salida checkout FETCH_HEAD -- data
             git reset -q
+            test -s salida/data/historial.json || { echo "La rama datos no tiene historial.json"; exit 1; }
           else
-            echo "La rama datos aún no existe: se empieza de cero"
+            echo "No se ha podido consultar la rama datos (código $existe)"
+            exit 1
           fi
           ls -la salida/data
 
