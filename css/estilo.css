@@ -234,10 +234,10 @@ button, input { font: inherit; color: inherit; }
 .asa { display: none; }
 .panel-cuerpo { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 
-.pestanas { display: flex; border-bottom: 1px solid var(--linea); padding: 0 6px; }
+.pestanas { display: flex; gap: 4px; border-bottom: 1px solid var(--linea); padding: 0 8px; }
 .pestanas button {
-  flex: 1;
-  padding: 13px 2px 11px;
+  flex: 1 1 auto;
+  padding: 13px 4px 11px;
   background: none;
   border: 0;
   border-bottom: 2px solid transparent;

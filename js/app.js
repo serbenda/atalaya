@@ -807,7 +807,7 @@
       html += `<h3 class="grupo">${t("España")}</h3><div class="ficha">`;
       if (a.exteriores) {
         html += `<p class="exteriores nivel-ext-${a.exteriores.nivel}"><strong>${esc(t("Exteriores: {x}.", { x: tb(a.exteriores.texto) }))}</strong>
-          ${a.exteriores.notas ? ` <span lang="es">${esc(a.exteriores.notas.slice(0, 280))}${a.exteriores.notas.length > 280 ? "…" : ""}</span>` : ""}
+          ${a.exteriores.notas ? `${IDIOMA === "en" ? ` <span class="detalle-gris">(original in Spanish)</span>` : ""} <span lang="es">${esc(a.exteriores.notas.slice(0, 280))}${a.exteriores.notas.length > 280 ? "…" : ""}</span>` : ""}
           ${a.exteriores.actualizacion ? `<span class="detalle-gris">${esc(t(" Actualizado el {d}.", { d: new Date(a.exteriores.actualizacion + "T12:00:00Z").toLocaleDateString(LOCALE, { day: "numeric", month: "long", year: "numeric" }) }))}</span>` : ""}
           ${a.exteriores.url ? ` <a href="${esc(a.exteriores.url)}" target="_blank" rel="noopener">${t("Ver la ficha")}</a>` : ""}</p>`;
       }
