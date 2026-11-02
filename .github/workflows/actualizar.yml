@@ -7,6 +7,11 @@ on:
   schedule:
     - cron: "7,37 * * * *"   # cada 30 minutos
   workflow_dispatch:
+    inputs:
+      publicar:
+        description: "Publicar en la rama datos (desmarcar para probar cambios sin tocar la web)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -23,6 +28,8 @@ jobs:
     env:
       ATALAYA_SALIDA: ${{ github.workspace }}/salida/data
       GH_TOKEN: ${{ github.token }}
+      RELIEFWEB_APPNAME: ${{ vars.RELIEFWEB_APPNAME }}
+      PUBLICAR: ${{ github.event_name == 'schedule' || inputs.publicar }}
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +51,15 @@ jobs:
       - name: Descargar fuentes y calcular alertas
         run: python scripts/actualizar.py
 
+      - name: Guardar los datos de la prueba
+        if: env.PUBLICAR != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: datos-prueba
+          path: salida/data
+
       - name: Publicar en la rama datos
+        if: env.PUBLICAR == 'true'
         working-directory: salida
         run: |
           git init -q
@@ -56,6 +71,7 @@ jobs:
           git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" datos
 
       - name: Avisar si una fuente lleva tiempo caída
+        if: env.PUBLICAR == 'true'
         env:
           ENLACE_EJECUCION: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
