@@ -5,16 +5,19 @@
   const NIVELES = {
     rojo: { texto: "Alerta", orden: 0 },
     ambar: { texto: "Vigilar", orden: 1 },
-    verde: { texto: "Actividad normal", orden: 2 },
+    verde: { texto: "Lo habitual", orden: 2 },
   };
-  const TIPOS = { conflicto: "Conflicto", terremoto: "Terremoto", desastre: "Desastre natural" };
+  const AVISOS = { 1: "precauciones normales", 2: "más precaución", 3: "reconsiderar el viaje", 4: "no viajar" };
+  // En GitHub Pages los datos vienen de la rama `datos`; en local, de la carpeta data/
+  const local = ["localhost", "127.0.0.1", ""].includes(location.hostname);
+  const DATOS = local ? "data/" : document.querySelector('meta[name="atalaya-datos"]').content;
   const nombresRegion = new Intl.DisplayNames(["es"], { type: "region" });
   const relativo = new Intl.RelativeTimeFormat("es", { numeric: "auto" });
   const numero = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
 
   const estado = {
     eventos: [], titulares: [], alertas: {}, calibrando: true, actualizado: null,
-    paises: new Map(), capas: new Set(["conflicto", "terremoto", "desastre"]), elegido: null,
+    paises: new Map(), capas: new Set(["conflicto", "protesta", "terremoto", "desastre", "internet"]), elegido: null,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -104,7 +107,7 @@
         .attr("class", (d) => `marcador ${d.tipo}`)
         .attr("d", (d) => forma(d))
         .attr("transform", (d) => marcadorTransform(d))
-        .on("mousemove", (ev, d) => mostrarGlobo(ev, `<strong>${esc(d.titulo)}</strong><span>${esc(d.lugar)}<br>${esc(d.fuente)}, ${haceCuanto(d.fecha)}</span>`))
+        .on("mousemove", (ev, d) => mostrarGlobo(ev, `<strong>${esc(d.titulo)}</strong><span>${esc(d.lugar)}${d.menciones ? `<br>${d.menciones} noticias en 24 horas` : ""}<br>${esc(d.fuente)}, ${haceCuanto(d.fecha)}</span>`))
         .on("mouseleave", ocultarGlobo)
         .on("click", (ev, d) => { if (d.url) window.open(d.url, "_blank", "noopener"); }));
   }
@@ -115,13 +118,16 @@
 
   function radioBase(d) {
     if (d.tipo === "terremoto") return 2 + Math.max((d.magnitud || 4.5) - 4.5, 0) * 3.2;
-    if (d.tipo === "conflicto") return 2 + Math.sqrt(d.menciones || 1) * 0.9;
+    if (d.tipo === "conflicto" || d.tipo === "protesta") return Math.min(16, 2 + Math.sqrt(d.menciones || 1) * 0.6);
+    if (d.tipo === "internet") return 7;
     return d.nivel === "rojo" ? 8 : d.nivel === "ambar" ? 6.5 : 5;
   }
 
   function forma(d) {
     const r = radio(d);
     if (d.tipo === "desastre") return `M0,${-r}L${r * 0.9},${r * 0.6}L${-r * 0.9},${r * 0.6}Z`;
+    if (d.tipo === "protesta") { const l = r * 0.8; return `M${-l},${-l}H${l}V${l}H${-l}Z`; }
+    if (d.tipo === "internet") return `M0,${-r}L${r},0L0,${r}L${-r},0Z`;
     return `M${-r},0a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0`;
   }
 
@@ -169,49 +175,78 @@
     }
     const cuenta = (n) => lista.filter((p) => p.nivel === n).length;
     let html = `<p class="resumen"><strong>${cuenta("rojo")}</strong> en alerta y <strong>${cuenta("ambar")}</strong> para vigilar${estado.calibrando ? ". El histórico aún es corto: de momento solo cuentan los valores absolutos" : ""}.</p>`;
+    // Lo que más se está calentando: varios días subiendo o muy por encima de lo habitual
+    const suben = lista.filter((p) => p.nivel !== "rojo" && (p.dias_subiendo >= 2 || p.z >= 1.5))
+      .sort((a, b) => (b.dias_subiendo - a.dias_subiendo) || (b.z - a.z)).slice(0, 5);
+    if (suben.length) {
+      html += `<h3 class="grupo">Qué se está calentando</h3>`;
+      for (const p of suben) html += filaPais(p, p.dias_subiendo >= 2 ? `${p.dias_subiendo} días subiendo` : "Inusual");
+    }
     let grupo = null;
     for (const p of lista) {
       if (p.nivel !== grupo) {
         grupo = p.nivel;
         html += `<h3 class="grupo">${NIVELES[grupo].texto}</h3>`;
       }
-      const sube = p.tendencia === "sube";
-      html += `<button class="fila" data-pais="${p.a3}">
-        <span class="punto ${p.nivel}"></span>
-        <span class="nombre">${esc(nombrePais(p.a3))}<span class="detalle">${resumenPais(p)}</span></span>
-        <span class="cifra ${sube ? "sube" : ""}">${sube ? "Sube" : p.tendencia === "baja" ? "Baja" : ""}</span>
-      </button>`;
+      html += filaPais(p);
     }
     el.innerHTML = html;
+  }
+
+  function filaPais(p, nota) {
+    const sube = p.tendencia === "sube";
+    const cifra = nota || (sube ? "Sube" : p.tendencia === "baja" ? "Baja" : "");
+    return `<button class="fila" data-pais="${p.a3}">
+      <span class="punto ${p.nivel}"></span>
+      <span class="nombre">${esc(nombrePais(p.a3))}<span class="detalle">${resumenPais(p)}</span></span>
+      <span class="cifra ${sube || nota ? "sube" : ""}">${esc(cifra)}</span>
+    </button>`;
   }
 
   function resumenPais(p) {
     const partes = [];
     const ev = estado.eventos.filter((e) => e.pais === p.a3);
-    const menciones = ev.filter((e) => e.tipo === "conflicto").reduce((s, e) => s + (e.menciones || 0), 0);
     const terremotos = ev.filter((e) => e.tipo === "terremoto").length;
     const desastres = ev.filter((e) => e.tipo === "desastre").length;
-    if (menciones) partes.push(`${menciones} noticia${menciones === 1 ? "" : "s"} de conflicto`);
+    const plural = (n, s, pl) => `${n} ${n === 1 ? s : pl}`;
+    if (p.hechos_violentos) partes.push(plural(p.hechos_violentos, "hecho violento", "hechos violentos"));
+    if (p.protestas_n) partes.push(plural(p.protestas_n, "protesta", "protestas"));
+    if (p.internet) partes.push("corte de internet");
+    if (p.avisos) partes.push("sube el aviso de viaje");
     if (terremotos) partes.push(`${terremotos} terremoto${terremotos === 1 ? "" : "s"}`);
     if (desastres) partes.push(`${desastres} desastre${desastres === 1 ? "" : "s"}`);
-    return esc(partes.join(", ") || "Sin eventos en las últimas 48 horas");
+    const texto = partes.join(", ") || "Sin eventos en las últimas 48 horas";
+    return esc(texto.charAt(0).toUpperCase() + texto.slice(1));
   }
 
   function filaEvento(e, conPais = true) {
-    const pais = conPais && e.pais ? `${nombrePais(e.pais)}, ` : "";
+    const deGdelt = ["conflicto", "protesta"].includes(e.tipo);
+    // En GDELT el lugar es lo importante ("Kharkiv, Kharkivs'ka Oblast', Ukraine"): va como título
+    const titulo = deGdelt ? e.lugar.split(",")[0] : e.titulo;
+    const partes = [];
+    if (conPais && e.pais) partes.push(nombrePais(e.pais));
+    if (deGdelt) partes.push(`${e.menciones} noticias de ${e.tipo === "conflicto" ? "ataques o enfrentamientos" : "protestas"}`);
+    else if (e.lugar && !["internet", "aviso"].includes(e.tipo)) partes.push(e.lugar);
     return `<a class="fila" href="${esc(e.url || "#")}" target="_blank" rel="noopener">
-      <span class="punto ${e.tipo === "conflicto" ? "neutro" : e.nivel}"></span>
-      <span class="nombre">${esc(e.titulo)}<span class="detalle">${esc(pais + e.lugar)}</span></span>
+      <span class="punto ${deGdelt ? "neutro" : e.nivel}"></span>
+      <span class="nombre">${esc(titulo)}<span class="detalle">${esc(partes.join(", "))}</span></span>
       <span class="cifra">${haceCuanto(e.fecha)}</span>
     </a>`;
   }
 
   function pintarEventos() {
-    const lista = estado.eventos.filter((e) => estado.capas.has(e.tipo) && e.tipo !== "conflicto").slice(0, 120);
-    const conflictos = estado.eventos.filter((e) => e.tipo === "conflicto" && estado.capas.has("conflicto"))
-      .sort((a, b) => b.menciones - a.menciones).slice(0, 25);
+    const lista = estado.eventos.filter((e) => estado.capas.has(e.tipo) && ["terremoto", "desastre"].includes(e.tipo)).slice(0, 120);
+    const top = (tipo) => estado.capas.has(tipo) ? estado.eventos.filter((e) => e.tipo === tipo)
+      .sort((a, b) => b.menciones - a.menciones).slice(0, 20) : [];
+    const conflictos = top("conflicto");
+    const protestas = top("protesta");
+    const cortes = estado.capas.has("internet") ? estado.eventos.filter((e) => e.tipo === "internet").sort((a, b) => b.peso - a.peso) : [];
+    const avisos = estado.eventos.filter((e) => e.tipo === "aviso");
     let html = "";
-    if (conflictos.length) html += `<h3 class="grupo">Lugares con más noticias de conflicto hoy</h3>` + conflictos.map((e) => filaEvento(e)).join("");
+    if (avisos.length) html += `<h3 class="grupo">Cambios en avisos de viaje esta semana</h3>` + avisos.map((e) => filaEvento(e)).join("");
+    if (cortes.length) html += `<h3 class="grupo">Cortes de internet en las últimas 24 horas</h3>` + cortes.map((e) => filaEvento(e)).join("");
+    if (conflictos.length) html += `<h3 class="grupo">Lugares con más noticias de ataques o enfrentamientos</h3>` + conflictos.map((e) => filaEvento(e)).join("");
+    if (protestas.length) html += `<h3 class="grupo">Lugares con más noticias de protestas</h3>` + protestas.map((e) => filaEvento(e)).join("");
     if (lista.length) html += `<h3 class="grupo">Terremotos y desastres de los últimos 7 días</h3>` + lista.map((e) => filaEvento(e)).join("");
     $("#vista-eventos").innerHTML = html || `<p class="vacio">No hay eventos en las capas activas.</p>`;
   }
@@ -240,6 +275,7 @@
         <div><dt>Media 30 días</dt><dd>${a.tendencia === "sin datos" ? "–" : numero.format(a.media)}</dd></div>
         <div><dt>Tendencia</dt><dd>${{ sube: "Sube", baja: "Baja", estable: "Estable" }[a.tendencia] || "–"}</dd></div>
       </dl>
+      ${grafica(a.serie)}
       <p class="explicacion">${explicar(a)}</p>`;
     }
     html += `</div>`;
@@ -251,14 +287,37 @@
     if (centrar) centrarEn(a3);
   }
 
+  // Mini gráfica de los últimos 30 días; el último punto es hoy
+  function grafica(serie) {
+    if (!serie || serie.length < 2) return "";
+    const w = 300, h = 54, max = Math.max(...serie, 1);
+    const x = (i) => (i / (serie.length - 1)) * (w - 8) + 4;
+    const y = (v) => h - 6 - (v / max) * (h - 14);
+    const linea = serie.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+    const u = serie.length - 1;
+    return `<figure class="grafica">
+      <svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Puntuación de los últimos ${serie.length} días">
+        <path d="${linea}" />
+        <circle cx="${x(u)}" cy="${y(serie[u])}" r="3.5" />
+      </svg>
+      <figcaption>Últimos ${serie.length} días</figcaption>
+    </figure>`;
+  }
+
   function explicar(a) {
     const partes = [];
-    if (a.conflicto) partes.push(`${numero.format(a.conflicto)} puntos por noticias de conflicto`);
+    if (a.conflicto) partes.push(`${numero.format(a.conflicto)} por hechos violentos${a.cuota_violencia ? ` (${Math.round(a.cuota_violencia * 100)} % de lo que se cuenta del país)` : ""}`);
+    if (a.protestas) partes.push(`${numero.format(a.protestas)} por protestas`);
     if (a.desastres) partes.push(`${numero.format(a.desastres)} por terremotos y desastres`);
-    let t = partes.length ? `La puntuación de hoy suma ${partes.join(" y ")}.` : "";
+    if (a.internet) partes.push(`${numero.format(a.internet)} por cortes de internet`);
+    if (a.avisos) partes.push(`${numero.format(a.avisos)} por subir el aviso de viaje`);
+    const lista = partes.length > 1 ? `${partes.slice(0, -1).join(", ")} y ${partes.at(-1)}` : partes[0];
+    let t = partes.length ? `La puntuación de hoy suma ${lista}.` : "";
+    if (a.dias_subiendo >= 2) t += ` Lleva ${a.dias_subiendo} días seguidos subiendo.`;
     if (a.tendencia === "sube") t += " Está claramente por encima de lo habitual para este país.";
     else if (a.tendencia === "baja") t += " Está por debajo de lo habitual para este país.";
     else if (a.tendencia === "estable") t += " Es parecida a lo habitual para este país.";
+    if (a.aviso_viaje) t += ` EE. UU. tiene su aviso de viaje en nivel ${a.aviso_viaje} de 4 (${AVISOS[a.aviso_viaje]}).`;
     return t;
   }
 
@@ -299,13 +358,14 @@
 
   async function cargarDatos() {
     try {
-      const [eventos, alertas] = await Promise.all([json("data/eventos.json"), json("data/alertas.json")]);
+      const [eventos, alertas] = await Promise.all([json(DATOS + "eventos.json"), json(DATOS + "alertas.json")]);
       estado.eventos = eventos.eventos || [];
       estado.titulares = eventos.titulares || [];
       estado.alertas = alertas.paises || {};
       estado.calibrando = alertas.calibrando;
       estado.actualizado = eventos.actualizado;
       const caidas = Object.entries(eventos.fuentes || {}).filter(([, f]) => !f.ok).map(([n]) => n);
+      if (caidas.length > 1) caidas.splice(-2, 2, `${caidas.at(-2)} y ${caidas.at(-1)}`);
       $("#actualizado").textContent = estado.actualizado
         ? `Actualizado ${haceCuanto(estado.actualizado)}${caidas.length ? `. Sin respuesta de ${caidas.join(", ")}: se muestran sus últimos datos` : ""}`
         : "Esperando la primera actualización";

@@ -1,5 +1,8 @@
 name: Actualizar datos
 
+# Los datos van a la rama `datos`, que solo guarda la última versión (un único commit
+# que se reemplaza cada vez). Así main solo recibe cambios de código por PR.
+
 on:
   schedule:
     - cron: "7,37 * * * *"   # cada 30 minutos
@@ -7,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: actualizar-datos
@@ -15,7 +19,10 @@ concurrency:
 jobs:
   actualizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    env:
+      ATALAYA_SALIDA: ${{ github.workspace }}/salida/data
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
@@ -23,21 +30,44 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Recuperar los datos anteriores
+        run: |
+          mkdir -p salida/data
+          if git fetch --depth=1 origin datos; then
+            git --work-tree=salida checkout FETCH_HEAD -- data
+            git reset -q
+          else
+            echo "La rama datos aún no existe: se empieza de cero"
+          fi
+          ls -la salida/data
+
       - name: Descargar fuentes y calcular alertas
         run: python scripts/actualizar.py
 
-      - name: Guardar los datos nuevos
+      - name: Publicar en la rama datos
+        working-directory: salida
         run: |
+          git init -q
+          git checkout -q --orphan datos
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/eventos.json data/alertas.json data/historial.json
-          if git diff --cached --quiet; then
-            echo "Sin cambios"
+          git add data
+          git commit -q -m "Datos $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" datos
+
+      - name: Avisar si una fuente lleva tiempo caída
+        env:
+          ENLACE_EJECUCION: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if python scripts/salud.py > salud.md; then
+            cat salud.md
             exit 0
           fi
-          git commit -m "Datos actualizados $(date -u +'%Y-%m-%d %H:%M') UTC"
-          for intento in 1 2 3; do
-            git pull --rebase && git push && exit 0
-            sleep 5
-          done
-          exit 1
+          cat salud.md
+          titulo="Fuentes de datos caídas"
+          numero=$(gh issue list --state open --search "\"$titulo\" in:title" --json number --jq '.[0].number')
+          if [ -n "$numero" ]; then
+            gh issue comment "$numero" --body-file salud.md
+          else
+            gh issue create --title "$titulo" --body-file salud.md
+          fi
