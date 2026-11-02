@@ -28,11 +28,15 @@ concurrency:
 jobs:
   actualizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       ATALAYA_SALIDA: ${{ github.workspace }}/salida/data
       GH_TOKEN: ${{ github.token }}
+      # Fuentes opcionales: se activan al crear estas variables o secretos en el repositorio
       RELIEFWEB_APPNAME: ${{ vars.RELIEFWEB_APPNAME }}
+      UCDP_VERSION: ${{ vars.UCDP_VERSION }}
+      UCDP_TOKEN: ${{ secrets.UCDP_TOKEN }}
+      CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
       PUBLICAR: ${{ github.event_name != 'workflow_dispatch' || inputs.publicar }}
     steps:
       - uses: actions/checkout@v4

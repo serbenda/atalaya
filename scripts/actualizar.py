@@ -19,6 +19,7 @@ Escribe en $ATALAYA_SALIDA (por defecto data/; en la Action, la rama `datos`):
 """
 
 import csv
+import html
 import io
 import json
 import math
@@ -37,6 +38,9 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import inteligencia  # noqa: E402
 
 RAIZ = Path(__file__).resolve().parent.parent
 FIJOS = RAIZ / "data"
@@ -63,6 +67,35 @@ TITULARES_URL = "https://news.google.com/rss/search?" + urllib.parse.urlencode({
 IODA_URL = "https://api.ioda.inetintel.cc.gatech.edu/v2/outages/summary?" + urllib.parse.urlencode({
     "from": int((AHORA - timedelta(hours=24)).timestamp()), "until": int(AHORA.timestamp()), "entityType": "country"})
 AVISOS_URL = "https://travel.state.gov/_res/rss/TAsTWs.xml"
+EXTERIORES_BASE = "https://www.exteriores.gob.es"
+EXTERIORES_INDICE = EXTERIORES_BASE + "/es/ServiciosAlCiudadano/Paginas/Recomendaciones-de-viaje.aspx"
+EXTERIORES_CADA = timedelta(hours=12)       # 197 fichas: se consultan dos veces al día como mucho
+OONI_URL = "https://api.ooni.io/api/v1/aggregation?test_name={app}&since={desde}&until={hasta}&axis_x=probe_cc"
+OONI_APPS = {"whatsapp": "WhatsApp", "telegram": "Telegram", "signal": "Signal", "facebook_messenger": "Messenger"}
+COPERNICUS_URL = "https://mapping.emergency.copernicus.eu/activations/api/activations/?limit=40"
+EMSC_URL = "https://www.seismicportal.eu/fdsnws/event/1/query?" + urllib.parse.urlencode({
+    "format": "json", "minmag": "4", "limit": "300", "start": (AHORA - timedelta(days=7)).strftime("%Y-%m-%d"),
+    "minlat": "24", "maxlat": "50", "minlon": "-25", "maxlon": "45"})
+IGN_URL = "http://www.ign.es/ign/RssTools/sismologia.xml"
+ELPAIS_URL = "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/internacional/portada"
+
+
+def google_noticias(consulta):
+    return "https://news.google.com/rss/search?" + urllib.parse.urlencode(
+        {"q": consulta, "hl": "es", "gl": "ES", "ceid": "ES:es"})
+
+
+TITULARES_MAS = [google_noticias("site:efe.com (ataque OR guerra OR ofensiva OR conflicto OR crisis OR golpe) when:1d"),
+                 google_noticias("site:rtve.es (ataque OR guerra OR ofensiva OR conflicto OR crisis OR golpe) when:1d")]
+ANALISIS_URLS = {"Real Instituto Elcano": google_noticias("site:realinstitutoelcano.org when:60d"),
+                 "IEEE": google_noticias("site:ieee.es when:90d"),
+                 "CIDOB": google_noticias("site:cidob.org when:90d")}
+CLOUDFLARE_TOKEN = os.environ.get("CLOUDFLARE_TOKEN", "").strip()
+CLOUDFLARE_URL = "https://api.cloudflare.com/client/v4/radar/annotations/outages?dateRange=1d&format=json&limit=100"
+UCDP_TOKEN = os.environ.get("UCDP_TOKEN", "").strip()
+UCDP_VERSION = os.environ.get("UCDP_VERSION", "").strip() or "26.0.9"
+UCDP_URL = f"https://ucdpapi.pcr.uu.se/api/gedevents/{UCDP_VERSION}?pagesize=1000&StartDate=" + \
+    (AHORA - timedelta(days=90)).strftime("%Y-%m-%d")
 OMS_URL = "https://www.who.int/api/news/diseaseoutbreaknews?" + urllib.parse.urlencode(
     {"$orderby": "PublicationDateAndTime desc", "$top": "30"})
 RELIEFWEB_APPNAME = os.environ.get("RELIEFWEB_APPNAME", "").strip()
@@ -105,10 +138,10 @@ def log(*a):
     print(*a, file=sys.stderr, flush=True)
 
 
-def descargar(url, como="json", intentos=3, espera=6):
+def descargar(url, como="json", intentos=3, espera=6, cabeceras=None):
     """Devuelve el contenido o None si la fuente no responde tras varios intentos."""
     req = urllib.request.Request(url, headers={
-        "User-Agent": "Mozilla/5.0 (compatible; atalaya/1.0; +https://github.com/serbenda/atalaya)"})
+        "User-Agent": "Mozilla/5.0 (compatible; atalaya/1.0; +https://github.com/serbenda/atalaya)", **(cabeceras or {})})
     for i in range(intentos):
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
@@ -216,10 +249,14 @@ class Paises:
 
     def __init__(self):
         lista = json.loads((FIJOS / "paises.json").read_text("utf-8"))
-        self.por_nombre, self.por_a2 = {}, {}
+        self.por_nombre, self.por_a2, self.por_nombre_es = {}, {}, {}
         for p in lista:
             for n in p["nombres"]:
                 self.por_nombre[normalizar(n)] = p["a3"]
+            for n in p.get("nombres_es", []):
+                if len(normalizar(n)) >= 4:
+                    self.por_nombre_es[normalizar(n)] = p["a3"]
+                    self.por_nombre.setdefault(normalizar(n), p["a3"])
             if p["a2"]:
                 self.por_a2[p["a2"]] = p["a3"]
         self.formas = []   # (a3, bbox, [anillos])
@@ -285,6 +322,21 @@ class Paises:
             if x in TERRITORIOS:
                 return TERRITORIOS[x]
         return self.punto(lon, lat) or self.nombre(nombre)
+
+    def a2_de(self, a3):
+        return next((a2 for a2, x in self.por_a2.items() if x == a3), a3)
+
+    def en_texto(self, texto):
+        """Países que se nombran en un texto en español ("ataque en Sudán y Chad")."""
+        if not hasattr(self, "_patron_es"):
+            nombres = sorted(self.por_nombre_es, key=len, reverse=True)
+            self._patron_es = re.compile(r"\b(" + "|".join(re.escape(n) for n in nombres) + r")\b")
+        encontrados = []
+        for m in self._patron_es.finditer(normalizar(texto)):
+            a3 = self.por_nombre_es[m.group(1)]
+            if a3 not in encontrados:
+                encontrados.append(a3)
+        return encontrados
 
     def centro(self, a3):
         return self.centros.get(a3, (0.0, 0.0))
@@ -416,7 +468,7 @@ def eonet(paises):
 # Columnas del fichero de eventos de GDELT 2.0 (61 columnas separadas por tabuladores)
 G_A1_PAIS, G_A1_GRUPO, G_A1_TIPOS = 7, 8, (12, 13, 14)
 G_A2_PAIS, G_A2_GRUPO, G_A2_TIPOS = 17, 18, (22, 23, 24)
-G_RAIZ_EVENTO, G_RAIZ, G_FUENTES, G_ARTICULOS = 25, 28, 32, 33
+G_RAIZ_EVENTO, G_BASE, G_RAIZ, G_FUENTES, G_ARTICULOS = 25, 27, 28, 32, 33
 G_GEO_TIPO, G_GEO_NOMBRE, G_GEO_LAT, G_GEO_LON, G_FECHA, G_URL = 51, 52, 56, 57, 59, 60
 # Códigos CAMEO raíz: 14 protestas; 18 agresiones, 19 combates, 20 violencia masiva
 GDELT_VIOLENCIA = {"18", "19", "20"}
@@ -493,11 +545,19 @@ def gdelt(paises, filas=None):
                     pasos[p["id"]] += 1
         if not pais:
             continue
-        agg = por_pais.setdefault(pais, {"total": 0, "conflicto": 0, "protesta": 0})
+        agg = por_pais.setdefault(pais, {"total": 0, "conflicto": 0, "protesta": 0,
+                                         "interestatal": 0, "militar": 0, "disturbios": 0})
         agg["total"] += 1
         if not tipo:
             continue
         agg[tipo] += 1
+        if tipo == "conflicto":
+            if f[G_A1_PAIS] and f[G_A2_PAIS] and f[G_A1_PAIS] != f[G_A2_PAIS]:
+                agg["interestatal"] += 1
+            if {f[i] for i in G_A1_TIPOS + G_A2_TIPOS} & {"MIL", "REB", "INS", "UAF"}:
+                agg["militar"] += 1
+        elif f[G_BASE] == "145":  # protesta violenta o disturbios
+            agg["disturbios"] += 1
         # El tipo 1 es "solo el país": son puntos en el centro del país, poco útiles en el mapa
         if f[G_GEO_TIPO] == "1":
             continue
@@ -528,11 +588,16 @@ def gdelt(paises, filas=None):
 
 
 def titulares(paises=None):
-    """Titulares en español de Google Noticias sobre crisis de las últimas 24 h."""
-    texto = descargar(TITULARES_URL, como="texto")
-    if texto is None:
+    """Titulares en español sobre crisis de las últimas 24 h: Google Noticias, EFE, RTVE y El País."""
+    textos = [descargar(u, como="texto", intentos=2) for u in [TITULARES_URL, *TITULARES_MAS, ELPAIS_URL]]
+    if not any(textos):
         return None
-    items = xml_items(texto, "Google Noticias")
+    items = []
+    for t, origen in zip(textos, ["Google Noticias", "EFE", "RTVE", "El País"]):
+        if t:
+            for it in xml_items(t, origen):
+                it.setdefault("source", "EL PAÍS" if origen == "El País" else "")
+                items.append(it)
     vistos, lista = set(), []
     for it in items:
         titulo = it.get("title", "")
@@ -547,10 +612,15 @@ def titulares(paises=None):
         if not clave or clave in vistos:
             continue
         vistos.add(clave)
-        lista.append({"titulo": titulo.strip(), "url": it.get("link"), "medio": medio,
-                      "fecha": iso(fecha(it.get("pubDate")) or AHORA)})
+        cuando = fecha(it.get("pubDate")) or AHORA
+        # Fuera portadas de sección, directos y notas de prensa
+        if (cuando < AHORA - timedelta(hours=36) or len(titulo.split()) < 5 or "comunica" in normalizar(medio)
+                or "en directo" in normalizar(titulo)):
+            continue
+        lista.append({"titulo": titulo.strip(), "url": it.get("link"), "medio": medio, "fecha": iso(cuando),
+                      "paises": paises.en_texto(titulo) if paises else []})
     lista.sort(key=lambda t: t["fecha"], reverse=True)
-    return {"titulares": lista[:40]}
+    return {"titulares": lista[:60]}
 
 
 def ioda(paises):
@@ -664,6 +734,325 @@ def oms(paises):
     return {"eventos": eventos}
 
 
+MESES = {m: i for i, m in enumerate(["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+                                      "septiembre", "octubre", "noviembre", "diciembre"], 1)}
+EXTERIORES_NIVELES = {1: "sin restricciones especiales", 2: "precaución o zonas desaconsejadas",
+                      3: "se desaconseja viajar salvo necesidad", 4: "se desaconseja viajar bajo cualquier circunstancia"}
+
+
+ZONAS = re.compile(r"\b(zona|zonas|region|regiones|frontera|fronteras|fronteriza|fronterizas|provincia|provincias|"
+                   r"departamento|departamentos|estados de|estado de|norte de|sur de|este de|oeste de|areas)\b")
+
+
+def exteriores_nivel(notas):
+    """Nivel de la recomendación a partir de las notas importantes de la ficha, frase a frase.
+    4: no viajar bajo ninguna circunstancia; 3: no viajar salvo necesidad; 2: zonas desaconsejadas o
+    precaución extrema; 1: sin restricciones especiales."""
+    nivel = 1
+    for frase in re.split(r"(?<=[.;:])\s+", normalizar_frases(notas)):
+        f = normalizar(frase)
+        if "abandonen el pais" in f or re.search(r"(recomienda|insta|aconseja)[^.]{0,40}abandonar el pais", f):
+            nivel = max(nivel, 4)
+            continue
+        # Solo cuentan las frases sobre viajar al país ("se desaconseja participar en manifestaciones" no)
+        contra = re.search(r"desaconsejan? (totalmente |absolutamente |completamente )?(el |todo |cualquier |los |realizar )?(viaje|viajes|viajar)"
+                           r"|no viajar(?! de noche)|aplazar (el |su )?viaje|evitar (todo|cualquier) viaje", f)
+        if not contra:
+            if re.search(r"extremar (la|las) precaucion|maxima precaucion", f):
+                nivel = max(nivel, 2)
+            continue
+        parcial = ZONAS.search(f) and not re.search(r"todo el (pais|territorio)", f)
+        if parcial:
+            nivel = max(nivel, 2)
+        elif re.search(r"(cualquier|ninguna) circunstancia", f):
+            nivel = max(nivel, 4)
+        elif re.search(r"\b(salvo|excepto)\b", f):
+            nivel = max(nivel, 3)
+        elif re.search(r"(totalmente|absolutamente|completamente) (el |todo |cualquier )?viaj", f):
+            nivel = max(nivel, 4)
+        else:
+            nivel = max(nivel, 3)
+    return nivel
+
+
+def normalizar_frases(texto):
+    # Las fichas a veces separan letras con espacios ("S E DESACONSEJA"); se juntan las mayúsculas sueltas
+    return re.sub(r"\b([A-ZÁÉÍÓÚÑ]) (?=[A-ZÁÉÍÓÚÑ]{2,})", r"\1", texto or "")
+
+
+def exteriores_ficha(url):
+    html_ficha = descargar(url, como="texto", intentos=2, espera=3)
+    if not html_ficha:
+        return None
+    texto = re.sub(r"<script.*?</script>|<style.*?</style>", " ", html_ficha, flags=re.S)
+    texto = html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", texto)))
+    m = re.search(r"ltima actualizaci[oó]n el (\d{1,2}) de (\w+) de (\d{4})", texto)
+    actualizacion = None
+    if m and m.group(2).lower() in MESES:
+        actualizacion = f"{m.group(3)}-{MESES[m.group(2).lower()]:02d}-{int(m.group(1)):02d}"
+    i = texto.find("Notas importantes")
+    notas = texto[i + 17:i + 900].strip() if i >= 0 else ""
+    # Corta en la primera sección siguiente de la ficha
+    notas = re.split(r" (Documentaci[oó]n y visados|Seguridad|Sanidad|Teléfonos de emergencia) ", notas)[0][:600]
+    return {"actualizacion": actualizacion, "notas": notas, "nivel": exteriores_nivel(notas)}
+
+
+def exteriores(paises):
+    """Recomendaciones de viaje del Ministerio de Asuntos Exteriores de España (sin API: se lee la web)."""
+    previo = leer("exteriores.json", {"paises": {}, "cambios": []})
+    if previo.get("actualizado") and (fecha(previo["actualizado"]) or AHORA) > AHORA - EXTERIORES_CADA:
+        datos_paises, cambios = previo["paises"], previo.get("cambios", [])
+    else:
+        indice = descargar(EXTERIORES_INDICE, como="texto")
+        if indice is None:
+            return None
+        enlaces = sorted(set(re.findall(r'Detalle-recomendaciones-de-viaje\.aspx\?trc=([^"&\s>]+)', indice)))
+        exigir(len(enlaces) > 100, f"el índice solo tiene {len(enlaces)} países")
+        objetivos = []
+        for trc in enlaces:
+            nombre = urllib.parse.unquote_plus(trc).strip()
+            a3 = paises.nombre(nombre)
+            if a3:
+                objetivos.append((a3, EXTERIORES_BASE + "/es/ServiciosAlCiudadano/Paginas/Detalle-recomendaciones-de-viaje.aspx?trc=" + trc))
+        with ThreadPoolExecutor(max_workers=6) as hilos:
+            fichas = list(hilos.map(lambda o: exteriores_ficha(o[1]), objetivos))
+        exigir(sum(1 for f in fichas if f) >= len(objetivos) // 2, "no se han podido leer la mitad de las fichas")
+        datos_paises = {}
+        cambios = [c for c in previo.get("cambios", []) if reciente(c, VENTANA_MAPA)]
+        for (a3, url), ficha in zip(objetivos, fichas):
+            if not ficha:
+                if a3 in previo["paises"]:
+                    datos_paises[a3] = previo["paises"][a3]
+                continue
+            ficha["url"] = url
+            datos_paises[a3] = ficha
+            antes = previo["paises"].get(a3)
+            if antes and ficha["actualizacion"] and ficha["actualizacion"] != antes.get("actualizacion"):
+                cambios.append({"pais": a3, "de": antes.get("nivel"), "a": ficha["nivel"], "url": url,
+                                "notas": ficha["notas"][:300], "fecha": iso(AHORA)})
+        escribir("exteriores.json", {"actualizado": iso(AHORA), "paises": datos_paises, "cambios": cambios})
+    eventos = []
+    for c in cambios:
+        sube = (c["a"] or 0) > (c["de"] or 0)
+        lon, lat = paises.centro(c["pais"])
+        titulo = (f"Exteriores eleva su recomendación: {EXTERIORES_NIVELES[c['a']]}" if sube
+                  else "Exteriores actualiza sus recomendaciones de viaje")
+        eventos.append({
+            "id": f"exteriores-{c['pais']}-{c['fecha'][:10]}", "tipo": "aviso", "titulo": titulo,
+            "lugar": c.get("notas", "")[:160], "pais": c["pais"], "lat": lat, "lon": lon, "fecha": c["fecha"],
+            "peso": 5 * ((c["a"] or 0) - (c["de"] or 0)) if sube else 1,
+            "nivel": "ambar" if sube and c["a"] >= 3 else "verde", "fuente": "Exteriores (España)",
+            "familia": "oficial", "url": c["url"],
+        })
+    resumen = {a3: {"nivel": f["nivel"], "texto": EXTERIORES_NIVELES[f["nivel"]], "actualizacion": f.get("actualizacion"),
+                    "notas": f.get("notas", "")[:400], "url": f.get("url")} for a3, f in datos_paises.items()}
+    return {"eventos": eventos, "exteriores": resumen}
+
+
+def ooni(paises):
+    """Bloqueos de aplicaciones de mensajería medidos por OONI: un bloqueo nuevo suele anunciar algo."""
+    hoy, hace2, hace14 = AHORA.date(), (AHORA - timedelta(days=2)).date(), (AHORA - timedelta(days=14)).date()
+    tasas = {}
+    for app in OONI_APPS:
+        for ventana, desde, hasta in (("ahora", hace2, hoy + timedelta(days=1)), ("antes", hace14, hace2)):
+            datos = descargar(OONI_URL.format(app=app, desde=desde, hasta=hasta), intentos=2)
+            if datos is None:
+                return None
+            exigir(isinstance(datos.get("result"), list), "no trae 'result'")
+            for fila in datos["result"]:
+                n = fila.get("measurement_count") or 0
+                if n >= 10:
+                    tasas.setdefault((fila.get("probe_cc"), app), {})[ventana] = (fila.get("anomaly_count", 0) / n, n)
+    eventos = []
+    por_pais = {}
+    for (cc, app), t in tasas.items():
+        a3 = paises.por_a2.get(cc or "")
+        if not a3 or "ahora" not in t:
+            continue
+        ahora, antes = t["ahora"][0], t.get("antes", (0, 0))[0]
+        if ahora >= 0.5 and antes < 0.25:
+            por_pais.setdefault(a3, {"nuevo": [], "cronico": []})["nuevo"].append(OONI_APPS[app])
+        elif ahora >= 0.5:
+            por_pais.setdefault(a3, {"nuevo": [], "cronico": []})["cronico"].append(OONI_APPS[app])
+    for a3, b in por_pais.items():
+        nuevo = bool(b["nuevo"])
+        # Un bloqueo habitual de una sola aplicación suele ser ruido de medida: solo cuentan dos o más
+        if not nuevo and len(b["cronico"]) < 2:
+            continue
+        lon, lat = paises.centro(a3)
+        apps = b["nuevo"] or b["cronico"]
+        eventos.append({
+            "id": f"ooni-{a3}", "tipo": "censura",
+            "titulo": ("Nuevo bloqueo de " if nuevo else "Bloqueo habitual de ") +
+                      (", ".join(apps[:-1]) + " y " + apps[-1] if len(apps) > 1 else apps[0]),
+            "lugar": "", "pais": a3, "lat": lat, "lon": lon, "fecha": iso(AHORA),
+            "peso": 6 if nuevo else 0, "nivel": "ambar" if nuevo else "verde", "fuente": "OONI", "familia": "tecnica",
+            "url": f"https://explorer.ooni.org/country/{paises.a2_de(a3)}",
+        })
+    return {"eventos": eventos}
+
+
+COPERNICUS_TIPOS = {"flood": "inundación", "fire": "incendio", "wildfire": "incendio", "storm": "tormenta",
+                    "earthquake": "terremoto", "volcano": "volcán", "landslide": "deslizamiento",
+                    "humanitarian": "crisis humanitaria", "industrial": "accidente industrial"}
+
+
+def copernicus(paises):
+    """Activaciones de cartografía de emergencia de Copernicus (UE): solo se piden en desastres graves."""
+    datos = descargar(COPERNICUS_URL)
+    if datos is None:
+        return None
+    exigir(isinstance(datos.get("results"), list), "no trae 'results'")
+    eventos = []
+    for a in datos["results"]:
+        cuando = fecha(a.get("activationTime"))
+        if not cuando or cuando < AHORA - timedelta(days=10):
+            continue
+        m = re.search(r"POINT \(([-\d.]+) ([-\d.]+)\)", a.get("centroid") or "")
+        if not m:
+            continue
+        lon, lat = float(m.group(1)), float(m.group(2))
+        pais_nombre = ((a.get("countries") or [{}])[0]).get("short_name")
+        categoria = (a.get("category") or {}).get("slug", "")
+        eventos.append({
+            "id": "copernicus-" + a.get("code", ""), "tipo": "desastre",
+            "titulo": "La UE activa Copernicus: " + COPERNICUS_TIPOS.get(categoria, (a.get("category") or {}).get("name", "emergencia")),
+            "lugar": a.get("name", ""), "pais": paises.asignar(pais_nombre, lon, lat), "lat": round(lat, 3),
+            "lon": round(lon, 3), "fecha": iso(cuando), "peso": 5, "nivel": "ambar", "fuente": "Copernicus EMS",
+            "familia": "oficial", "url": f"https://mapping.emergency.copernicus.eu/activations/{a.get('code', '')}/",
+        })
+    return {"eventos": eventos}
+
+
+def emsc(paises):
+    """Terremotos del centro sismológico europeo (EMSC) en Europa, el Mediterráneo y Oriente Medio."""
+    datos = descargar(EMSC_URL)
+    if datos is None:
+        return None
+    exigir(isinstance(datos.get("features"), list), "no trae 'features'")
+    eventos = []
+    for f in datos["features"]:
+        p = f.get("properties", {})
+        try:
+            lat, lon, mag = float(p["lat"]), float(p["lon"]), float(p["mag"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        peso = max(mag - 4, 0) ** 2
+        eventos.append({
+            "id": "emsc-" + str(p.get("unid") or f.get("id")), "tipo": "terremoto",
+            "titulo": f"Terremoto de magnitud {mag:.1f}", "lugar": (p.get("flynn_region") or "").title(),
+            "pais": paises.asignar(p.get("flynn_region"), lon, lat), "lat": round(lat, 3), "lon": round(lon, 3),
+            "fecha": iso(fecha(p.get("time")) or AHORA), "peso": round(peso, 2), "nivel": nivel_por_peso(peso),
+            "magnitud": mag, "fuente": "EMSC", "familia": "oficial",
+            "url": f"https://www.seismicportal.eu/eventdetails.html?unid={p.get('unid')}",
+        })
+    return {"eventos": eventos}
+
+
+def ign(paises):
+    """Terremotos del Instituto Geográfico Nacional: España y su entorno, los últimos 10 días."""
+    texto = descargar(IGN_URL, como="texto")
+    if texto is None:
+        return None
+    items = xml_items(texto, "IGN")
+    eventos = []
+    for it in items:
+        m = re.search(r"magnitud ([\d.,]+) en (.+?) en la fecha", it.get("description", ""))
+        try:
+            lat, lon = float(it.get("lat")), float(it.get("long"))
+            mag = float(m.group(1).replace(",", ".")) if m else None
+        except (TypeError, ValueError):
+            continue
+        if mag is None or mag < 2.5:
+            continue
+        lugar = m.group(2).strip().title()
+        peso = max(mag - 4, 0) ** 2
+        eventos.append({
+            "id": "ign-" + normalizar(it.get("link") or it.get("title", ""))[-40:].replace(" ", "-"), "tipo": "terremoto",
+            "titulo": f"Terremoto de magnitud {mag:.1f}", "lugar": lugar, "pais": paises.asignar(lugar, lon, lat),
+            "lat": round(lat, 3), "lon": round(lon, 3),
+            "fecha": iso(fecha(it.get("pubDate")) or AHORA), "peso": round(peso, 2), "nivel": nivel_por_peso(peso),
+            "magnitud": mag, "fuente": "IGN", "familia": "oficial", "url": it.get("link"),
+        })
+    return {"eventos": eventos}
+
+
+def analisis(paises):
+    """Últimos análisis de Elcano, IEEE y CIDOB, con los países que tratan."""
+    lista = []
+    for centro, url in ANALISIS_URLS.items():
+        texto = descargar(url, como="texto", intentos=2)
+        if not texto:
+            continue
+        for it in xml_items(texto, centro):
+            titulo = it.get("title", "")
+            medio = it.get("source", "")
+            if medio and titulo.endswith(" - " + medio):
+                titulo = titulo[: -len(medio) - 3]
+            quienes = paises.en_texto(titulo)
+            if quienes and not normalizar(titulo).startswith(("novedades", "boletin", "agenda")):
+                lista.append({"titulo": titulo.strip(), "url": it.get("link"), "centro": centro,
+                              "fecha": iso(fecha(it.get("pubDate")) or AHORA), "paises": quienes})
+    if not lista:
+        return None
+    lista.sort(key=lambda a: a["fecha"], reverse=True)
+    return {"analisis": lista[:150]}
+
+
+def cloudflare(paises):
+    """Cortes de internet de Cloudflare Radar, con su causa (por ejemplo, ordenados por un gobierno)."""
+    if not CLOUDFLARE_TOKEN:
+        return {"eventos": [], "desactivada": True}
+    datos = descargar(CLOUDFLARE_URL, cabeceras={"Authorization": f"Bearer {CLOUDFLARE_TOKEN}"})
+    if datos is None:
+        return None
+    anotaciones = (datos.get("result") or {}).get("annotations")
+    exigir(isinstance(anotaciones, list), "no trae 'result.annotations'")
+    eventos = []
+    for a in anotaciones:
+        causa = ((a.get("outage") or {}).get("outageCause") or "").upper()
+        alcance = ((a.get("outage") or {}).get("outageType") or "").upper()
+        for cc in a.get("locations") or []:
+            a3 = paises.por_a2.get(cc.upper())
+            if not a3:
+                continue
+            gobierno = "GOVERNMENT" in causa
+            peso = 12 if gobierno and alcance == "NATIONWIDE" else 8 if gobierno else 3 if alcance == "NATIONWIDE" else 0
+            if not peso:
+                continue
+            lon, lat = paises.centro(a3)
+            eventos.append({
+                "id": f"cloudflare-{a3}-{a.get('id')}", "tipo": "internet",
+                "titulo": "Corte de internet ordenado por el gobierno" if gobierno else "Corte de internet en todo el país",
+                "lugar": a.get("description") or "", "pais": a3, "lat": lat, "lon": lon,
+                "fecha": iso(fecha(a.get("startDate")) or AHORA), "peso": peso, "nivel": "rojo" if peso >= 12 else "ambar",
+                "fuente": "Cloudflare Radar", "familia": "tecnica", "url": f"https://radar.cloudflare.com/{cc.lower()}",
+            })
+    return {"eventos": eventos}
+
+
+def ucdp(paises):
+    """Muertes en conflictos verificadas por la Universidad de Uppsala (versión mensual, últimos 90 días)."""
+    if not UCDP_TOKEN:
+        return {"eventos": [], "desactivada": True}
+    muertes, url, paginas = {}, UCDP_URL, 0
+    while url and paginas < 15:
+        datos = descargar(url, cabeceras={"x-ucdp-access-token": UCDP_TOKEN})
+        if datos is None:
+            return None
+        exigir(isinstance(datos.get("Result"), list), "no trae 'Result'")
+        for e in datos["Result"]:
+            try:
+                lat, lon = float(e["latitude"]), float(e["longitude"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            a3 = paises.asignar(e.get("country"), lon, lat)
+            if a3:
+                muertes[a3] = muertes.get(a3, 0) + int(e.get("best") or 0)
+        url, paginas = datos.get("NextPageUrl") or None, paginas + 1
+    return {"eventos": [], "ucdp": muertes}
+
+
 def reliefweb(paises):
     """Crisis humanitarias abiertas en ReliefWeb (OCHA). Necesita RELIEFWEB_APPNAME aprobado."""
     if not RELIEFWEB_APPNAME:
@@ -697,8 +1086,8 @@ def reliefweb(paises):
 # Proporción de violencia a partir de la cual cuenta todo el volumen. Calibrado con datos
 # reales: en un país en guerra abierta ronda el 3-7 %; en uno en paz, por debajo del 1 %.
 CUOTA_PLENA = 0.05
-CLAVES_PUNTOS = ("conflicto", "protestas", "desastres", "internet", "avisos", "epidemias", "humanitaria")
-PARTE_DE = {"internet": "internet", "aviso": "avisos", "epidemia": "epidemias", "crisis": "humanitaria"}
+CLAVES_PUNTOS = ("conflicto", "protestas", "desastres", "internet", "censura", "avisos", "epidemias", "humanitaria")
+PARTE_DE = {"internet": "internet", "censura": "censura", "aviso": "avisos", "epidemia": "epidemias", "crisis": "humanitaria"}
 
 
 def puntuar(eventos, gdelt_paises):
@@ -721,6 +1110,8 @@ def puntuar(eventos, gdelt_paises):
         c["rango"] = max(c["rango"], RANGO[e["nivel"]])
         clave = PARTE_DE.get(e["tipo"], "desastres")
         c[clave] = c.get(clave, 0) + e["peso"]
+        if clave == "desastres":
+            c["rango_desastre"] = max(c.get("rango_desastre", 0), RANGO[e["nivel"]])
         if e["peso"] > 0 or e["nivel"] != "verde":
             c["familias"].add(e.get("familia", "oficial"))
 
@@ -746,7 +1137,9 @@ def puntuar(eventos, gdelt_paises):
         resultado[a3] = {**partes, "puntuacion": round(sum(partes.values()), 1), "eventos": c["eventos"],
                          "rango_evento": c["rango"], "familias": sorted(c["familias"]),
                          "crisis_abierta": c["crisis_abierta"], "cuota_violencia": c.get("cuota_violencia", 0),
-                         "hechos_violentos": c.get("hechos_violentos", 0), "protestas_n": c.get("protestas_n", 0)}
+                         "hechos_violentos": c.get("hechos_violentos", 0), "protestas_n": c.get("protestas_n", 0),
+                         "rango_desastre": c.get("rango_desastre", 0),
+                         "cuota_protestas": round(c.get("protestas_n", 0) / max((gdelt_paises or {}).get(a3, {}).get("total", 0), 20), 3)}
     return resultado
 
 
@@ -889,11 +1282,14 @@ def archivar(alertas, eventos, titulares):
     dir_archivo.mkdir(exist_ok=True)
 
     historico = leer("historico.json", {})
-    historico[HOY] = {a3: [p["puntuacion"], RANGO[p["nivel"]], int(p["escalada"])]
+    riesgo = {"bajo": 0, "medio": 1, "alto": 2}
+    historico[HOY] = {a3: [p["puntuacion"], RANGO[p["nivel"]], int(p["escalada"]),
+                           riesgo.get(p.get("pronostico", {}).get("riesgo"), 0)]
                       for a3, p in alertas["paises"].items()}
     escribir("historico.json", dict(sorted(historico.items())))
 
-    campos_pais = ("nivel", "escalada", "motivos", "confianza", "puntuacion", "media", "tendencia",
+    campos_pais = ("nivel", "escalada", "motivos", "confianza", "puntuacion", "media", "tendencia", "escenarios",
+                   "pronostico", "region", "espana", "exteriores",
                    "dias_subiendo", "aviso_viaje", "conflicto", "protestas", "desastres", "epidemias",
                    "internet", "avisos", "humanitaria", "cuota_violencia", "hechos_violentos", "protestas_n")
     campos_evento = ("id", "tipo", "titulo", "lugar", "pais", "lat", "lon", "fecha", "nivel", "peso",
@@ -903,7 +1299,7 @@ def archivar(alertas, eventos, titulares):
     foto = {
         "fecha": HOY, "actualizado": alertas["actualizado"],
         "paises": {a3: {k: p[k] for k in campos_pais if k in p} for a3, p in alertas["paises"].items()},
-        "parte": alertas.get("parte", {}), "pasos": alertas.get("pasos", []),
+        "parte": alertas.get("parte", {}), "pasos": alertas.get("pasos", []), "informe": alertas.get("informe", {}),
         "eventos": [{k: e[k] for k in campos_evento if k in e} for e in del_dia[:EVENTOS_ARCHIVO]],
         "titulares": titulares[:20],
     }
@@ -914,9 +1310,25 @@ def archivar(alertas, eventos, titulares):
 
 # --------------------------------------------------------------------- main
 
-FUENTES = [("USGS", usgs), ("GDACS", gdacs), ("NASA EONET", eonet), ("GDELT", gdelt),
-           ("Titulares", titulares), ("IODA", ioda), ("Avisos de viaje EE. UU.", avisos_viaje),
-           ("OMS", oms), ("ReliefWeb", reliefweb)]
+FUENTES = [("USGS", usgs), ("EMSC", emsc), ("IGN", ign), ("GDACS", gdacs), ("Copernicus EMS", copernicus),
+           ("NASA EONET", eonet), ("GDELT", gdelt), ("Titulares", titulares), ("Análisis", analisis),
+           ("IODA", ioda), ("Cloudflare Radar", cloudflare), ("OONI", ooni), ("Exteriores (España)", exteriores),
+           ("Avisos de viaje EE. UU.", avisos_viaje), ("OMS", oms), ("ReliefWeb", reliefweb), ("UCDP", ucdp)]
+# Fuentes que no aportan eventos sino otros datos: si fallan, se conservan esos datos
+DATOS_DE_FUENTE = {"Titulares": "titulares", "Análisis": "analisis"}
+
+
+def sin_duplicados_sismicos(eventos):
+    """El mismo terremoto puede llegar de USGS, EMSC e IGN: se queda el de la fuente preferida."""
+    orden = {"USGS": 0, "EMSC": 1, "IGN": 2}
+    sismos = sorted((e for e in eventos if e["tipo"] == "terremoto"), key=lambda e: orden.get(e["fuente"], 3))
+    elegidos = []
+    for e in sismos:
+        t = fecha(e["fecha"]) or AHORA
+        if not any(abs(((fecha(x["fecha"]) or AHORA) - t).total_seconds()) < 120
+                   and distancia_km(e["lon"], e["lat"], x["lon"], x["lat"]) < 100 for x in elegidos):
+            elegidos.append(e)
+    return [e for e in eventos if e["tipo"] != "terremoto"] + elegidos
 
 
 def main():
@@ -944,9 +1356,9 @@ def main():
             log(f"  {nombre}: {error}")
             # Se conservan los últimos datos buenos de la fuente
             resultado = {"eventos": [e for e in anterior["eventos"] if e.get("fuente") == nombre]}
-            if nombre == "Titulares":
-                resultado = {"titulares": anterior.get("titulares", [])}
-        cuantos = len(resultado.get("eventos", resultado.get("titulares", [])))
+            if nombre in DATOS_DE_FUENTE:
+                resultado = {DATOS_DE_FUENTE[nombre]: anterior.get(DATOS_DE_FUENTE[nombre], [])}
+        cuantos = len(resultado.get("eventos", resultado.get(DATOS_DE_FUENTE.get(nombre, ""), [])))
         estado[nombre] = {"ok": not error, "error": error, "eventos": cuantos,
                           "fallos_seguidos": (previo.get("fallos_seguidos", 0) + 1) if error else 0,
                           "ultimo_ok": iso(AHORA) if not error else previo.get("ultimo_ok")}
@@ -955,6 +1367,7 @@ def main():
 
     eventos = [e for e in eventos if reciente(e, VENTANA_EPIDEMIAS if e["tipo"] in ("epidemia", "crisis") else VENTANA_MAPA)
                or e["tipo"] == "crisis"]
+    eventos = sin_duplicados_sismicos(eventos)
     eventos.sort(key=lambda e: e["fecha"], reverse=True)
 
     # Si GDELT falla, sin sus agregados la puntuación de conflicto caería a cero: se reutilizan los últimos
@@ -973,8 +1386,40 @@ def main():
     alertas["parte"], referencia = parte(alertas, alertas_previas)
     alertas["dia"], alertas["niveles_ayer"] = HOY, referencia
 
+    # Capa de análisis: escenarios, pronóstico, contagio regional e interés para España
+    ctx = {"gdelt": gdelt_paises, "pasos": {p["id"]: p["nivel"] for p in alertas["pasos"]},
+           "vecinos": inteligencia.calcular_vecinos(paises),
+           "golpe_en_prensa": {a for t in extra.get("titulares", []) if re.search(r"golpe de estado|golpista|asonada", normalizar(t["titulo"]))
+                               for a in t.get("paises", [])},
+           "ucdp": extra.get("ucdp") or anterior.get("ucdp") or {},
+           "exteriores": extra.get("exteriores") or leer("exteriores.json", {}).get("paises") and
+           {a: {"nivel": f["nivel"], "texto": EXTERIORES_NIVELES[f["nivel"]], "actualizacion": f.get("actualizacion"),
+                "notas": f.get("notas", "")[:400], "url": f.get("url")} for a, f in leer("exteriores.json", {}).get("paises", {}).items()} or {}}
+    for a3, f in ctx["exteriores"].items():
+        p = alertas["paises"].get(a3)
+        # La recomendación de España pesa como la de EE. UU.: refuerza, no colorea sola
+        if p and f["nivel"] >= 4 and p["puntuacion"] >= 3 and p["nivel"] == "verde":
+            p["nivel"] = "ambar"
+            p["motivos"].append("Exteriores desaconseja viajar")
+        elif p and f["nivel"] >= 4:
+            p["motivos"].append("Exteriores desaconseja viajar")
+    for a3, n in ctx["ucdp"].items():
+        p = alertas["paises"].get(a3)
+        if p and n >= 25:
+            p["motivos"].append(f"{n} muertes verificadas en 90 días (UCDP)")
+            if n >= 1000:
+                p["nivel"] = "rojo"
+            elif n >= 100 and p["nivel"] == "verde":
+                p["nivel"] = "ambar"
+            if "academica" not in p.get("familias", []):
+                p["familias"] = p.get("familias", []) + ["academica"]
+                p["confianza"] = confianza(p["familias"])
+    intereses = json.loads((FIJOS / "intereses_espana.json").read_text("utf-8"))
+    inteligencia.enriquecer(alertas, ctx, intereses, leer("historico.json", {}))
+
     escribir("eventos.json", {"actualizado": iso(AHORA), "fuentes": estado, "eventos": eventos,
-                              "titulares": extra.get("titulares", []),
+                              "titulares": extra.get("titulares", []), "analisis": extra.get("analisis", []),
+                              "ucdp": ctx["ucdp"],
                               "gdelt_paises": gdelt_paises, "gdelt_pasos": gdelt_pasos})
     escribir("alertas.json", alertas)
     escribir("historial.json", historial)

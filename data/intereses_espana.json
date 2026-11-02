@@ -1,0 +1,15 @@
+{
+  "_nota": "Lista orientativa de intereses de España por país. Revísala y ajústala: atalaya la usa para destacar en el informe lo que más afecta a España. Cada clave es un tipo de interés con sus países (ISO alfa-3).",
+  "tipos": {
+    "vecindad": {"texto": "Vecindad inmediata", "peso": 3,
+      "paises": ["MAR", "DZA", "PRT", "FRA", "AND", "ESH", "MRT", "TUN", "LBY"]},
+    "migracion": {"texto": "Rutas migratorias hacia España", "peso": 2,
+      "paises": ["MAR", "DZA", "SEN", "MRT", "GMB", "MLI", "GIN", "CIV", "BFA", "NER"]},
+    "energia": {"texto": "Suministro de gas o petróleo", "peso": 2,
+      "paises": ["DZA", "USA", "NGA", "QAT", "RUS", "LBY", "MEX", "BRA", "SAU", "IRQ"]},
+    "despliegues": {"texto": "Despliegues militares españoles (revisar)", "peso": 3,
+      "paises": ["LBN", "LVA", "IRQ", "TUR", "SVK", "SOM"]},
+    "comunidad": {"texto": "Gran comunidad española residente", "peso": 1,
+      "paises": ["ARG", "FRA", "VEN", "DEU", "MEX", "USA", "GBR", "CHE", "BRA", "CUB", "URY"]}
+  }
+}
