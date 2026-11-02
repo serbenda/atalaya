@@ -2,6 +2,8 @@
 
 Visor de la situación mundial: mapa en tiempo real con conflictos, protestas, desastres, epidemias y cortes de internet, y un nivel de alerta por país que detecta cuándo algo se está calentando.
 
+[![Apoya atalaya en GitHub Sponsors](https://img.shields.io/badge/Apoya_atalaya-GitHub_Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/serbenda)
+
 ## Qué muestra
 
 - **Globo o mapa plano**, con día y noche, que se puede girar, acercar y compartir (`#pais=SDN`).
@@ -117,3 +119,7 @@ python3 -m unittest discover -s tests     # pruebas
 ```
 
 En local la web lee de `data/`; publicada, de la rama `datos`.
+
+## Apoya el proyecto
+
+atalaya es un proyecto personal, gratuito y sin publicidad. Si te resulta útil, puedes apoyarlo en [GitHub Sponsors](https://github.com/sponsors/serbenda).
