@@ -397,13 +397,21 @@ Cada pronóstico se guarda en `historico.json`. Siete días después se comprueb
 
 ### Simulación
 
-Para cada crisis, [`simulacion.py`](scripts/simulacion.py) calcula tres ramas en múltiplos del 5 %:
+[`simulacion.py`](scripts/simulacion.py) simula todas las crisis abiertas: los países en *alerta* o *vigilar* y los que probablemente empeoren. Las 8 más graves se muestran en detalle y el resto en una tabla.
 
-- **Escala**: parte del 10, 25 o 40 % según el pronóstico, y sube con los indicadores encendidos, la tendencia al alza y los vecinos en crisis. Siempre queda entre el 5 y el 70 %.
-- **Se contiene**: lo complementario, con un extra si la tendencia baja. Entre el 10 y el 50 %.
-- **Sigue igual**: el resto.
+Para cada una calcula tres ramas en múltiplos del 5 %, con un **margen de incertidumbre** de ±5, ±10 o ±15 puntos según la confianza:
 
-Si escala, el **contagio** a cada vecino es el 35 % de esa probabilidad, y la mitad más si el vecino ya está en *vigilar*. El **impacto para España** sale de `intereses_espana.json` y de las rutas marítimas cercanas.
+- **Escala**: parte del 10, 25 o 40 % según el pronóstico. Sube con los indicadores encendidos, si empeora en la última semana, si **se acelera en las últimas 12 horas** (hechos de GDELT de las últimas 12 h frente a las 12 anteriores, lo que da tendencia desde el primer día), si hay vecinos en crisis y si el país ya está en alerta. Baja si se frena. Entre el 5 y el 75 %; las protestas en un país sin alerta tienen un tope del 40 %.
+- **Se contiene**: lo complementario. Una crisis prolongada rara vez se resuelve en una semana, así que en esos casos baja hasta un mínimo del 5 %.
+- **Sigue igual**: el resto. Suele ser la rama más probable, porque en una semana lo más frecuente es que una crisis siga como está.
+
+Cada caso muestra **por qué** tiene esas probabilidades, el **contagio** a sus vecinos (el 35 % de la probabilidad de escalar, la mitad más si el vecino ya está en *vigilar*), el **impacto para España** y las señales que confirmarían o desmentirían cada rama.
+
+**Por regiones** se calcula la probabilidad de que al menos una crisis escale. Las crisis de una misma región no son independientes, así que en lugar de multiplicar como si lo fueran se usa `1 − (1 − media) ^ √n`.
+
+**Lo más preocupante** no es solo lo más probable: el resumen ordena por probabilidad de escalar × gravedad del nivel × tipo de escenario.
+
+**Se recalibra solo.** Cuando hay al menos 20 pronósticos comprobados de un tipo, la probabilidad de partida se mezcla con su acierto real: cuantas más muestras, más pesa lo observado (hasta la mitad).
 
 ### Sesgos conocidos
 

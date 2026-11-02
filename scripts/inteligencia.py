@@ -167,9 +167,12 @@ def pronostico(p, escs):
     m = pendiente(serie)
     actual = p.get("puntuacion", 0)
     peor_escenario = max((2 if e["riesgo"] == "alto" else 1 if e["riesgo"] == "medio" else 0) for e in escs) if escs else 0
-    if (m >= 1.5 and actual >= 8) or peor_escenario == 2 or (p.get("escalada") and m > 0.5):
+    # Aceleración de las últimas 12 h: da tendencia aunque aún no haya histórico de días
+    acel = p.get("aceleracion") or 1
+    acelera = acel >= 1.8 and actual >= 6
+    if (m >= 1.5 and actual >= 8) or peor_escenario == 2 or (p.get("escalada") and m > 0.5) or (acelera and peor_escenario):
         riesgo = "alto"
-    elif m >= 0.5 or peor_escenario == 1 or p.get("escalada"):
+    elif m >= 0.5 or peor_escenario == 1 or p.get("escalada") or acelera:
         riesgo = "medio"
     else:
         riesgo = "bajo"
@@ -177,7 +180,7 @@ def pronostico(p, escs):
               "medio": "Posible que empeore en los próximos 7 días",
               "bajo": "Poco probable que empeore en los próximos 7 días"}
     return {"riesgo": riesgo, "texto": textos[riesgo], "pendiente": round(m, 2),
-            "proyeccion": round(max(0.0, actual + 7 * m), 1)}
+            "proyeccion": round(max(0.0, actual + 7 * m), 1), "aceleracion": p.get("aceleracion")}
 
 
 def fiabilidad(historico, dias=30):
@@ -297,7 +300,7 @@ def enriquecer(alertas, ctx, intereses, historico):
     nombres_pasos = {x["id"]: x["nombre"] for x in pasos}
     niveles_pasos = {x["id"]: x["nivel"] for x in pasos}
     alertas["simulacion"] = simulacion.simular(
-        alertas, ctx["vecinos"],
+        alertas, ctx["vecinos"], REGION_DE, alertas["fiabilidad"],
         lambda a3: [t for t, _ in intereses_espana(intereses, a3)],
         lambda a3: [nombres_pasos[pid] for pid, lista in PASOS_PAISES.items()
                     if a3 in lista and pid in nombres_pasos and (niveles_pasos[pid] != "verde"
