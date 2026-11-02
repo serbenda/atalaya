@@ -562,7 +562,7 @@
       const mejor = (m) => (m > 0.02 ? t("acierta un {p} más", { p: porc(m) }) : m < -0.02 ? t("acierta un {p} menos", { p: porc(-m) }) : t("acierta lo mismo"));
       html += `<div class="rendimiento"><p class="resumen"><strong>${t("Rendimiento del modelo")}</strong> ${esc(t("({n} en {d}{r}).", { n: plural(r.muestras, "pronóstico", "pronósticos"), d: plural(r.dias, "día", "días"), r: r.reconstruidas ? t(", {n} de días reconstruidos con GDELT", { n: numero.format(r.reconstruidas) }) : "" }))}
         ${esc(t("Comparado con decir siempre la misma probabilidad, {a}; comparado con fiarse solo del nivel actual de cada país, {b}.", { a: mejor(r.mejora_media), b: mejor(r.mejora_persistencia) }))}
-        <span class="detalle-gris">${t("Puntuación de Brier {n} (0 es perfecto).", { n: numero.format(r.brier) })}</span></p>
+        <span class="detalle-gris">${t("Puntuación de Brier {n} (0 es perfecto).", { n: r.brier.toLocaleString(LOCALE, { minimumFractionDigits: 3, maximumFractionDigits: 3 }) })}</span></p>
         <table class="calibracion"><thead><tr><th>${t("Pronóstico")}</th><th>${t("Probabilidad que da")}</th><th>${t("Empeoró de verdad")}</th><th>${t("Casos")}</th></tr></thead><tbody>
         ${(r.calibracion || []).map((c) => `<tr><td>${t({ alto: "Probable", medio: "Posible", bajo: "Poco probable" }[c.riesgo])}</td><td>${porc(c.dicho)}</td><td>${porc(c.observado)}</td><td>${numero.format(c.muestras)}</td></tr>`).join("")}
         </tbody></table></div>`;

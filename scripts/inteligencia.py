@@ -119,9 +119,11 @@ def analisis(a3, p, ctx, escs):
     if p.get("confianza") == "baja" and p.get("nivel") != "verde":
         alternativas.append("Solo lo recoge la prensa: puede ser un pico mediático por un hecho aislado")
     regiones = g.get("regiones") or []
-    if regiones and regiones[0][1] >= 0.7:
+    entre_paises = conflicto and g.get("interestatal", 0) / conflicto >= 0.5
+    # Si la mayoría son ataques desde fuera, que se concentren en un sitio no lo hace "local"
+    if regiones and regiones[0][1] >= 0.7 and not entre_paises:
         alternativas.append(f"Casi todo pasa en {regiones[0][0]}: puede ser un problema local y no de todo el país")
-    if g.get("interestatal", 0) and conflicto and g["interestatal"] / conflicto >= 0.5:
+    if entre_paises:
         alternativas.append("La mayoría son hechos entre países: puede ser un conflicto exterior y no una crisis interna")
     if p.get("crisis_abierta") and not p.get("escalada"):
         alternativas.append("Es una crisis prolongada: el nivel alto refleja que dura, no que empeore")

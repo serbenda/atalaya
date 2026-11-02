@@ -2,6 +2,8 @@
 
 # atalaya
 
+**Español** · [English](README.en.md)
+
 **Visor de la situación mundial con alerta temprana**
 
 Conflictos, protestas, desastres, epidemias, cortes de internet y censura en un solo mapa,<br>
@@ -262,6 +264,7 @@ atalaya/
 ├── index.html                 Página única
 ├── css/estilo.css             Estilos, sin preprocesador
 ├── js/app.js                  Mapa, panel, informe, simulación e histórico (d3)
+├── js/i18n.js                 Textos en inglés: interfaz y frases que generan los scripts
 ├── data/
 │   ├── mundo.geojson          Fronteras de 180 países (dominio público)
 │   ├── paises.json            ISO 3166, con nombres en inglés y en español
@@ -330,6 +333,7 @@ Cada evento tiene esta forma:
 - El mapa recalcula la proyección en cada interacción (globo ortográfico o Natural Earth) en lugar de escalar el SVG, para que marcadores y etiquetas mantengan su tamaño.
 - Respeta `prefers-reduced-motion`: sin latidos, ondas ni giro automático.
 - Funciona en móvil: el panel pasa a la parte de abajo y se puede plegar.
+- **En español y en inglés.** El selector ES/EN (o `?lang=en`) cambia el idioma; por defecto se usa el del navegador. Los textos de la interfaz pasan por `t()` y los que generan los scripts por `tb()`, con frases y patrones en [`js/i18n.js`](js/i18n.js). **Si se añade o cambia un texto en `scripts/`, hay que añadir su traducción allí**; si no, sale en español. Titulares, análisis de expertos, RSS y Telegram siguen en español.
 
 ### Convenciones
 
