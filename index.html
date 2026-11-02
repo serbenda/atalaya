@@ -9,65 +9,70 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/estilo.css?v=10">
+  <link rel="stylesheet" href="css/estilo.css?v=11">
   <meta name="atalaya-datos" content="https://raw.githubusercontent.com/serbenda/atalaya/datos/data/">
 </head>
 <body>
   <main class="visor">
-    <div id="mapa" class="mapa" aria-label="Mapa del mundo con el nivel de alerta de cada país"></div>
+    <div id="mapa" class="mapa" aria-label="Mapa del mundo con el nivel de alerta de cada país" data-i18n-attr="aria-label"></div>
 
     <header class="cabecera">
       <h1 class="marca">atalaya</h1>
-      <p class="actualizado" id="actualizado">Cargando datos…</p>
+      <div class="grupo-botones idioma" role="group" aria-label="Idioma" data-i18n-attr="aria-label">
+        <button data-idioma="es" lang="es" aria-pressed="true">ES</button>
+        <button data-idioma="en" lang="en" aria-pressed="false">EN</button>
+      </div>
+
+      <p class="actualizado" id="actualizado" data-i18n>Cargando datos…</p>
       <div class="buscador">
-        <label for="buscar" class="oculto">Buscar un país</label>
-        <input id="buscar" type="search" placeholder="Buscar un país" list="lista-paises" autocomplete="off">
+        <label for="buscar" class="oculto" data-i18n>Buscar un país</label>
+        <input id="buscar" type="search" placeholder="Buscar un país" data-i18n-attr="placeholder" list="lista-paises" autocomplete="off">
         <datalist id="lista-paises"></datalist>
       </div>
-      <fieldset class="capas" aria-label="Capas del mapa">
-        <label><input type="checkbox" data-capa="conflicto" checked><span class="forma forma-conflicto" aria-hidden="true"></span>Conflictos</label>
-        <label><input type="checkbox" data-capa="protesta" checked><span class="forma forma-protesta" aria-hidden="true"></span>Protestas</label>
-        <label><input type="checkbox" data-capa="terremoto" checked><span class="forma forma-terremoto" aria-hidden="true"></span>Terremotos</label>
-        <label><input type="checkbox" data-capa="desastre" checked><span class="forma forma-desastre" aria-hidden="true"></span>Desastres</label>
-        <label><input type="checkbox" data-capa="epidemia" checked><span class="forma forma-epidemia" aria-hidden="true"></span>Epidemias</label>
-        <label><input type="checkbox" data-capa="internet" checked><span class="forma forma-internet" aria-hidden="true"></span>Internet y censura</label>
-        <label><input type="checkbox" data-capa="pasos" checked><span class="forma forma-paso" aria-hidden="true"></span>Rutas marítimas</label>
+      <fieldset class="capas" aria-label="Capas del mapa" data-i18n-attr="aria-label">
+        <label><input type="checkbox" data-capa="conflicto" checked><span class="forma forma-conflicto" aria-hidden="true"></span><span data-i18n>Conflictos</span></label>
+        <label><input type="checkbox" data-capa="protesta" checked><span class="forma forma-protesta" aria-hidden="true"></span><span data-i18n>Protestas</span></label>
+        <label><input type="checkbox" data-capa="terremoto" checked><span class="forma forma-terremoto" aria-hidden="true"></span><span data-i18n>Terremotos</span></label>
+        <label><input type="checkbox" data-capa="desastre" checked><span class="forma forma-desastre" aria-hidden="true"></span><span data-i18n>Desastres</span></label>
+        <label><input type="checkbox" data-capa="epidemia" checked><span class="forma forma-epidemia" aria-hidden="true"></span><span data-i18n>Epidemias</span></label>
+        <label><input type="checkbox" data-capa="internet" checked><span class="forma forma-internet" aria-hidden="true"></span><span data-i18n>Internet y censura</span></label>
+        <label><input type="checkbox" data-capa="pasos" checked><span class="forma forma-paso" aria-hidden="true"></span><span data-i18n>Rutas marítimas</span></label>
       </fieldset>
     </header>
 
-    <div class="controles" aria-label="Controles del mapa">
+    <div class="controles" aria-label="Controles del mapa" data-i18n-attr="aria-label">
       <label class="historico" id="historico" hidden>
-        <span>Ver otro día</span>
+        <span data-i18n>Ver otro día</span>
         <input type="date" id="dia">
       </label>
-      <div class="tiempo" aria-label="Periodo">
+      <div class="tiempo" aria-label="Periodo" data-i18n-attr="aria-label">
         <p class="reloj" id="reloj" aria-live="polite"></p>
-        <button class="reproducir" id="reproducir">Reproducir la semana</button>
+        <button class="reproducir" id="reproducir" data-i18n>Reproducir la semana</button>
         <div class="grupo-botones" role="group">
           <button data-ventana="24" aria-pressed="false">24 h</button>
-          <button data-ventana="168" aria-pressed="true">7 días</button>
+          <button data-ventana="168" aria-pressed="true" data-i18n>7 días</button>
         </div>
       </div>
-      <div class="grupo-botones" role="group" aria-label="Vista">
-        <button data-modo="globo" aria-pressed="true">Globo</button>
-        <button data-modo="plano" aria-pressed="false">Plano</button>
+      <div class="grupo-botones" role="group" aria-label="Vista" data-i18n-attr="aria-label">
+        <button data-modo="globo" aria-pressed="true" data-i18n>Globo</button>
+        <button data-modo="plano" aria-pressed="false" data-i18n>Plano</button>
       </div>
       <div class="grupo-botones" role="group" aria-label="Zoom">
-        <button data-zoom="1" aria-label="Acercar">+</button>
-        <button data-zoom="-1" aria-label="Alejar">−</button>
-        <button data-zoom="0">Centrar</button>
+        <button data-zoom="1" aria-label="Acercar" data-i18n-attr="aria-label">+</button>
+        <button data-zoom="-1" aria-label="Alejar" data-i18n-attr="aria-label">−</button>
+        <button data-zoom="0" data-i18n>Centrar</button>
       </div>
     </div>
 
     <aside class="panel" id="panel">
-      <button class="asa" id="asa" aria-expanded="true" aria-controls="panel-cuerpo">Ocultar panel</button>
+      <button class="asa" id="asa" aria-expanded="true" aria-controls="panel-cuerpo" data-i18n>Ocultar panel</button>
       <div class="panel-cuerpo" id="panel-cuerpo">
         <nav class="pestanas" role="tablist">
-          <button role="tab" aria-selected="true" data-pestana="parte">Informe</button>
-          <button role="tab" aria-selected="false" data-pestana="simulacion">Simulación</button>
-          <button role="tab" aria-selected="false" data-pestana="paises">Países</button>
-          <button role="tab" aria-selected="false" data-pestana="eventos">Eventos</button>
-          <button role="tab" aria-selected="false" data-pestana="titulares">Titulares</button>
+          <button role="tab" aria-selected="true" data-pestana="parte" data-i18n>Informe</button>
+          <button role="tab" aria-selected="false" data-pestana="simulacion" data-i18n>Simulación</button>
+          <button role="tab" aria-selected="false" data-pestana="paises" data-i18n>Países</button>
+          <button role="tab" aria-selected="false" data-pestana="eventos" data-i18n>Eventos</button>
+          <button role="tab" aria-selected="false" data-pestana="titulares" data-i18n>Titulares</button>
         </nav>
         <section class="vista" id="vista-parte" role="tabpanel"></section>
         <section class="vista" id="vista-simulacion" role="tabpanel" hidden></section>
@@ -78,15 +83,15 @@
       </div>
     </aside>
 
-    <div class="leyenda" aria-label="Leyenda">
+    <div class="leyenda" aria-label="Leyenda" data-i18n-attr="aria-label">
       <p class="niveles">
-        <span><i class="nivel-rojo"></i>Alerta</span>
-        <span><i class="nivel-ambar"></i>Vigilar</span>
-        <span><i class="nivel-verde"></i>Actividad sin alerta</span>
-        <span><i class="nivel-late"></i>Late si empeora</span>
+        <span><i class="nivel-rojo"></i><span data-i18n>Alerta</span></span>
+        <span><i class="nivel-ambar"></i><span data-i18n>Vigilar</span></span>
+        <span><i class="nivel-verde"></i><span data-i18n>Actividad sin alerta</span></span>
+        <span><i class="nivel-late"></i><span data-i18n>Late si empeora</span></span>
       </p>
-      <p class="niveles leyenda-simulacion"><span><i class="nivel-simulado"></i>Contagio simulado</span></p>
-      <p class="aviso">Pronósticos y simulaciones: estimaciones automáticas a partir de noticias, sin validez oficial. <a href="#metodo" id="ver-metodo">Cómo se calcula</a>. <a href="https://github.com/sponsors/serbenda" target="_blank" rel="noopener" class="apoyo">Apoya atalaya</a></p>
+      <p class="niveles leyenda-simulacion"><span><i class="nivel-simulado"></i><span data-i18n>Contagio simulado</span></span></p>
+      <p class="aviso"><span data-i18n>Pronósticos y simulaciones: estimaciones automáticas a partir de noticias, sin validez oficial.</span> <a href="#metodo" id="ver-metodo" data-i18n>Cómo se calcula</a>. <a href="https://github.com/sponsors/serbenda" target="_blank" rel="noopener" class="apoyo" data-i18n>Apoya atalaya</a></p>
     </div>
 
     <div class="ficha-mapa" id="ficha-mapa" hidden></div>
@@ -94,6 +99,7 @@
   </main>
 
   <dialog class="metodo" id="metodo">
+    <div class="solo-es" lang="es">
     <h2>Cómo se calcula</h2>
     <p>Cada 30 minutos se descargan los datos de fuentes públicas y se puntúa cada país. Se miran tres cosas por separado, como hacen los equipos de alerta temprana:</p>
     <ul>
@@ -122,15 +128,55 @@
     <p>La pestaña <strong>Simulación</strong> imagina qué podría pasar en los próximos 7 días en las crisis abiertas: tres ramas (se contiene, sigue igual, escala) con una probabilidad aproximada, el posible contagio a los vecinos y el impacto para España. La probabilidad sale de los indicadores encendidos, la tendencia de la semana y la situación de los vecinos.</p>
     <p>La misma noticia cuenta una sola vez, y los medios estatales de países sin prensa libre (RT, Xinhua, Press TV, KCNA…) cuentan la mitad. Cada ficha incluye un <strong>análisis</strong>: dónde se concentra la violencia, quién contra quién, señales de desescalada, otras explicaciones posibles y qué desmentiría el escenario principal. Señales tempranas adicionales: <strong>caída brusca de la moneda</strong> y <strong>elecciones próximas</strong> (Wikidata).</p>
     <p>El <strong>rendimiento</strong> se mide con la puntuación de Brier: cada pronóstico se compara con lo que pasó, frente a dos referencias ingenuas. Los días anteriores a atalaya se pueden reconstruir con el archivo de GDELT.</p>
-    <p>Avisos de cambios: <a id="rss" href="#" target="_blank" rel="noopener">feed RSS</a>. Marca con ☆ los países que quieras seguir: aparecen arriba en el Informe (se guardan solo en este navegador).</p>
+    <p>Avisos de cambios: <a class="enlace-rss" href="#" target="_blank" rel="noopener">feed RSS</a>. Marca con ☆ los países que quieras seguir: aparecen arriba en el Informe (se guardan solo en este navegador).</p>
+    </div>
+    <div class="solo-en" lang="en">
+    <h2>How it works</h2>
+    <p>Every 30 minutes, data is downloaded from public sources and each country is scored. Three things are looked at separately, as early-warning teams do:</p>
+    <ul>
+      <li><strong>Severity.</strong> How bad things are in a country, including protracted crises. A war that has lasted for months stays on alert even if it is not getting worse today.</li>
+      <li><strong>Escalation.</strong> Whether it is worse than is normal for that country, or has been rising for three days in a row. On the map, these countries pulse.</li>
+      <li><strong>Confidence</strong> (how well corroborated it is). It does not say whether the situation is serious, but how far to trust what is seen. <em>Well corroborated</em>: two or more independent types of source agree (press, official bodies, technical data such as internet outages, health or humanitarian sources). <em>Corroborated</em>: confirmed by a source that is not the press. <em>Press only</em>: only the news reports it, and it may be noise.</li>
+    </ul>
+    <p>What adds points:</p>
+    <ul>
+      <li><strong>Conflicts and protests</strong> reported by the press worldwide (GDELT). Only the main event of each story counts, and only violence involving armies, armed groups, police or governments. It is not the number of stories that counts, but what share of what is reported about the country is violence.</li>
+      <li><strong>Earthquakes</strong> (USGS) and <strong>disasters</strong> with an official alert (GDACS, NASA).</li>
+      <li><strong>Disease outbreaks</strong> published by the WHO.</li>
+      <li><strong>Large internet outages</strong> across a whole country (IODA). They often come before coups, crackdowns or offensives.</li>
+      <li><strong>US travel advisories</strong>: level 4 marks a protracted crisis and increases add points. They are an official source, but they also reflect that country's foreign policy.</li>
+    </ul>
+    <p>On top of that data, atalaya does the analysis a crisis unit would do:</p>
+    <ul>
+      <li><strong>Scenarios</strong> (military escalation, coup or government crisis, serious unrest, humanitarian emergency). Each one has a list of observable indicators, such as an internet outage, a WhatsApp block or clashes between countries. The more of them switch on, the more likely the scenario.</li>
+      <li><strong>7-day forecast</strong> in estimative language (likely, possible, unlikely), based on last week's trend and the scenarios. Each forecast is stored and compared with what happened afterwards, to measure its accuracy.</li>
+      <li><strong>Regional spillover</strong>: conflicts spread to neighbours.</li>
+      <li><strong>Relevance for Spain</strong>: neighbourhood, migration routes, energy, military deployments and Spanish communities. It is an indicative list in <code>data/intereses_espana.json</code>.</li>
+    </ul>
+    <p>Travel advice from the <strong>Spanish Foreign Ministry</strong> and analysis from the Real Instituto Elcano, the IEEE and CIDOB appear in each country's sheet (in Spanish).</p>
+    <p><strong>Shipping routes</strong> are flagged according to violent events within 350 km in the last 24 hours.</p>
+    <p>A snapshot of the world is saved every day: levels, report, shipping routes and the most relevant events. You can see it with <em>See another day</em> or by clicking a day in a country's trend.</p>
+    <p>The <strong>Simulation</strong> tab imagines what could happen in the next 7 days in open crises: three branches (contained, stays the same, escalates) with an approximate probability, possible spillover to neighbours and the impact for Spain. The probability comes from the indicators switched on, the week's trend and the situation of the neighbours.</p>
+    <p>The same story counts only once, and state media from countries without a free press (RT, Xinhua, Press TV, KCNA…) count half. Each sheet includes an <strong>analysis</strong>: where the violence is concentrated, who against whom, de-escalation signals, other possible explanations and what would disprove the main scenario. Additional early signals: <strong>sharp currency falls</strong> and <strong>upcoming elections</strong> (Wikidata).</p>
+    <p><strong>Performance</strong> is measured with the Brier score: each forecast is compared with what happened, against two naive baselines. Days before atalaya existed can be reconstructed with the GDELT archive.</p>
+    <p>Change alerts: <a class="enlace-rss" href="#" target="_blank" rel="noopener">RSS feed</a> (in Spanish). Mark the countries you want to follow with ☆: they appear at the top of the Report (saved only in this browser).</p>
+    </div>
     <div id="modelo" class="modelo"></div>
+    <div class="solo-es" lang="es">
     <p class="aviso-oficial"><strong>Sin validez oficial.</strong> Los pronósticos y las simulaciones son estimaciones automáticas hechas con reglas sencillas a partir de noticias y datos públicos. No son predicciones oficiales ni análisis de inteligencia, pueden equivocarse y no sirven para tomar decisiones. Para viajar o actuar, consulta siempre fuentes oficiales como el Ministerio de Asuntos Exteriores.</p>
     <p>Son señales tempranas, no predicciones. Cada evento enlaza a su fuente para comprobarlo.</p>
     <p class="apoyo-texto">atalaya es un proyecto personal, gratuito y sin publicidad. Si te resulta útil, puedes apoyarlo en <a href="https://github.com/sponsors/serbenda" target="_blank" rel="noopener">GitHub Sponsors</a>: ayuda a mantener las fuentes y a añadir nuevas.</p>
-    <form method="dialog"><button>Cerrar</button></form>
+    </div>
+    <div class="solo-en" lang="en">
+    <p class="aviso-oficial"><strong>No official validity.</strong> Forecasts and simulations are automatic estimates made with simple rules from news and public data. They are not official forecasts or intelligence assessments, they can be wrong and they are not fit for making decisions. To travel or act, always consult official sources such as your country's foreign ministry.</p>
+    <p>These are early signals, not predictions. Each event links to its source so you can check it.</p>
+    <p class="apoyo-texto">atalaya is a personal project, free and without advertising. If you find it useful, you can support it on <a href="https://github.com/sponsors/serbenda" target="_blank" rel="noopener">GitHub Sponsors</a>: it helps maintain the sources and add new ones.</p>
+    </div>
+    <form method="dialog"><button data-i18n>Cerrar</button></form>
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="js/app.js?v=10"></script>
+  <script src="js/i18n.js?v=11"></script>
+  <script src="js/app.js?v=11"></script>
 </body>
 </html>

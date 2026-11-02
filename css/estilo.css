@@ -520,3 +520,8 @@ i.nivel-simulado { background: repeating-linear-gradient(45deg, var(--ambar) 0 2
 /* Versión del modelo en "Cómo se calcula" */
 .modelo h3 { font-size: 15px; margin: 14px 0 4px; }
 .modelo ul { margin: 0 0 8px; padding-left: 18px; }
+
+/* Idioma: el diálogo "Cómo se calcula" tiene una versión por idioma */
+html[lang="en"] .solo-es, html:not([lang="en"]) .solo-en { display: none; }
+.cabecera .idioma { display: inline-flex; margin-left: 12px; vertical-align: 14px; }
+.idioma button { min-width: 36px; padding: 4px 8px; font-size: 12px; }
