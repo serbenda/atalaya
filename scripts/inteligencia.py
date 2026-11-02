@@ -291,5 +291,16 @@ def enriquecer(alertas, ctx, intereses, historico):
     pasos = alertas.get("pasos", [])
     alertas["informe"] = informe(alertas["paises"], pasos, intereses, alertas.get("calibrando"))
     alertas["fiabilidad"] = fiabilidad(historico)
+
+    # Simulación de escenarios (sin validez oficial: ver scripts/simulacion.py)
+    import simulacion
+    nombres_pasos = {x["id"]: x["nombre"] for x in pasos}
+    niveles_pasos = {x["id"]: x["nivel"] for x in pasos}
+    alertas["simulacion"] = simulacion.simular(
+        alertas, ctx["vecinos"],
+        lambda a3: [t for t, _ in intereses_espana(intereses, a3)],
+        lambda a3: [nombres_pasos[pid] for pid, lista in PASOS_PAISES.items()
+                    if a3 in lista and pid in nombres_pasos and (niveles_pasos[pid] != "verde"
+                                                                 or alertas["paises"][a3]["nivel"] != "verde")])
     return alertas
 

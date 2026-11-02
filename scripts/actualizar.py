@@ -1300,6 +1300,7 @@ def archivar(alertas, eventos, titulares):
         "fecha": HOY, "actualizado": alertas["actualizado"],
         "paises": {a3: {k: p[k] for k in campos_pais if k in p} for a3, p in alertas["paises"].items()},
         "parte": alertas.get("parte", {}), "pasos": alertas.get("pasos", []), "informe": alertas.get("informe", {}),
+        "simulacion": alertas.get("simulacion", {}),
         "eventos": [{k: e[k] for k in campos_evento if k in e} for e in del_dia[:EVENTOS_ARCHIVO]],
         "titulares": titulares[:20],
     }

@@ -68,6 +68,16 @@ Sobre los datos se hace el análisis que haría un gabinete de crisis (`scripts/
 
 Son reglas transparentes, no un modelo entrenado: cada juicio muestra los indicadores que lo sostienen.
 
+### Simulación de escenarios
+
+La pestaña *Simulación* (`scripts/simulacion.py`) imagina qué podría pasar en los próximos 7 días en las crisis abiertas:
+
+- Tres ramas por país (**se contiene**, **sigue igual**, **escala**) con una probabilidad aproximada en múltiplos del 5 %, que sale del pronóstico, los indicadores encendidos, la tendencia de la semana y la situación de los vecinos.
+- **Contagio simulado** a los países vecinos, que aparecen rayados en el mapa.
+- **Impacto para España** (energía, migración, despliegues, comunidad española, rutas marítimas) y las señales que confirmarían o desmentirían cada rama.
+
+> **Sin validez oficial.** Los pronósticos y las simulaciones son estimaciones automáticas hechas con reglas sencillas a partir de noticias y datos públicos. No son predicciones oficiales ni análisis de inteligencia, pueden equivocarse y no sirven para tomar decisiones. La web lo indica en la propia pestaña, en cada pronóstico y en la leyenda.
+
 ## Fuentes opcionales
 
 Se activan al crear estas variables o secretos en el repositorio (Settings → Secrets and variables → Actions):
