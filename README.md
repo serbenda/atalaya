@@ -201,7 +201,7 @@ git show origin/datos-prueba:data/alertas.json | python3 -m json.tool | less
 
 ### Reconstruir el pasado (backtesting)
 
-Para medir el modelo sin esperar semanas: Actions → *Actualizar datos* → *Run workflow* con **retroceso_dias** (por ejemplo `30`, como mucho `90`). [`retroceso.py`](scripts/retroceso.py) descarga una muestra de los ficheros históricos de GDELT de cada día (12 de 96) y aplica las mismas reglas: puntuación, nivel, escenarios y pronóstico. Los días reconstruidos van a `historico.json`, se apuntan en `retroceso.json` y alimentan la medición del rendimiento.
+Para medir el modelo sin esperar semanas: Actions → *Actualizar datos* → *Run workflow* con **retroceso_dias** (por ejemplo `30`, como mucho `90`). [`retroceso.py`](scripts/retroceso.py) descarga una muestra de los ficheros históricos de GDELT de cada día (48 de 96) y aplica las mismas reglas: puntuación, nivel, escenarios y pronóstico. Los días reconstruidos van a `historico.json`, se apuntan en `retroceso.json` y alimentan la medición del rendimiento.
 
 Límites: solo usa GDELT, porque terremotos, desastres, epidemias o cortes de internet no tienen un archivo histórico fácil de reprocesar; y nunca toca `historial.json`, que es la línea base real de "lo habitual". Un día ya medido con todas las fuentes no se sobrescribe.
 

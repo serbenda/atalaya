@@ -1469,16 +1469,26 @@ DIAS_ELECCIONES = 45
 
 
 def elecciones(paises):
+    # Cambia poco: se consulta como mucho cada 12 horas
+    cache = leer("elecciones.json", {})
+    if cache.get("consultado", "") > iso(AHORA - timedelta(hours=12)) and cache.get("elecciones") is not None:
+        hoy = AHORA.strftime("%Y-%m-%d")
+        return {"elecciones": [x for x in cache["elecciones"] if x["fecha"] >= hoy]}
     desde = AHORA.strftime("%Y-%m-%dT00:00:00Z")
     hasta = (AHORA + timedelta(days=DIAS_ELECCIONES)).strftime("%Y-%m-%dT00:00:00Z")
+    # Consulta ligera: tipos de elección fijos (y sus subclases directas) y etiquetas sin el
+    # servicio de etiquetas, que es lo que más tarda
     consulta = f"""SELECT ?e ?eLabel ?fecha ?iso WHERE {{
       VALUES ?tipo {{ wd:Q40231 wd:Q152450 wd:Q858439 wd:Q1076105 wd:Q43109 }}
-      ?e wdt:P31/wdt:P279? ?tipo .
-      ?e wdt:P585 ?fecha . ?e wdt:P17 ?pais . ?pais wdt:P298 ?iso .
+      {{ ?e wdt:P31 ?tipo }} UNION {{ ?c wdt:P279 ?tipo . ?e wdt:P31 ?c }}
+      ?e wdt:P585 ?fecha .
       FILTER(?fecha >= "{desde}"^^xsd:dateTime && ?fecha < "{hasta}"^^xsd:dateTime)
-      SERVICE wikibase:label {{ bd:serviceParam wikibase:language "es,en". }}
+      ?e wdt:P17 ?pais . ?pais wdt:P298 ?iso .
+      OPTIONAL {{ ?e rdfs:label ?es . FILTER(LANG(?es) = "es") }}
+      OPTIONAL {{ ?e rdfs:label ?en . FILTER(LANG(?en) = "en") }}
+      BIND(COALESCE(?es, ?en, "") AS ?eLabel)
     }} LIMIT 400"""
-    datos = descargar(WIKIDATA_URL + "?format=json&query=" + urllib.parse.quote(consulta), intentos=2,
+    datos = descargar(WIKIDATA_URL + "?format=json&query=" + urllib.parse.quote(consulta), intentos=1,
                       cabeceras={"Accept": "application/sparql-results+json"})
     if datos is None:
         return None
@@ -1490,7 +1500,7 @@ def elecciones(paises):
         a3 = f.get("iso", {}).get("value")
         nombre = f.get("eLabel", {}).get("value", "")
         dia = f.get("fecha", {}).get("value", "")[:10]
-        if a3 not in validos or not dia or re.fullmatch(r"Q\d+", nombre) or (a3, nombre) in vistos:
+        if a3 not in validos or not dia or not nombre or re.fullmatch(r"Q\d+", nombre) or (a3, nombre) in vistos:
             continue
         vistos.add((a3, nombre))
         lista.append({"pais": a3, "fecha": dia, "nombre": nombre, "url": f.get("e", {}).get("value")})
@@ -1498,6 +1508,7 @@ def elecciones(paises):
     # Como mucho 3 por país (en algunos hay muchas elecciones locales el mismo día)
     por_pais = {}
     lista = [x for x in lista if por_pais.setdefault(x["pais"], []).append(x) or len(por_pais[x["pais"]]) <= 3]
+    escribir("elecciones.json", {"consultado": iso(AHORA), "elecciones": lista})
     return {"elecciones": lista}
 
 

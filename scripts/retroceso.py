@@ -9,7 +9,7 @@ semanas de histórico propio.
 Límites, para leer los resultados con cuidado:
   - Solo usa GDELT (conflictos y protestas). Terremotos, desastres, epidemias, cortes de
     internet y avisos de viaje no tienen un archivo histórico abierto y fácil de reprocesar.
-  - Por coste, toma una muestra de ficheros de cada día (por defecto 12 de 96, uno cada 2 horas)
+  - Por coste, toma una muestra de ficheros de cada día (por defecto 48 de 96, uno cada media hora)
     y escala los recuentos.
   - Los días reconstruidos no entran en historial.json, que es la línea base de "lo habitual"
     de cada país: así no se mezcla una puntuación parcial con la completa.
@@ -51,7 +51,7 @@ def gdelt_del_dia(paises, dia, muestras):
     return r["paises"]
 
 
-def reconstruir(dias=30, muestras=12, hoy=None):
+def reconstruir(dias=30, muestras=48, hoy=None):
     hoy = hoy or act.HOY
     historico = act.leer("historico.json", {})
     registro = act.leer("retroceso.json", {"dias": []})
@@ -99,6 +99,6 @@ def reconstruir(dias=30, muestras=12, hoy=None):
 
 if __name__ == "__main__":
     dias = min(90, max(1, int(sys.argv[1]))) if len(sys.argv) > 1 else 30
-    muestras = int(sys.argv[2]) if len(sys.argv) > 2 else 12
+    muestras = int(sys.argv[2]) if len(sys.argv) > 2 else 48
     act.SALIDA.mkdir(parents=True, exist_ok=True)
     reconstruir(dias, muestras)
