@@ -1157,8 +1157,10 @@ def reliefweb(paises):
 # Proporción de violencia a partir de la cual cuenta todo el volumen. Calibrado con datos
 # reales: en un país en guerra abierta ronda el 3-7 %; en uno en paz, por debajo del 1 %.
 CUOTA_PLENA = 0.05
-CLAVES_PUNTOS = ("conflicto", "protestas", "desastres", "internet", "censura", "avisos", "epidemias", "humanitaria")
-PARTE_DE = {"internet": "internet", "censura": "censura", "aviso": "avisos", "epidemia": "epidemias", "crisis": "humanitaria"}
+CLAVES_PUNTOS = ("conflicto", "protestas", "desastres", "internet", "censura", "avisos", "epidemias", "humanitaria",
+                 "economia")
+PARTE_DE = {"internet": "internet", "censura": "censura", "aviso": "avisos", "epidemia": "epidemias", "crisis": "humanitaria",
+            "economia": "economia"}
 
 
 def aceleracion(g):
@@ -1373,7 +1375,8 @@ def archivar(alertas, eventos, titulares):
     campos_pais = ("nivel", "escalada", "motivos", "confianza", "puntuacion", "media", "tendencia", "escenarios",
                    "pronostico", "region", "espana", "exteriores",
                    "dias_subiendo", "aviso_viaje", "conflicto", "protestas", "desastres", "epidemias",
-                   "internet", "avisos", "humanitaria", "cuota_violencia", "hechos_violentos", "protestas_n")
+                   "internet", "avisos", "humanitaria", "cuota_violencia", "hechos_violentos", "protestas_n",
+                   "censura", "economia", "analisis", "elecciones", "divisa_caida", "desescalada")
     campos_evento = ("id", "tipo", "titulo", "lugar", "pais", "lat", "lon", "fecha", "nivel", "peso",
                      "magnitud", "menciones", "hechos", "fuente", "url", "estado")
     del_dia = [e for e in eventos if reciente(e, VENTANA_PUNTUACION) or e["tipo"] in ("epidemia", "crisis")]
@@ -1391,14 +1394,121 @@ def archivar(alertas, eventos, titulares):
     (dir_archivo / "indice.json").write_text(json.dumps({"dias": dias}), "utf-8")
 
 
+# ---------------------------------------------------------- economía y calendario
+# Una moneda que se hunde en pocos días suele adelantarse a protestas, crisis de gobierno o
+# escasez. Se guarda una foto diaria de los tipos de cambio frente al dólar.
+DIVISAS_URL = "https://open.er-api.com/v6/latest/USD"
+CAIDA_DIVISA = 0.08        # depreciación en 7 días a partir de la cual se avisa
+CAIDA_DIVISA_GRAVE = 0.15
+# Monedas y países que las usan (sin el dólar, el euro y monedas fijadas a ellos sin margen)
+DIVISAS = {
+    "AFN": ["AFG"], "ALL": ["ALB"], "AMD": ["ARM"], "AOA": ["AGO"], "ARS": ["ARG"], "AZN": ["AZE"],
+    "BAM": ["BIH"], "BDT": ["BGD"], "BIF": ["BDI"], "BOB": ["BOL"], "BRL": ["BRA"], "BWP": ["BWA"],
+    "BYN": ["BLR"], "CDF": ["COD"], "CLP": ["CHL"], "CNY": ["CHN"], "COP": ["COL"], "CRC": ["CRI"],
+    "CUP": ["CUB"], "CZK": ["CZE"], "DOP": ["DOM"], "DZD": ["DZA"], "EGP": ["EGY"], "ETB": ["ETH"],
+    "GEL": ["GEO"], "GHS": ["GHA"], "GMD": ["GMB"], "GNF": ["GIN"], "GTQ": ["GTM"], "HNL": ["HND"],
+    "HTG": ["HTI"], "HUF": ["HUN"], "IDR": ["IDN"], "ILS": ["ISR", "PSE"], "INR": ["IND"], "IQD": ["IRQ"],
+    "IRR": ["IRN"], "JMD": ["JAM"], "KES": ["KEN"], "KGS": ["KGZ"], "KHR": ["KHM"], "KRW": ["KOR"],
+    "KZT": ["KAZ"], "LAK": ["LAO"], "LBP": ["LBN"], "LKR": ["LKA"], "LRD": ["LBR"], "LSL": ["LSO"],
+    "LYD": ["LBY"], "MAD": ["MAR"], "MDL": ["MDA"], "MGA": ["MDG"], "MKD": ["MKD"], "MMK": ["MMR"],
+    "MNT": ["MNG"], "MRU": ["MRT"], "MWK": ["MWI"], "MXN": ["MEX"], "MYR": ["MYS"], "MZN": ["MOZ"],
+    "NAD": ["NAM"], "NGN": ["NGA"], "NIO": ["NIC"], "NPR": ["NPL"], "PEN": ["PER"], "PGK": ["PNG"],
+    "PHP": ["PHL"], "PKR": ["PAK"], "PLN": ["POL"], "PYG": ["PRY"], "RON": ["ROU"], "RSD": ["SRB"],
+    "RUB": ["RUS"], "RWF": ["RWA"], "SDG": ["SDN"], "SLE": ["SLE"], "SOS": ["SOM"], "SRD": ["SUR"],
+    "SSP": ["SSD"], "SYP": ["SYR"], "SZL": ["SWZ"], "THB": ["THA"], "TJS": ["TJK"], "TMT": ["TKM"],
+    "TND": ["TUN"], "TRY": ["TUR"], "TZS": ["TZA"], "UAH": ["UKR"], "UGX": ["UGA"], "UYU": ["URY"],
+    "UZS": ["UZB"], "VES": ["VEN"], "VND": ["VNM"], "XAF": ["CMR", "CAF", "TCD", "COG", "GNQ", "GAB"],
+    "XOF": ["BEN", "BFA", "CIV", "GNB", "MLI", "NER", "SEN", "TGO"], "YER": ["YEM"], "ZAR": ["ZAF"],
+    "ZMW": ["ZMB"], "ZWG": ["ZWE"], "KPW": ["PRK"], "ERN": ["ERI"], "DJF": ["DJI"], "TWD": ["TWN"],
+}
+
+
+def divisas(paises):
+    """Monedas que se deprecian con fuerza frente al dólar en los últimos 7 días."""
+    datos = descargar(DIVISAS_URL)
+    if datos is None:
+        return None
+    exigir(datos.get("result") == "success" and isinstance(datos.get("rates"), dict), "respuesta sin tipos de cambio")
+    tipos = datos["rates"]
+    historial = leer("divisas_historial.json", {})
+    historial[HOY] = {m: tipos[m] for m in DIVISAS if m in tipos}
+    historial = {d: historial[d] for d in sorted(historial)[-30:]}
+    escribir("divisas_historial.json", historial)
+    hace7 = (AHORA - timedelta(days=7)).strftime("%Y-%m-%d")
+    previos = [d for d in sorted(historial) if d <= hace7]
+    eventos, caidas = [], {}
+    if not previos:
+        return {"eventos": [], "divisas": {}}
+    antes = historial[previos[-1]]
+    for moneda, usan in DIVISAS.items():
+        if moneda not in tipos or not antes.get(moneda):
+            continue
+        # Más unidades por dólar = la moneda vale menos
+        caida = 1 - antes[moneda] / tipos[moneda]
+        if caida < CAIDA_DIVISA:
+            continue
+        for a3 in usan:
+            caidas[a3] = round(caida, 3)
+            lon, lat = paises.centro(a3)
+            eventos.append({
+                "id": f"divisa-{moneda}-{a3}-{HOY}", "tipo": "economia",
+                "titulo": f"El {moneda} pierde un {round(caida * 100)} % frente al dólar en 7 días",
+                "lugar": "", "pais": a3,
+                "lat": round(lat, 3), "lon": round(lon, 3), "fecha": iso(AHORA),
+                # No es una alerta oficial: el nivel del evento se queda en verde y solo suma puntos
+                "peso": 3 if caida >= CAIDA_DIVISA_GRAVE else 1.5, "nivel": "verde",
+                "fuente": "Tipos de cambio", "familia": "tecnica", "url": "https://www.exchangerate-api.com/",
+            })
+    return {"eventos": eventos, "divisas": caidas}
+
+
+# Elecciones y referendos en los próximos 45 días (Wikidata). Son fechas de riesgo: protestas,
+# cortes de internet y crisis de gobierno se concentran alrededor de ellas.
+WIKIDATA_URL = "https://query.wikidata.org/sparql"
+DIAS_ELECCIONES = 45
+
+
+def elecciones(paises):
+    desde = AHORA.strftime("%Y-%m-%dT00:00:00Z")
+    hasta = (AHORA + timedelta(days=DIAS_ELECCIONES)).strftime("%Y-%m-%dT00:00:00Z")
+    consulta = f"""SELECT ?e ?eLabel ?fecha ?iso WHERE {{
+      ?e wdt:P31 ?tipo . ?tipo wdt:P279* wd:Q40231 .
+      ?e wdt:P585 ?fecha . ?e wdt:P17 ?pais . ?pais wdt:P298 ?iso .
+      FILTER(?fecha >= "{desde}"^^xsd:dateTime && ?fecha < "{hasta}"^^xsd:dateTime)
+      SERVICE wikibase:label {{ bd:serviceParam wikibase:language "es,en". }}
+    }} LIMIT 400"""
+    datos = descargar(WIKIDATA_URL + "?format=json&query=" + urllib.parse.quote(consulta), intentos=2,
+                      cabeceras={"Accept": "application/sparql-results+json"})
+    if datos is None:
+        return None
+    filas = (datos.get("results") or {}).get("bindings")
+    exigir(isinstance(filas, list), "respuesta SPARQL sin resultados")
+    validos = {p["a3"] for p in json.loads((FIJOS / "paises.json").read_text("utf-8"))}
+    lista, vistos = [], set()
+    for f in filas:
+        a3 = f.get("iso", {}).get("value")
+        nombre = f.get("eLabel", {}).get("value", "")
+        dia = f.get("fecha", {}).get("value", "")[:10]
+        if a3 not in validos or not dia or re.fullmatch(r"Q\d+", nombre) or (a3, nombre) in vistos:
+            continue
+        vistos.add((a3, nombre))
+        lista.append({"pais": a3, "fecha": dia, "nombre": nombre, "url": f.get("e", {}).get("value")})
+    lista.sort(key=lambda x: x["fecha"])
+    # Como mucho 3 por país (en algunos hay muchas elecciones locales el mismo día)
+    por_pais = {}
+    lista = [x for x in lista if por_pais.setdefault(x["pais"], []).append(x) or len(por_pais[x["pais"]]) <= 3]
+    return {"elecciones": lista}
+
+
 # --------------------------------------------------------------------- main
 
 FUENTES = [("USGS", usgs), ("EMSC", emsc), ("IGN", ign), ("GDACS", gdacs), ("Copernicus EMS", copernicus),
            ("NASA EONET", eonet), ("GDELT", gdelt), ("Titulares", titulares), ("Análisis", analisis),
            ("IODA", ioda), ("Cloudflare Radar", cloudflare), ("OONI", ooni), ("Exteriores (España)", exteriores),
-           ("Avisos de viaje EE. UU.", avisos_viaje), ("OMS", oms), ("ReliefWeb", reliefweb), ("UCDP", ucdp)]
+           ("Avisos de viaje EE. UU.", avisos_viaje), ("OMS", oms), ("ReliefWeb", reliefweb), ("UCDP", ucdp),
+           ("Tipos de cambio", divisas), ("Elecciones (Wikidata)", elecciones)]
 # Fuentes que no aportan eventos sino otros datos: si fallan, se conservan esos datos
-DATOS_DE_FUENTE = {"Titulares": "titulares", "Análisis": "analisis"}
+DATOS_DE_FUENTE = {"Titulares": "titulares", "Análisis": "analisis", "Elecciones (Wikidata)": "elecciones"}
 
 
 def sin_duplicados_sismicos(eventos):
@@ -1479,6 +1589,8 @@ def main():
                                              normalizar(t["titulo"]))
                                 for a in t.get("paises", [])},
            "ucdp": extra.get("ucdp") or anterior.get("ucdp") or {},
+           "divisas": extra.get("divisas", anterior.get("divisas") or {}),
+           "elecciones": {},
            "exteriores": extra.get("exteriores") or leer("exteriores.json", {}).get("paises") and
            {a: {"nivel": f["nivel"], "texto": EXTERIORES_NIVELES[f["nivel"]], "actualizacion": f.get("actualizacion"),
                 "notas": f.get("notas", "")[:400], "url": f.get("url")} for a, f in leer("exteriores.json", {}).get("paises", {}).items()} or {}}
@@ -1501,12 +1613,15 @@ def main():
             if "academica" not in p.get("familias", []):
                 p["familias"] = p.get("familias", []) + ["academica"]
                 p["confianza"] = confianza(p["familias"])
+    for x in extra.get("elecciones", []):
+        ctx["elecciones"].setdefault(x["pais"], []).append(x)
     intereses = json.loads((FIJOS / "intereses_espana.json").read_text("utf-8"))
     inteligencia.enriquecer(alertas, ctx, intereses, leer("historico.json", {}))
 
     escribir("eventos.json", {"actualizado": iso(AHORA), "fuentes": estado, "eventos": eventos,
                               "titulares": extra.get("titulares", []), "analisis": extra.get("analisis", []),
-                              "ucdp": ctx["ucdp"],
+                              "ucdp": ctx["ucdp"], "divisas": ctx["divisas"],
+                              "elecciones": extra.get("elecciones", []),
                               "gdelt_paises": gdelt_paises, "gdelt_pasos": gdelt_pasos})
     escribir("alertas.json", alertas)
     escribir("historial.json", historial)

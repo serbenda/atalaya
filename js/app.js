@@ -29,6 +29,7 @@
   const nombresRegion = new Intl.DisplayNames(["es"], { type: "region" });
   const relativo = new Intl.RelativeTimeFormat("es", { numeric: "auto" });
   const numero = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
+  const diaMes = (d) => new Date(d + "T12:00:00Z").toLocaleDateString("es-ES", { day: "numeric", month: "short" });
   const fechaCorta = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
   const estado = {
@@ -511,6 +512,15 @@
         <span class="cifra"></span></div>`).join("");
     }
 
+    if (inf.fechas?.length) {
+      html += `<h3 class="grupo">Fechas clave</h3>` + inf.fechas.map((x) => {
+        const p = estado.alertas[x.pais];
+        return `<button class="fila" data-pais="${x.pais}"><span class="punto ${p ? p.nivel : "neutro"}"></span>
+          <span class="nombre">${esc(nombrePais(x.pais))}<span class="detalle">${esc(x.nombre)}</span></span>
+          <span class="cifra">${esc(diaMes(x.fecha))}</span></button>`;
+      }).join("") + `<p class="detalle-gris nota">Elecciones y referendos en las próximas semanas, según Wikidata. Son fechas con más riesgo de protestas, cortes de internet o crisis de gobierno.</p>`;
+    }
+
     const pasos = [...estado.pasos].sort((a, b) => b.hechos - a.hechos);
     if (pasos.length) {
       html += `<h3 class="grupo">Rutas marítimas estratégicas</h3>` + pasos.map((p) => `<div class="fila">
@@ -628,6 +638,7 @@
       ["Cambios en avisos de viaje esta semana", de("aviso")],
       ["Brotes epidémicos (OMS, 30 días)", estado.capas.has("epidemia") ? de("epidemia") : []],
       ["Crisis humanitarias abiertas", de("crisis").filter((e) => e.estado === "alert")],
+      ["Monedas que se hunden frente al dólar (7 días)", de("economia")],
       ["Cortes de internet grandes en 24 horas", estado.capas.has("internet") ? de("internet").sort((a, b) => b.peso - a.peso) : []],
       ["Más noticias de ataques o enfrentamientos", top("conflicto")],
       ["Más noticias de protestas", top("protesta")],
@@ -696,6 +707,7 @@
     if (a.internet) partes.push(`${numero.format(a.internet)} por cortes de internet`);
     if (a.avisos) partes.push(`${numero.format(a.avisos)} por subir el aviso de viaje`);
     if (a.humanitaria) partes.push(`${numero.format(a.humanitaria)} por crisis humanitaria`);
+    if (a.economia) partes.push(`${numero.format(a.economia)} por la caída de su moneda`);
     let t = partes.length ? `La puntuación ${estado.dia ? "de ese día" : "de hoy"} suma ${lista(partes)}.` : "";
     if (a.tendencia === "sube") t += " Está por encima de lo habitual para este país.";
     else if (a.tendencia === "baja") t += " Está por debajo de lo habitual para este país.";
@@ -734,6 +746,12 @@
           `<li class="${i.activo ? "activo" : ""}"><span aria-hidden="true">${i.activo ? "●" : "○"}</span> ${esc(i.texto)}${i.activo ? "" : `<span class="oculto"> (no se observa)</span>`}</li>`).join("")}</ul></div>`;
       }
       if (a.vecinos_mal?.length) html += `<p class="explicacion">Vecinos en alerta o empeorando: ${esc(lista(a.vecinos_mal.map((v) => nombrePais(v))))}.</p>`;
+      html += `</div>`;
+    }
+    if (a?.elecciones?.length || a?.divisa_caida) {
+      html += `<h3 class="grupo">Señales tempranas</h3><div class="ficha">`;
+      if (a.divisa_caida) html += `<p><strong>Su moneda ha perdido un ${Math.round(a.divisa_caida * 100)} % frente al dólar en 7 días.</strong> Las caídas bruscas suelen adelantarse a protestas o crisis de gobierno.</p>`;
+      if (a.elecciones?.length) html += `<p><strong>Próximas citas electorales:</strong></p><ul class="motivos">${a.elecciones.map((x) => `<li>${esc(diaMes(x.fecha))}: ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.nombre)}</a>` : esc(x.nombre)}</li>`).join("")}</ul>`;
       html += `</div>`;
     }
     const an = a?.analisis;

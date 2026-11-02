@@ -182,6 +182,10 @@ RESPUESTAS.update({
           <pubDate>{RFC822}</pubDate><source url="https://www.realinstitutoelcano.org">Real Instituto Elcano</source></item>
         <item><title>Informe anual - Real Instituto Elcano</title><link>https://elcano/2</link><pubDate>{RFC822}</pubDate>
           <source url="https://www.realinstitutoelcano.org">Real Instituto Elcano</source></item></channel></rss>""",
+    "open.er-api.com": {"result": "success", "rates": {"NGN": 1500, "EUR": 0.9}},
+    "query.wikidata.org": {"results": {"bindings": [
+        {"e": {"value": "http://www.wikidata.org/entity/Q1"}, "eLabel": {"value": "Elecciones generales de Filipinas"},
+         "fecha": {"value": (AHORA + timedelta(days=12)).strftime("%Y-%m-%dT00:00:00Z")}, "iso": {"value": "PHL"}}]}},
 })
 
 
@@ -292,6 +296,27 @@ class TestFuentes(Base):
 
     def test_reliefweb_desactivada_sin_appname(self):
         self.assertTrue(act.reliefweb(self.paises)["desactivada"])
+
+
+class TestSenalesTempranas(Base):
+    def test_divisa_que_se_hunde(self):
+        hace8 = (act.AHORA - timedelta(days=8)).strftime("%Y-%m-%d")
+        act.escribir("divisas_historial.json", {hace8: {"NGN": 1000, "EUR": 0.9, "XOF": 600}})
+        with mock.patch.object(act, "descargar", return_value={"result": "success",
+                                                              "rates": {"NGN": 1250, "EUR": 0.9, "XOF": 610}}):
+            r = act.divisas(self.paises)
+        self.assertEqual(r["divisas"], {"NGA": 0.2})
+        self.assertEqual(r["eventos"][0]["tipo"], "economia")
+        self.assertEqual(r["eventos"][0]["nivel"], "verde")  # suma puntos, no es una alerta oficial
+
+    def test_elecciones_wikidata(self):
+        dia = (act.AHORA + timedelta(days=10)).strftime("%Y-%m-%dT00:00:00Z")
+        filas = [{"e": {"value": "http://www.wikidata.org/entity/Q1"}, "eLabel": {"value": "Elecciones generales de Bolivia"},
+                  "fecha": {"value": dia}, "iso": {"value": "BOL"}},
+                 {"e": {"value": "x"}, "eLabel": {"value": "Q999"}, "fecha": {"value": dia}, "iso": {"value": "BOL"}}]
+        with mock.patch.object(act, "descargar", return_value={"results": {"bindings": filas}}):
+            r = act.elecciones(self.paises)
+        self.assertEqual([x["pais"] for x in r["elecciones"]], ["BOL"])
 
 
 class TestGdeltRigor(Base):
@@ -545,6 +570,8 @@ class TestEjecucionCompleta(Base):
         self.assertIn("ETH", a["paises"])  # brote de Marburgo
         self.assertIn("informe", a)
         self.assertIn("pronostico", a["paises"]["PHL"])
+        self.assertEqual(a["informe"]["fechas"][0]["pais"], "PHL")
+        self.assertTrue(a["paises"]["PHL"]["elecciones"])
         ext = json.loads((Path(TMP) / "exteriores.json").read_text())
         self.assertEqual(ext["paises"]["SDN"]["nivel"], 4)
         self.assertIn("vigilar", a["informe"])

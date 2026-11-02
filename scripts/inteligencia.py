@@ -50,9 +50,11 @@ ESCENARIOS = [
     ("escalada", "Escalada militar", [("violencia_sube", 2), ("interestatal", 2), ("militar", 1),
                                       ("aviso_sube", 1), ("exteriores_alto", 1), ("contagio", 1), ("ruta_cercana", 1)]),
     ("golpe", "Golpe o crisis de gobierno", [("corte_internet", 2), ("censura", 2), ("militar", 1),
-                                             ("protestas_suben", 1), ("golpe_en_prensa", 2), ("aviso_sube", 1)]),
+                                             ("protestas_suben", 1), ("golpe_en_prensa", 2), ("aviso_sube", 1),
+                                             ("moneda_cae", 1), ("eleccion_cercana", 1)]),
     ("disturbios", "Disturbios graves", [("protestas_suben", 2), ("disturbios", 2), ("censura", 1),
-                                        ("corte_internet", 1), ("violencia_sube", 1)]),
+                                        ("corte_internet", 1), ("violencia_sube", 1), ("moneda_cae", 1),
+                                        ("eleccion_cercana", 1)]),
     ("humanitaria", "Emergencia humanitaria", [("desastre_grave", 2), ("epidemia_grave", 2), ("crisis_humanitaria", 2),
                                                ("violencia_alta", 1), ("muertes_verificadas", 1), ("exteriores_alto", 1)]),
 ]
@@ -74,6 +76,8 @@ TEXTO_INDICADOR = {
     "epidemia_grave": "Brote epidémico grave",
     "crisis_humanitaria": "Crisis humanitaria abierta",
     "muertes_verificadas": "Muertes en combate verificadas (UCDP)",
+    "moneda_cae": "La moneda se hunde frente al dólar",
+    "eleccion_cercana": "Elecciones o referéndum en las próximas semanas",
 }
 
 
@@ -194,6 +198,8 @@ def indicadores(a3, p, ctx):
         "epidemia_grave": p.get("epidemias", 0) >= 8,
         "crisis_humanitaria": bool(p.get("crisis_abierta")),
         "muertes_verificadas": ctx["ucdp"].get(a3, 0) >= 25,
+        "moneda_cae": ctx.get("divisas", {}).get(a3, 0) >= 0.08,
+        "eleccion_cercana": bool(ctx.get("elecciones", {}).get(a3)),
     }, vecinos_mal
 
 
@@ -365,8 +371,17 @@ def enriquecer(alertas, ctx, intereses, historico):
             p["muertes_ucdp"] = ctx["ucdp"][a3]
         if ctx["exteriores"].get(a3):
             p["exteriores"] = ctx["exteriores"][a3]
+        if ctx.get("elecciones", {}).get(a3):
+            p["elecciones"] = [{k: x[k] for k in ("fecha", "nombre", "url")} for x in ctx["elecciones"][a3]]
+        if ctx.get("divisas", {}).get(a3):
+            p["divisa_caida"] = ctx["divisas"][a3]
     pasos = alertas.get("pasos", [])
     alertas["informe"] = informe(alertas["paises"], pasos, intereses, alertas.get("calibrando"))
+    # Fechas clave: elecciones próximas, primero en los países que ya están en alerta o para vigilar
+    rango = {"rojo": 0, "ambar": 1, "verde": 2}
+    fechas = [{"pais": a3, **x} for a3, lista in ctx.get("elecciones", {}).items() for x in lista[:1]]
+    fechas.sort(key=lambda x: (rango.get(alertas["paises"].get(x["pais"], {}).get("nivel"), 3), x["fecha"]))
+    alertas["informe"]["fechas"] = sorted(fechas[:12], key=lambda x: x["fecha"])
     alertas["fiabilidad"] = fiabilidad(historico)
 
     # Simulación de escenarios (sin validez oficial: ver scripts/simulacion.py)
