@@ -221,6 +221,8 @@ Para activarlo:
 
 La primera ejecución solo guarda el estado, para no mandar de golpe todo lo que ya está en marcha. Un fallo de Telegram nunca rompe la actualización.
 
+Para probarlo al momento: **Actions → Probar Telegram → Run workflow**.
+
 **Guía completa paso a paso** (crear el bot, el canal, el identificador, los secretos, comprobarlo y resolver errores): [`docs/telegram.md`](docs/telegram.md). Bot del proyecto: [@atalaya_world_bot](https://t.me/atalaya_world_bot).
 
 El mismo contenido se publica siempre, haya bot o no, como feed RSS en `data/avisos.xml` de la rama `datos` (enlazado en *Cómo se calcula*).

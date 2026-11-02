@@ -1,0 +1,33 @@
+name: Probar Telegram
+
+# Manda ya un mensaje de prueba y el resumen del día al canal, para comprobar la configuración.
+# No cambia los datos ni el estado de los avisos.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ATALAYA_SALIDA: ${{ github.workspace }}/salida/data
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT: ${{ secrets.TELEGRAM_CHAT }}
+      ATALAYA_URL: ${{ vars.ATALAYA_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Leer el informe actual
+        run: |
+          mkdir -p salida/data
+          git fetch --depth=1 origin datos && git --work-tree=salida checkout FETCH_HEAD -- data/alertas.json && git reset -q || echo "Sin datos todavía: solo se manda la prueba"
+
+      - name: Mandar la prueba
+        run: python scripts/telegram.py --prueba

@@ -155,6 +155,13 @@ The code has to be on `main`, merged through a PR. From then on it runs on its o
 
 ## Checking that it works
 
+### Test now
+
+So you don't have to wait for something to change in the world: **Actions → Probar Telegram → Run workflow** (branch `main`). Within seconds a test message and the daily summary arrive in the channel. It does not touch the data or the alert state, so it can be run as often as needed. If it fails, the *Mandar la prueba* step shows Telegram's exact reason (see [If nothing arrives](#if-nothing-arrives)).
+
+### On every update
+
+
 In **Actions → Actualizar datos →** latest run **→ Avisos por Telegram y RSS**:
 
 | Log line | Meaning |

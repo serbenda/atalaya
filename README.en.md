@@ -225,6 +225,8 @@ The first run only saves the state, so as not to send everything already going o
 The same content is always published, bot or no bot, as an RSS feed in `data/avisos.xml` on the `datos` branch (linked in *How it works*).
 
 
+To test it right away: **Actions → Probar Telegram → Run workflow**.
+
 **Full step-by-step guide** (creating the bot, the channel, the identifier, the secrets, checking it and fixing errors): [`docs/telegram.en.md`](docs/telegram.en.md). Project bot: [@atalaya_world_bot](https://t.me/atalaya_world_bot).
 ### Variables and secrets
 

@@ -155,6 +155,13 @@ El código tiene que estar en `main`, es decir, fusionado por PR. A partir de ah
 
 ## Comprobar que funciona
 
+### Probar ahora
+
+Para no esperar a que cambie algo en el mundo: **Actions → Probar Telegram → Run workflow** (rama `main`). En unos segundos llega al canal un mensaje de prueba y el resumen del día. No toca los datos ni el estado de los avisos, así que se puede lanzar las veces que haga falta. Si falla, el paso *Mandar la prueba* dice el motivo exacto que da Telegram (ver [Si no llega nada](#si-no-llega-nada)).
+
+### En cada actualización
+
+
 En **Actions → Actualizar datos →** la última ejecución **→ Avisos por Telegram y RSS**:
 
 | Registro | Significa |

@@ -97,5 +97,21 @@ class TestTelegram(unittest.TestCase):
         self.assertEqual([a[0] for a in quedan], ["nivel-SDN-rojo"])
 
 
+class TestPrueba(TestTelegram):
+    def test_prueba_manda_mensaje_y_resumen(self):
+        self.escribir("alertas.json", alertas("rojo"))
+        mod = cargar(self.salida)
+        with mock.patch.object(mod, "enviar", side_effect=lambda t: self.enviados.append(t) or True):
+            mod.prueba()
+        self.assertIn("Prueba de atalaya", self.enviados[0])
+        self.assertEqual(len(self.enviados), 2)
+        self.assertFalse((self.salida / "telegram.json").exists())  # no toca el estado
+
+    def test_prueba_sin_secretos(self):
+        mod = cargar(self.salida, token="", chat="")
+        with self.assertRaises(SystemExit):
+            mod.prueba()
+
+
 if __name__ == "__main__":
     unittest.main()
