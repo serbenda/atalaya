@@ -55,7 +55,8 @@ GDELT_ULTIMO_URL = "http://data.gdeltproject.org/gdeltv2/lastupdate.txt"
 GDELT_FICHERO_URL = "http://data.gdeltproject.org/gdeltv2/{}.export.CSV.zip"
 GDELT_FICHEROS = 96                        # 24 h de ficheros de 15 minutos
 TITULARES_URL = "https://news.google.com/rss/search?" + urllib.parse.urlencode({
-    "q": '(bombardeo OR ataque OR ofensiva OR enfrentamientos OR "golpe de Estado" OR evacuación OR terremoto) when:1d',
+    "q": ('(bombardeo OR misiles OR "ataque con drones" OR "ofensiva militar" OR "golpe de Estado" OR '
+          '"alto el fuego" OR evacuación OR terremoto OR huracán OR brote) -fútbol -baloncesto -liga -partido when:1d'),
     "hl": "es", "gl": "ES", "ceid": "ES:es"})
 IODA_URL = "https://api.ioda.inetintel.cc.gatech.edu/v2/outages/summary?" + urllib.parse.urlencode({
     "from": int((AHORA - timedelta(hours=24)).timestamp()), "until": int(AHORA.timestamp()), "entityType": "country"})
@@ -363,10 +364,15 @@ def gdacs(paises):
         peso = {"green": 1, "orange": 6, "red": 15}.get(alerta, 1)
         nombre = it.get("eventname") or ""
         iso3 = (it.get("iso3") or "").upper()[:3]
+        pais = iso3 if len(iso3) == 3 else paises.asignar(it.get("country"), lon, lat)
+        if tipo == "DR":
+            # Las sequías abarcan muchos países a la vez y avanzan despacio: se muestran en el mapa
+            # pero no se atribuyen a un país ni fijan su nivel
+            pais, peso = None, 0
         eventos.append({
             "id": clave, "tipo": "desastre",
             "titulo": GDACS_TIPOS[tipo] + (f" {nombre.title()}" if nombre and tipo == "TC" else ""),
-            "lugar": it.get("country") or "", "pais": iso3 if len(iso3) == 3 else paises.asignar(it.get("country"), lon, lat),
+            "lugar": it.get("country") or "", "pais": pais,
             "lat": round(lat, 3), "lon": round(lon, 3),
             "fecha": iso(fecha(it.get("todate")) or fecha(it.get("fromdate")) or fecha(it.get("pubDate")) or AHORA),
             "peso": peso, "nivel": {"green": "verde", "orange": "ambar", "red": "rojo"}.get(alerta, "verde"),
@@ -406,8 +412,8 @@ def eonet(paises):
 
 
 # Columnas del fichero de eventos de GDELT 2.0 (61 columnas separadas por tabuladores)
-G_A1_GRUPO, G_A1_TIPOS = 8, (12, 13, 14)
-G_A2_GRUPO, G_A2_TIPOS = 18, (22, 23, 24)
+G_A1_PAIS, G_A1_GRUPO, G_A1_TIPOS = 7, 8, (12, 13, 14)
+G_A2_PAIS, G_A2_GRUPO, G_A2_TIPOS = 17, 18, (22, 23, 24)
 G_RAIZ_EVENTO, G_RAIZ, G_FUENTES, G_ARTICULOS = 25, 28, 32, 33
 G_GEO_TIPO, G_GEO_NOMBRE, G_GEO_LAT, G_GEO_LON, G_FECHA, G_URL = 51, 52, 56, 57, 59, 60
 # Códigos CAMEO raíz: 14 protestas; 18 agresiones, 19 combates, 20 violencia masiva
@@ -420,8 +426,12 @@ ACTORES_POLITICOS = {"MIL", "REB", "INS", "SEP", "UAF", "GOV", "COP", "SPY", "OP
 
 
 def es_politico(f):
+    """Violencia política: con actores armados o estatales, grupos conocidos o entre dos países.
+    Deja fuera la violencia entre civiles de un mismo país sin más contexto (delincuencia común)."""
     tipos = {f[i] for i in G_A1_TIPOS + G_A2_TIPOS}
-    return bool(tipos & ACTORES_POLITICOS) or bool(f[G_A1_GRUPO] or f[G_A2_GRUPO])
+    if tipos & ACTORES_POLITICOS or f[G_A1_GRUPO] or f[G_A2_GRUPO]:
+        return True
+    return bool(f[G_A1_PAIS] and f[G_A2_PAIS] and f[G_A1_PAIS] != f[G_A2_PAIS])
 
 
 def gdelt_ficheros():

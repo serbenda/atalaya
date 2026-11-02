@@ -32,8 +32,10 @@ MS = int(AHORA.timestamp() * 1000)
 RFC822 = AHORA.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
 
-def fila_gdelt(raiz, nombre, lat, lon, articulos=5, tipo="4", url="https://medio/x", actor="MIL", principal="1"):
+def fila_gdelt(raiz, nombre, lat, lon, articulos=5, tipo="4", url="https://medio/x", actor="MIL", principal="1",
+               paises=("", "")):
     f = [""] * 61
+    f[act.G_A1_PAIS], f[act.G_A2_PAIS] = paises
     f[act.G_RAIZ] = raiz
     f[act.G_RAIZ_EVENTO] = principal
     f[act.G_A1_TIPOS[0]] = actor
@@ -66,6 +68,8 @@ FILAS_GDELT = (
     + [fila_gdelt("14", "Nairobi, Nairobi Area, Kenya", -1.28, 36.82, actor="") for _ in range(12)]
     + [fila_gdelt("04", "Nairobi, Nairobi Area, Kenya", -1.28, 36.82) for _ in range(20)]
     + [fila_gdelt("18", "Gaza, Israel (general), Israel", 31.5, 34.47) for _ in range(15)]
+    # Ataque de un país a otro sin tipo de actor: sí es violencia política
+    + [fila_gdelt("19", "Odesa, Odes'ka Oblast', Ukraine", 46.48, 30.73, actor="", paises=("RUS", "UKR")) for _ in range(5)]
     # Mención de pasada (no es el hecho principal de la noticia): no debe contar
     + [fila_gdelt("19", "Lima, Lima, Peru", -12.05, -77.04, principal="0") for _ in range(30)]
     # Cerca del estrecho de Ormuz y de Bab el-Mandeb
@@ -178,7 +182,7 @@ class TestFuentes(Base):
 
     def test_gdelt_solo_violencia_politica_y_hechos_principales(self):
         r = act.gdelt(self.paises)
-        self.assertEqual(r["paises"]["UKR"]["conflicto"], 40)
+        self.assertEqual(r["paises"]["UKR"]["conflicto"], 45)
         self.assertEqual(r["paises"]["USA"]["conflicto"], 10)  # los 30 de delincuencia no cuentan
         self.assertEqual(r["paises"]["PER"]["conflicto"], 0)   # menciones de pasada
         jarkov = next(e for e in r["eventos"] if "Kharkiv" in e["lugar"])
@@ -231,6 +235,13 @@ class TestFuentes(Base):
 
 
 class TestAlertas(Base):
+    def test_gdacs_sequia_no_se_atribuye(self):
+        rss = GDACS_RSS.replace("<gdacs:eventtype>TC</gdacs:eventtype><gdacs:eventid>1</gdacs:eventid><gdacs:eventname>",
+                                "<gdacs:eventtype>DR</gdacs:eventtype><gdacs:eventid>1</gdacs:eventid><gdacs:eventname>")
+        with mock.patch.dict(RESPUESTAS, {"gdacs.org": rss}):
+            ev = act.gdacs(self.paises)["eventos"]
+        self.assertEqual((ev[0]["pais"], ev[0]["peso"]), (None, 0))
+
     def test_sesgo_de_cobertura(self):
         """Mucha cobertura de EE. UU. no debe pesar como un país en guerra."""
         p = act.puntuar([], act.gdelt(self.paises)["paises"])
