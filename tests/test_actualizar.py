@@ -298,6 +298,33 @@ class TestFuentes(Base):
         self.assertTrue(act.reliefweb(self.paises)["desactivada"])
 
 
+class TestRetroceso(Base):
+    def test_reconstruye_y_mide(self):
+        sys.path.insert(0, str(RAIZ / "scripts"))
+        import retroceso
+        import inteligencia
+        filas = FILAS_GDELT
+        with mock.patch.object(act, "gdelt_filas", return_value=filas):
+            hechos = retroceso.reconstruir(dias=3, muestras=4)
+        self.assertEqual(len(hechos), 3)
+        h = json.loads((Path(TMP) / "historico.json").read_text())
+        self.assertIn("UKR", h[hechos[0]])
+        self.assertEqual(act.HOY, act.AHORA.strftime("%Y-%m-%d"))  # se restauran las fechas
+        self.assertFalse((Path(TMP) / "historial.json").exists())  # la línea base real no se toca
+
+    def test_rendimiento(self):
+        import inteligencia
+        # 20 días, 3 países: el modelo dice "alto" en el que empeora y "bajo" en los demás
+        historico = {}
+        for i in range(20):
+            d = f"2026-10-{i + 1:02d}"
+            historico[d] = {"AAA": [10, i % 2, 0, 2], "BBB": [5, 0, 0, 0], "CCC": [5, 0, 0, 0]}
+        r = inteligencia.rendimiento(historico)
+        self.assertGreater(r["muestras"], 30)
+        self.assertGreater(r["mejora_media"], 0)
+        self.assertEqual(r["calibracion"][0]["riesgo"], "alto")
+
+
 class TestSenalesTempranas(Base):
     def test_divisa_que_se_hunde(self):
         hace8 = (act.AHORA - timedelta(days=8)).strftime("%Y-%m-%d")

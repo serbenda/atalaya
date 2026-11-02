@@ -37,7 +37,16 @@
     paises: new Map(), capas: new Set(["conflicto", "protesta", "terremoto", "desastre", "epidemia", "internet", "pasos"]),
     elegido: null, modo: "globo", ventanaHoras: 168, reproduciendo: null, instante: null,
     dia: null, dias: [], historico: null, informe: {}, fiabilidad: {}, analisis: [], simulacion: {},
+    rendimiento: {}, modelo: null, mios: leerMios(),
   };
+
+  // "Mis países": lista de seguimiento guardada solo en este navegador
+  function leerMios() {
+    try { return new Set(JSON.parse(localStorage.getItem("atalaya-mios") || "[]")); } catch { return new Set(); }
+  }
+  function guardarMios() {
+    try { localStorage.setItem("atalaya-mios", JSON.stringify([...estado.mios])); } catch { /* sin almacenamiento */ }
+  }
   const fechaLarga = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const fechaDia = (d) => mayuscula(fechaLarga.format(new Date(`${d}T12:00:00Z`)));
   const hoy = () => new Date().toISOString().slice(0, 10);
@@ -481,6 +490,15 @@
       ${suben.length || bajan.length ? ` Desde ayer, ${lista([suben.length && `${plural(suben.length, "sube", "suben")} de nivel`, bajan.length && `${plural(bajan.length, "baja", "bajan")}`].filter(Boolean))}.` : ""}
       ${estado.calibrando ? " El histórico aún es corto: la comparación con lo habitual de cada país empieza a contar cuando hay una semana de datos." : ""}</p>`;
 
+    if (estado.mios.size) {
+      html += `<h3 class="grupo">Mis países</h3>` + [...estado.mios].map((a3) => {
+        const p = estado.alertas[a3];
+        return `<button class="fila" data-pais="${a3}"><span class="punto ${p ? p.nivel : "neutro"}"></span>
+          <span class="nombre">${esc(nombrePais(a3))}${p?.escalada ? `<span class="empeora">Empeora</span>` : ""}
+          <span class="detalle">${p ? esc(mayuscula(resumenPais(p, a3))) : "Sin eventos recientes"}${p?.pronostico && p.pronostico.riesgo !== "bajo" ? `. ${esc(p.pronostico.texto)}` : ""}</span></span>
+          <span class="cifra"></span></button>`;
+      }).join("");
+    }
     if (inf.juicios?.length) {
       html += `<h3 class="grupo">Juicios clave</h3>` + inf.juicios.map((j) => `<button class="fila juicio" data-pais="${j.pais}">
         <span class="punto ${j.nivel}"></span>
@@ -533,6 +551,17 @@
     html += `<h3 class="grupo">Acierto de los pronósticos</h3><p class="resumen">${f.alto?.total
       ? `De ${plural(f.alto.total, "pronóstico", "pronósticos")} de empeoramiento probable en los últimos 30 días, se cumplieron ${f.alto.aciertos} (${Math.round(100 * f.alto.aciertos / f.alto.total)} %).${f.bajo?.total ? ` De los poco probables, empeoró el ${Math.round(100 * f.bajo.aciertos / f.bajo.total)} %.` : ""}`
       : "Se medirá cuando haya más de una semana de histórico: cada pronóstico se compara con lo que pasó en los 7 días siguientes."}</p>`;
+    const r = estado.rendimiento || {};
+    if (r.brier != null) {
+      const pct = (x) => `${Math.round(x * 100)} %`;
+      const mejor = (m) => (m > 0.02 ? `acierta un ${pct(m)} más` : m < -0.02 ? `acierta un ${pct(-m)} menos` : "acierta lo mismo");
+      html += `<div class="rendimiento"><p class="resumen"><strong>Rendimiento del modelo</strong> (${plural(r.muestras, "pronóstico", "pronósticos")} en ${plural(r.dias, "día", "días")}${r.reconstruidas ? `, ${numero.format(r.reconstruidas)} de días reconstruidos con GDELT` : ""}).
+        Comparado con decir siempre la misma probabilidad, ${mejor(r.mejora_media)}; comparado con fiarse solo del nivel actual de cada país, ${mejor(r.mejora_persistencia)}.
+        <span class="detalle-gris">Puntuación de Brier ${numero.format(r.brier)} (0 es perfecto).</span></p>
+        <table class="calibracion"><thead><tr><th>Pronóstico</th><th>Probabilidad que da</th><th>Empeoró de verdad</th><th>Casos</th></tr></thead><tbody>
+        ${(r.calibracion || []).map((c) => `<tr><td>${{ alto: "Probable", medio: "Posible", bajo: "Poco probable" }[c.riesgo]}</td><td>${pct(c.dicho)}</td><td>${pct(c.observado)}</td><td>${numero.format(c.muestras)}</td></tr>`).join("")}
+        </tbody></table></div>`;
+    }
 
     const fuentes = Object.entries(estado.fuentes);
     if (fuentes.length) {
@@ -724,7 +753,8 @@
     const a = estado.alertas[a3];
     const ev = estado.eventos.filter((e) => e.pais === a3);
     let html = `<button class="volver" data-volver>Volver</button><div class="ficha">
-      <h2>${esc(nombrePais(a3, respaldo))}</h2>
+      <h2>${esc(nombrePais(a3, respaldo))} <button class="estrella" data-mio="${a3}" aria-pressed="${estado.mios.has(a3)}"
+        title="${estado.mios.has(a3) ? "Quitar de mis países" : "Seguir este país"}">${estado.mios.has(a3) ? "★ Siguiendo" : "☆ Seguir"}</button></h2>
       <p class="estado"><span class="punto ${a ? a.nivel : "neutro"}"></span>${a ? NIVELES[a.nivel].texto : "Sin eventos recientes"}
         ${a?.escalada ? `<span class="empeora">Empeora</span>` : ""}${etiquetaConfianza(a?.confianza)}</p>`;
     if (a) {
@@ -867,6 +897,15 @@
   document.addEventListener("click", (ev) => {
     const pestana = ev.target.closest("[data-pestana]");
     if (pestana) { mostrarVista(pestana.dataset.pestana); return; }
+    const mio = ev.target.closest("[data-mio]");
+    if (mio) {
+      const a3 = mio.dataset.mio;
+      if (estado.mios.has(a3)) estado.mios.delete(a3); else estado.mios.add(a3);
+      guardarMios();
+      abrirPais(a3, null, false);
+      pintarParte();
+      return;
+    }
     const fila = ev.target.closest("[data-pais]");
     if (fila) { abrirPais(fila.dataset.pais); return; }
     if (ev.target.closest("[data-volver]")) { cerrarPais(); return; }
@@ -942,6 +981,7 @@
       estado.informe = alertas.informe || {};
       estado.simulacion = alertas.simulacion || {};
       estado.fiabilidad = alertas.fiabilidad || {};
+      estado.rendimiento = alertas.rendimiento || {};
       estado.analisis = eventos.analisis || [];
       estado.calibrando = alertas.calibrando;
       estado.actualizado = eventos.actualizado;
@@ -1025,13 +1065,24 @@
     }
   }
 
+  // Versión del modelo, cambios y errores reconocidos (en el diálogo "Cómo se calcula")
+  async function cargarModelo() {
+    try {
+      const m = await json("data/modelo.json");
+      $("#modelo").innerHTML = `<h3>Versión del modelo: ${esc(m.version)}</h3><ul>${m.cambios.slice(0, 3).map((c) =>
+        `<li><strong>${esc(c.version)}</strong>: ${esc(c.cambios.join(". "))}.</li>`).join("")}</ul>
+        <h3>Errores reconocidos y corregidos</h3><ul>${m.errores.map((e) => `<li>${esc(e.texto)}</li>`).join("")}</ul>`;
+    } catch { /* opcional */ }
+    $("#rss").href = DATOS + "avisos.xml";
+  }
+
   (async () => {
     const [geo, paises] = await Promise.all([json("data/mundo.geojson"), json("data/paises.json")]);
     mundo = geo;
     for (const p of paises) estado.paises.set(p.a3, p);
     $("#lista-paises").innerHTML = mundo.features.map((f) => `<option value="${esc(nombrePais(f.id, f.properties.name))}">`).join("");
     configurarProyeccion();
-    await Promise.all([cargarDatos(), cargarIndice()]);
+    await Promise.all([cargarDatos(), cargarIndice(), cargarModelo()]);
     const d = location.hash.match(/dia=(\d{4}-\d{2}-\d{2})/);
     if (d) await verDia(d[1]);
     const m = location.hash.match(/pais=([A-Z]{3})/);

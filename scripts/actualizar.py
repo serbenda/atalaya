@@ -1591,6 +1591,7 @@ def main():
            "ucdp": extra.get("ucdp") or anterior.get("ucdp") or {},
            "divisas": extra.get("divisas", anterior.get("divisas") or {}),
            "elecciones": {},
+           "reconstruidos": leer("retroceso.json", {}).get("dias", []),
            "exteriores": extra.get("exteriores") or leer("exteriores.json", {}).get("paises") and
            {a: {"nivel": f["nivel"], "texto": EXTERIORES_NIVELES[f["nivel"]], "actualizacion": f.get("actualizacion"),
                 "notas": f.get("notas", "")[:400], "url": f.get("url")} for a, f in leer("exteriores.json", {}).get("paises", {}).items()} or {}}

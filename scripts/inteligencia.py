@@ -278,6 +278,55 @@ def fiabilidad(historico, dias=30):
     return {r: {"aciertos": a, "total": t} for r, (a, t) in cuenta.items() if t}
 
 
+# Probabilidad de empeorar que el modelo asigna a cada grado de pronóstico (la misma que usa la
+# simulación sin calibrar). Se compara con lo que pasó para medir el rendimiento.
+PROB_PRONOSTICO = {2: 0.40, 1: 0.25, 0: 0.10}
+
+
+def rendimiento(historico, reconstruidos=(), dias=60):
+    """Puntuación de Brier de los pronósticos frente a dos referencias ingenuas:
+    - la frecuencia media (decir siempre la misma probabilidad para todos),
+    - la persistencia (la frecuencia observada según el nivel que tenía el país).
+    Mejora > 0 significa que el modelo acierta más que la referencia."""
+    fechas = sorted(historico)[-(dias + 7):]
+    pares = []
+    for i, d in enumerate(fechas):
+        siguientes = fechas[i + 1:i + 8]
+        if len(siguientes) < 7:
+            continue
+        for a3, v in historico[d].items():
+            if len(v) < 4:
+                continue
+            empeoro = any(historico[s].get(a3, [0, 0, 0])[1] > v[1] or historico[s].get(a3, [0, 0, 0])[2]
+                          for s in siguientes)
+            pares.append((PROB_PRONOSTICO[v[3]], int(empeoro), v[1], v[3], d in reconstruidos))
+    if len(pares) < 30:
+        return {"muestras": len(pares)}
+    n = len(pares)
+    brier = sum((p - y) ** 2 for p, y, *_ in pares) / n
+    media = sum(y for _, y, *_ in pares) / n
+    brier_media = sum((media - y) ** 2 for _, y, *_ in pares) / n
+    por_nivel = {}
+    for _, y, nivel, *_ in pares:
+        por_nivel.setdefault(nivel, []).append(y)
+    tasa_nivel = {k: sum(v) / len(v) for k, v in por_nivel.items()}
+    brier_nivel = sum((tasa_nivel[nivel] - y) ** 2 for _, y, nivel, *_ in pares) / n
+    calibracion = []
+    for grado, nombre in ((2, "alto"), (1, "medio"), (0, "bajo")):
+        ys = [y for _, y, _, g, _ in pares if g == grado]
+        if ys:
+            calibracion.append({"riesgo": nombre, "dicho": PROB_PRONOSTICO[grado],
+                                "observado": round(sum(ys) / len(ys), 3), "muestras": len(ys)})
+
+    def mejora(ref):
+        return round(1 - brier / ref, 3) if ref else None
+    return {"muestras": n, "dias": len({d for d in fechas[:-7]}), "brier": round(brier, 4),
+            "brier_media": round(brier_media, 4), "brier_persistencia": round(brier_nivel, 4),
+            "mejora_media": mejora(brier_media), "mejora_persistencia": mejora(brier_nivel),
+            "frecuencia": round(media, 3), "calibracion": calibracion,
+            "reconstruidas": sum(1 for *_, r in pares if r)}
+
+
 def informe(paises, pasos, intereses, calibrando):
     """Informe diario al estilo de un gabinete: conclusión principal, juicios clave y qué vigilar."""
     def peso_pais(a3):
@@ -383,6 +432,7 @@ def enriquecer(alertas, ctx, intereses, historico):
     fechas.sort(key=lambda x: (rango.get(alertas["paises"].get(x["pais"], {}).get("nivel"), 3), x["fecha"]))
     alertas["informe"]["fechas"] = sorted(fechas[:12], key=lambda x: x["fecha"])
     alertas["fiabilidad"] = fiabilidad(historico)
+    alertas["rendimiento"] = rendimiento(historico, set(ctx.get("reconstruidos", ())))
 
     # Simulación de escenarios (sin validez oficial: ver scripts/simulacion.py)
     import simulacion

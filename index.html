@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/estilo.css?v=9">
+  <link rel="stylesheet" href="css/estilo.css?v=10">
   <meta name="atalaya-datos" content="https://raw.githubusercontent.com/serbenda/atalaya/datos/data/">
 </head>
 <body>
@@ -120,6 +120,10 @@
     <p>Las <strong>rutas marítimas</strong> se marcan según los hechos violentos a menos de 350 km en las últimas 24 horas.</p>
     <p>Cada día se guarda una foto del mundo: niveles, parte, rutas marítimas y los eventos más relevantes. Puedes verla con <em>Ver otro día</em> o pinchando un día en la evolución de un país.</p>
     <p>La pestaña <strong>Simulación</strong> imagina qué podría pasar en los próximos 7 días en las crisis abiertas: tres ramas (se contiene, sigue igual, escala) con una probabilidad aproximada, el posible contagio a los vecinos y el impacto para España. La probabilidad sale de los indicadores encendidos, la tendencia de la semana y la situación de los vecinos.</p>
+    <p>La misma noticia cuenta una sola vez, y los medios estatales de países sin prensa libre (RT, Xinhua, Press TV, KCNA…) cuentan la mitad. Cada ficha incluye un <strong>análisis</strong>: dónde se concentra la violencia, quién contra quién, señales de desescalada, otras explicaciones posibles y qué desmentiría el escenario principal. Señales tempranas adicionales: <strong>caída brusca de la moneda</strong> y <strong>elecciones próximas</strong> (Wikidata).</p>
+    <p>El <strong>rendimiento</strong> se mide con la puntuación de Brier: cada pronóstico se compara con lo que pasó, frente a dos referencias ingenuas. Los días anteriores a atalaya se pueden reconstruir con el archivo de GDELT.</p>
+    <p>Avisos de cambios: <a id="rss" href="#" target="_blank" rel="noopener">feed RSS</a>. Marca con ☆ los países que quieras seguir: aparecen arriba en el Informe (se guardan solo en este navegador).</p>
+    <div id="modelo" class="modelo"></div>
     <p class="aviso-oficial"><strong>Sin validez oficial.</strong> Los pronósticos y las simulaciones son estimaciones automáticas hechas con reglas sencillas a partir de noticias y datos públicos. No son predicciones oficiales ni análisis de inteligencia, pueden equivocarse y no sirven para tomar decisiones. Para viajar o actuar, consulta siempre fuentes oficiales como el Ministerio de Asuntos Exteriores.</p>
     <p>Son señales tempranas, no predicciones. Cada evento enlaza a su fuente para comprobarlo.</p>
     <p class="apoyo-texto">atalaya es un proyecto personal, gratuito y sin publicidad. Si te resulta útil, puedes apoyarlo en <a href="https://github.com/sponsors/serbenda" target="_blank" rel="noopener">GitHub Sponsors</a>: ayuda a mantener las fuentes y a añadir nuevas.</p>
@@ -127,6 +131,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="js/app.js?v=9"></script>
+  <script src="js/app.js?v=10"></script>
 </body>
 </html>

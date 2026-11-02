@@ -16,6 +16,10 @@ on:
         description: "Publicar en la rama datos (desmarcar para probar cambios sin tocar la web)"
         type: boolean
         default: true
+      retroceso_dias:
+        description: "Reconstruir N días pasados con GDELT para medir el modelo (0 = no)"
+        type: string
+        default: "0"
 
 permissions:
   contents: write
@@ -28,7 +32,7 @@ concurrency:
 jobs:
   actualizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       ATALAYA_SALIDA: ${{ github.workspace }}/salida/data
       GH_TOKEN: ${{ github.token }}
@@ -66,6 +70,13 @@ jobs:
             exit 1
           fi
           ls -la salida/data
+
+      # Opcional: reconstruir días pasados con GDELT para medir el modelo (backtesting)
+      - name: Reconstruir el pasado
+        if: github.event_name == 'workflow_dispatch' && inputs.retroceso_dias != '' && inputs.retroceso_dias != '0'
+        env:
+          DIAS: ${{ inputs.retroceso_dias }}
+        run: python scripts/retroceso.py "$DIAS"
 
       - name: Descargar fuentes y calcular alertas
         run: python scripts/actualizar.py

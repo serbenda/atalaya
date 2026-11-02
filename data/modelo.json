@@ -1,0 +1,31 @@
+{
+  "version": "2.0",
+  "cambios": [
+    {"version": "2.0", "fecha": "2026-11-02", "cambios": [
+      "Cada noticia cuenta una sola vez aunque GDELT saque varios hechos de ella",
+      "Los medios estatales de países sin prensa libre cuentan la mitad",
+      "Señales de desescalada (negociaciones, alto el fuego, acceso humanitario) que rebajan el escenario de escalada",
+      "Señales tempranas nuevas: caída brusca de la moneda y elecciones próximas",
+      "Análisis por país: dónde se concentra la violencia, quién contra quién, otras explicaciones y qué lo desmentiría",
+      "Medición del rendimiento con la puntuación de Brier frente a referencias ingenuas, y reconstrucción del pasado con GDELT",
+      "Avisos por Telegram y feed RSS"
+    ]},
+    {"version": "1.3", "fecha": "2026-11-02", "cambios": [
+      "Simulación con márgenes de incertidumbre, calibración con lo observado, contagio y correlación regional"
+    ]},
+    {"version": "1.2", "fecha": "2026-11-02", "cambios": [
+      "Escenarios con indicadores, pronóstico a 7 días con lenguaje estimativo e informe diario",
+      "Fuentes nuevas: Exteriores, OONI, Copernicus, EMSC, IGN, UCDP, análisis de Elcano, IEEE y CIDOB"
+    ]},
+    {"version": "1.1", "fecha": "2026-11-02", "cambios": [
+      "Modelo de tres ejes: gravedad, escalada respecto a lo habitual y confianza según tipos de fuente"
+    ]},
+    {"version": "1.0", "fecha": "2026-11-02", "cambios": ["Primera versión del mapa"]}
+  ],
+  "errores": [
+    {"fecha": "2026-11-02", "texto": "Ciudades como Nueva York o Washington salían en alerta por crónica de sucesos y noticias de política interior. Corregido: solo cuenta la violencia política y el hecho principal de cada noticia."},
+    {"fecha": "2026-11-02", "texto": "Algunas recomendaciones de Exteriores se leían con un nivel equivocado (por ejemplo, «salvo por motivos imprescindibles»). Corregido: se analizan frase a frase."},
+    {"fecha": "2026-11-02", "texto": "Un bloqueo crónico de una sola aplicación marcaba censura permanente. Corregido: hacen falta al menos dos aplicaciones."},
+    {"fecha": "2026-11-02", "texto": "La misma noticia podía contar varias veces e inflar un país. Corregido: se cuenta una vez por noticia."}
+  ]
+}
