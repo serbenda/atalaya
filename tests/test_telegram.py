@@ -65,7 +65,7 @@ class TestTelegram(unittest.TestCase):
         self.ejecutar(mod)
         self.assertEqual(len(self.enviados), 1)
         self.assertIn("pasa a alerta", self.enviados[0])
-        self.assertIn("(confianza media)", self.enviados[0])
+        self.assertIn("(lo confirma una fuente oficial o técnica)", self.enviados[0])
         self.assertIn("sin validez oficial", self.enviados[0])
         self.ejecutar(mod)  # misma situación: nada nuevo
         self.assertEqual(len(self.enviados), 1)

@@ -36,6 +36,8 @@ PIE = "<i>Estimación automática a partir de fuentes públicas, sin validez ofi
 RANGO = {"verde": 0, "ambar": 1, "rojo": 2}
 NIVEL = {"verde": "sin alerta", "ambar": "vigilar", "rojo": "alerta"}
 ICONO = {"verde": "🟢", "ambar": "🟠", "rojo": "🔴"}
+CONFIANZA = {"alta": "lo confirman varios tipos de fuente", "media": "lo confirma una fuente oficial o técnica",
+             "baja": "solo lo recoge la prensa"}
 
 
 def leer(nombre, defecto):
@@ -106,7 +108,7 @@ def avisos_nuevos(alertas, eventos, estado):
             motivos = ". ".join(p.get("motivos", [])[:3])
             pron = (p.get("pronostico") or {}).get("texto")
             lineas = [f"{ICONO[p['nivel']]} <b>{esc(nombre(a3))} pasa a {NIVEL[p['nivel']]}</b>"
-                      + (f" (confianza {esc(p['confianza'])})" if p.get("confianza") else "")]
+                      + (f" ({CONFIANZA[p['confianza']]})" if p.get("confianza") in CONFIANZA else "")]
             if motivos:
                 lineas.append(esc(motivos))
             if pron:

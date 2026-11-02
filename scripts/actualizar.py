@@ -466,6 +466,7 @@ def eonet(paises):
 
 
 # Columnas del fichero de eventos de GDELT 2.0 (61 columnas separadas por tabuladores)
+G_A1_NOMBRE, G_A2_NOMBRE, G_CODIGO = 6, 16, 26
 G_A1_PAIS, G_A1_GRUPO, G_A1_TIPOS = 7, 8, (12, 13, 14)
 G_A2_PAIS, G_A2_GRUPO, G_A2_TIPOS = 17, 18, (22, 23, 24)
 G_RAIZ_EVENTO, G_BASE, G_RAIZ, G_FUENTES, G_ARTICULOS = 25, 27, 28, 32, 33
@@ -477,6 +478,36 @@ GDELT_PROTESTA = {"14"}
 # ejército, rebeldes, insurgentes, separatistas, fuerzas armadas no estatales, gobierno,
 # inteligencia y oposición. La policía (COP) no entra: en la prensa casi siempre es crónica de sucesos.
 ACTORES_POLITICOS = {"MIL", "REB", "INS", "SEP", "UAF", "GOV", "SPY", "OPP"}
+# Señales de desescalada (CAMEO): 046 negociar, 086 permitir ayuda humanitaria, 087 desescalada
+# militar (incluye 0871, declarar un alto el fuego)
+GDELT_DESESCALADA = {"046", "086", "087"}
+# Medios de propiedad o control estatal en países sin prensa libre. Sus noticias cuentan la mitad:
+# no se descartan (a veces son la única fuente), pero no pueden encender un país por sí solas.
+MEDIOS_ESTATALES = ("rt.com", "sputniknews", "sputnikglobe", "tass.ru", "tass.com", "ria.ru", "xinhuanet",
+                    "news.cn", "globaltimes.cn", "cgtn.com", "chinadaily.com.cn", "presstv", "irna.ir",
+                    "tasnimnews", "farsnews", "mehrnews", "kcna", "rodong.rep.kp", "telesurtv", "granma.cu",
+                    "sana.sy", "belta.by", "almanar.com.lb")
+PESO_ESTATAL = 0.5
+
+
+def dominio(url):
+    try:
+        return urllib.parse.urlsplit(url).hostname or ""
+    except ValueError:
+        return ""
+
+
+def es_estatal(url):
+    d = dominio(url)
+    return any(m in d for m in MEDIOS_ESTATALES)
+
+
+def region_de(nombre_geo):
+    """'Jartum, Khartoum, Sudan' -> 'Khartoum'; 'Darfur, Sudan' -> 'Darfur'."""
+    partes = [x.strip() for x in (nombre_geo or "").split(",") if x.strip()]
+    if len(partes) >= 3:
+        return partes[-2]
+    return partes[0] if len(partes) == 2 else None
 
 
 def es_politico(f):
@@ -522,6 +553,9 @@ def gdelt(paises, filas=None):
 
     lugares, por_pais = {}, {}
     pasos = {p["id"]: 0 for p in PASOS}
+    # La misma noticia genera a menudo varios "hechos": se cuenta una vez por noticia (URL)
+    vistas = set()
+    regiones, parejas = {}, {}
     # Aceleración: hechos de las últimas 12 h frente a las 12 h anteriores (tendencia desde el primer día)
     mas_reciente = max((f[G_FECHA] for f in filas if len(f) >= 61 and f[G_FECHA].isdigit()), default="")
     corte = (fecha(mas_reciente) - timedelta(hours=12)).strftime("%Y%m%d%H%M%S") if mas_reciente else ""
@@ -548,21 +582,40 @@ def gdelt(paises, filas=None):
                     pasos[p["id"]] += 1
         if not pais:
             continue
-        agg = por_pais.setdefault(pais, {"total": 0, "conflicto": 0, "protesta": 0,
-                                         "interestatal": 0, "militar": 0, "disturbios": 0})
-        agg["total"] += 1
+        agg = por_pais.setdefault(pais, {"total": 0, "conflicto": 0, "protesta": 0, "interestatal": 0,
+                                         "militar": 0, "disturbios": 0, "desescalada": 0, "estatal": 0})
+        url = f[G_URL]
+        if url:
+            clave_url = (pais, tipo or ("desescalada" if f[G_BASE] in GDELT_DESESCALADA else ""), url)
+            if clave_url in vistas:
+                continue
+            vistas.add(clave_url)
+        peso = PESO_ESTATAL if url and es_estatal(url) else 1
+        agg["total"] += peso
         if not tipo:
+            if f[G_RAIZ_EVENTO] == "1" and f[G_BASE] in GDELT_DESESCALADA and es_politico(f):
+                agg["desescalada"] += peso
             continue
-        agg[tipo] += 1
+        agg[tipo] += peso
+        if peso < 1:
+            agg["estatal"] += 1
         mitad = "_12h" if f[G_FECHA] >= corte else "_12h_antes"
-        agg[tipo + mitad] = agg.get(tipo + mitad, 0) + 1
+        agg[tipo + mitad] = agg.get(tipo + mitad, 0) + peso
         if tipo == "conflicto":
             if f[G_A1_PAIS] and f[G_A2_PAIS] and f[G_A1_PAIS] != f[G_A2_PAIS]:
-                agg["interestatal"] += 1
+                agg["interestatal"] += peso
             if {f[i] for i in G_A1_TIPOS + G_A2_TIPOS} & {"MIL", "REB", "INS", "UAF"}:
-                agg["militar"] += 1
+                agg["militar"] += peso
+            reg = region_de(f[G_GEO_NOMBRE]) if f[G_GEO_TIPO] != "1" else None
+            if reg:
+                r = regiones.setdefault(pais, {})
+                r[reg] = r.get(reg, 0) + peso
+            a1, a2 = f[G_A1_NOMBRE].strip(), f[G_A2_NOMBRE].strip()
+            if a1 and a2 and a1 != a2:
+                par = parejas.setdefault(pais, {})
+                par[(a1, a2)] = par.get((a1, a2), 0) + peso
         elif f[G_BASE] == "145":  # protesta violenta o disturbios
-            agg["disturbios"] += 1
+            agg["disturbios"] += peso
         # El tipo 1 es "solo el país": son puntos en el centro del país, poco útiles en el mapa
         if f[G_GEO_TIPO] == "1":
             continue
@@ -575,6 +628,19 @@ def gdelt(paises, filas=None):
         l["fecha"] = max(l["fecha"], f[G_FECHA])
         if f[G_URL] and f[G_URL] not in l["urls"] and len(l["urls"]) < 3:
             l["urls"].append(f[G_URL])
+
+    for pais, agg in por_pais.items():
+        for k, v in list(agg.items()):
+            if isinstance(v, float):
+                agg[k] = round(v, 1)
+        # Dónde se concentra la violencia y quién contra quién (con al menos 5 hechos)
+        if agg["conflicto"] >= 5:
+            total_reg = sum(regiones.get(pais, {}).values())
+            if total_reg:
+                agg["regiones"] = [[r, round(n / total_reg, 2)] for r, n in
+                                   sorted(regiones[pais].items(), key=lambda x: -x[1])[:3] if n / total_reg >= 0.1]
+            agg["actores"] = [[a, b, round(n, 1)] for (a, b), n in
+                              sorted(parejas.get(pais, {}).items(), key=lambda x: -x[1])[:3] if n >= 2]
 
     eventos = []
     # Solo los lugares con más cobertura, para que el mapa siga siendo legible
@@ -1408,6 +1474,10 @@ def main():
            "vecinos": inteligencia.calcular_vecinos(paises),
            "golpe_en_prensa": {a for t in extra.get("titulares", []) if re.search(r"golpe de estado|golpista|asonada", normalizar(t["titulo"]))
                                for a in t.get("paises", [])},
+           "tregua_en_prensa": {a for t in extra.get("titulares", [])
+                                if re.search(r"alto el fuego|tregua|negociacion(es)? de paz|acuerdo de paz|cese de hostilidades|desescalada",
+                                             normalizar(t["titulo"]))
+                                for a in t.get("paises", [])},
            "ucdp": extra.get("ucdp") or anterior.get("ucdp") or {},
            "exteriores": extra.get("exteriores") or leer("exteriores.json", {}).get("paises") and
            {a: {"nivel": f["nivel"], "texto": EXTERIORES_NIVELES[f["nivel"]], "actualizacion": f.get("actualizacion"),

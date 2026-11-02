@@ -33,9 +33,15 @@ MS = int(AHORA.timestamp() * 1000)
 RFC822 = AHORA.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
 
-def fila_gdelt(raiz, nombre, lat, lon, articulos=5, tipo="4", url="https://medio/x", actor="MIL", principal="1",
-               paises=("", "")):
+_NUM_URL = iter(range(10 ** 6))
+
+
+def fila_gdelt(raiz, nombre, lat, lon, articulos=5, tipo="4", url=None, actor="MIL", principal="1",
+               paises=("", ""), base=None, actores=("", "")):
     f = [""] * 61
+    url = url or f"https://medio/{next(_NUM_URL)}"
+    f[act.G_BASE] = base or raiz + "0"
+    f[act.G_A1_NOMBRE], f[act.G_A2_NOMBRE] = actores
     f[act.G_A1_PAIS], f[act.G_A2_PAIS] = paises
     f[act.G_RAIZ] = raiz
     f[act.G_RAIZ_EVENTO] = principal
@@ -286,6 +292,41 @@ class TestFuentes(Base):
 
     def test_reliefweb_desactivada_sin_appname(self):
         self.assertTrue(act.reliefweb(self.paises)["desactivada"])
+
+
+class TestGdeltRigor(Base):
+    def filas(self):
+        f = act.G_URL
+        filas = [fila_gdelt("19", "Al Fashir, Northern Darfur, Sudan", 13.6, 25.3, actores=("RSF", "SUDAN"))
+                 for _ in range(12)]
+        filas += [fila_gdelt("19", "Khartoum, Khartoum, Sudan", 15.5, 32.5, actores=("RSF", "SUDAN")) for _ in range(3)]
+        # La misma noticia repetida no cuenta dos veces
+        filas += [fila_gdelt("19", "Kassala, Kassala, Sudan", 15.4, 36.4, url="https://medio/repetida") for _ in range(10)]
+        # Medio estatal: cuenta la mitad
+        filas += [fila_gdelt("19", "Kassala, Kassala, Sudan", 15.4, 36.4, url=f"https://www.rt.com/a{i}") for i in range(4)]
+        # Desescalada: negociaciones
+        filas += [fila_gdelt("04", "Jeddah, Makkah, Saudi Arabia", 21.5, 39.2, base="046", actor="GOV") for _ in range(2)]
+        filas += [fila_gdelt("04", "Khartoum, Khartoum, Sudan", 15.5, 32.5, base="046", actor="GOV") for _ in range(6)]
+        return filas
+
+    def test_deduplicado_estatales_regiones_actores(self):
+        g = act.gdelt(self.paises, self.filas())["paises"]["SDN"]
+        self.assertEqual(g["conflicto"], 12 + 3 + 1 + 2)  # repetida = 1, rt.com = 4 × 0,5
+        self.assertEqual(g["estatal"], 4)
+        self.assertEqual(g["desescalada"], 6)
+        self.assertEqual(g["regiones"][0][0], "Northern Darfur")
+        self.assertEqual(g["actores"][0][:2], ["RSF", "SUDAN"])
+
+    def test_analisis_y_desescalada(self):
+        import inteligencia
+        gd = act.gdelt(self.paises, self.filas())["paises"]
+        ctx = {"gdelt": gd, "tregua_en_prensa": set(), "paises": {}}
+        p = {"nivel": "ambar", "confianza": "baja"}
+        self.assertTrue(inteligencia.desescalando("SDN", ctx))
+        an = inteligencia.analisis("SDN", p, ctx, [{"id": "escalada", "nombre": "Escalada militar", "riesgo": "medio"}])
+        self.assertIn("contra", an)
+        self.assertTrue(any("prensa" in a for a in an["alternativas"]))
+        self.assertTrue(an["desmentiria"])
 
 
 class TestFuentesNuevas(Base):

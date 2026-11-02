@@ -77,6 +77,66 @@ TEXTO_INDICADOR = {
 }
 
 
+# Análisis estructurado: qué desmentiría cada escenario (abogado del diablo)
+DESMENTIRIA = {
+    "escalada": ["Que la violencia vuelva a su nivel habitual en 48-72 horas",
+                 "Un alto el fuego o negociaciones que se mantengan",
+                 "Que los hechos sean de un solo lugar y no se extiendan"],
+    "golpe": ["Que internet y las aplicaciones vuelvan a funcionar con normalidad",
+              "Que el gobierno siga funcionando y no haya movimientos del ejército en la capital",
+              "Que la prensa deje de hablar de golpe sin confirmarlo ninguna fuente oficial"],
+    "disturbios": ["Que las protestas bajen tras el fin de semana o una fecha señalada",
+                   "Que el gobierno negocie o retire la medida que las provocó",
+                   "Que no haya muertos ni toques de queda"],
+    "humanitaria": ["Que se retire la alerta oficial del desastre o del brote",
+                    "Que llegue ayuda humanitaria sin restricciones",
+                    "Que no haya desplazamientos masivos"],
+}
+NOMBRE_INDICADOR_CONTRA = {
+    "desescalada": "Señales de desescalada: negociaciones, alto el fuego o acceso humanitario",
+    "tregua_en_prensa": "La prensa habla de tregua o negociaciones de paz",
+}
+
+
+def analisis(a3, p, ctx, escs):
+    """Lo que haría un analista con los datos: señales en contra, hipótesis alternativas a la principal
+    y qué la desmentiría. Ayuda a no quedarse solo con la explicación más alarmante."""
+    g = ctx["gdelt"].get(a3, {})
+    conflicto = g.get("conflicto", 0)
+    contra = []
+    if g.get("desescalada", 0) >= max(3, 0.2 * conflicto):
+        contra.append(NOMBRE_INDICADOR_CONTRA["desescalada"])
+    if a3 in ctx.get("tregua_en_prensa", ()):
+        contra.append(NOMBRE_INDICADOR_CONTRA["tregua_en_prensa"])
+    alternativas = []
+    total = g.get("conflicto", 0) + g.get("protesta", 0)
+    if total and g.get("estatal", 0) / max(total, 1) >= 0.3:
+        alternativas.append("Una parte importante de la cobertura viene de medios estatales: puede ser propaganda")
+    if p.get("confianza") == "baja" and p.get("nivel") != "verde":
+        alternativas.append("Solo lo recoge la prensa: puede ser un pico mediático por un hecho aislado")
+    regiones = g.get("regiones") or []
+    if regiones and regiones[0][1] >= 0.7:
+        alternativas.append(f"Casi todo pasa en {regiones[0][0]}: puede ser un problema local y no de todo el país")
+    if g.get("interestatal", 0) and conflicto and g["interestatal"] / conflicto >= 0.5:
+        alternativas.append("La mayoría son hechos entre países: puede ser un conflicto exterior y no una crisis interna")
+    if p.get("crisis_abierta") and not p.get("escalada"):
+        alternativas.append("Es una crisis prolongada: el nivel alto refleja que dura, no que empeore")
+    principal = next((e for e in escs if e["riesgo"] != "bajo"), None)
+    resultado = {}
+    if contra:
+        resultado["contra"] = contra
+    if alternativas:
+        resultado["alternativas"] = alternativas
+    if principal:
+        resultado["desmentiria"] = DESMENTIRIA.get(principal["id"], [])
+        resultado["hipotesis"] = principal["nombre"]
+    if regiones:
+        resultado["donde"] = regiones
+    if g.get("actores"):
+        resultado["actores"] = g["actores"]
+    return resultado
+
+
 def calcular_vecinos(paises):
     """Países que comparten frontera, a partir de los vértices comunes de sus polígonos."""
     por_punto = {}
@@ -137,8 +197,14 @@ def indicadores(a3, p, ctx):
     }, vecinos_mal
 
 
+def desescalando(a3, ctx):
+    g = ctx["gdelt"].get(a3, {})
+    return g.get("desescalada", 0) >= max(3, 0.2 * g.get("conflicto", 0)) or a3 in ctx.get("tregua_en_prensa", ())
+
+
 def escenarios(a3, p, ctx):
     encendidos, vecinos_mal = indicadores(a3, p, ctx)
+    contra = desescalando(a3, ctx)
     resultado = []
     for ide, nombre, lista in ESCENARIOS:
         total = sum(w for _, w in lista)
@@ -148,8 +214,11 @@ def escenarios(a3, p, ctx):
         # Alto: más de la mitad del peso; medio: al menos un indicador clave o dos indicadores
         fraccion = suma / total
         riesgo = 2 if fraccion > 0.5 else 1 if suma >= 2 else 0
+        if contra and ide == "escalada" and riesgo:
+            riesgo -= 1  # hay señales de desescalada: el analista rebaja un grado
         resultado.append({
             "id": ide, "nombre": nombre, "riesgo": RIESGO[riesgo], "estimativo": ESTIMATIVO[RIESGO[riesgo]],
+        **({"rebajado": True} if contra and ide == "escalada" else {}),
             "indicadores": [{"texto": TEXTO_INDICADOR[i], "activo": encendidos[i]} for i, _ in lista],
         })
     # Con el mismo riesgo, primero el escenario que encaja con lo que más pesa en el país
@@ -281,6 +350,11 @@ def enriquecer(alertas, ctx, intereses, historico):
         escs, vecinos_mal = escenarios(a3, p, ctx)
         p["escenarios"] = escs
         p["pronostico"] = pronostico(p, escs)
+        an = analisis(a3, p, ctx, escs)
+        if an:
+            p["analisis"] = an
+        if desescalando(a3, ctx):
+            p["desescalada"] = True
         p["region"] = REGION_DE.get(a3)
         if vecinos_mal:
             p["vecinos_mal"] = vecinos_mal

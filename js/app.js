@@ -434,7 +434,9 @@
     document.querySelectorAll(".pestanas button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.pestana === nombre)));
   }
 
-  const etiquetaConfianza = (c) => (c ? `<span class="etiqueta-conf conf-${c}" title="${esc(CONFIANZA[c])}">Confianza ${c}</span>` : "");
+  // Etiqueta corta y comprensible de cuánto está contrastado lo que se ve en el país
+  const CONF_CORTA = { alta: "Muy contrastado", media: "Contrastado", baja: "Solo prensa" };
+  const etiquetaConfianza = (c) => (c ? `<span class="etiqueta-conf conf-${c}" title="${esc(CONFIANZA[c])}">${CONF_CORTA[c]}</span>` : "");
 
   function filaPais(a3, nota) {
     const p = estado.alertas[a3];
@@ -699,9 +701,11 @@
     else if (a.tendencia === "baja") t += " Está por debajo de lo habitual para este país.";
     else if (a.tendencia === "estable") t += " Es parecida a lo habitual para este país.";
     if (a.aviso_viaje) t += ` EE. UU. tiene su aviso de viaje en nivel ${a.aviso_viaje} de 4 (${AVISOS[a.aviso_viaje]}).`;
-    if (a.confianza) t += ` Confianza ${a.confianza}: ${CONFIANZA[a.confianza].toLowerCase()}.`;
+    if (a.confianza) t += ` ${CONF_CORTA[a.confianza]}: ${CONFIANZA[a.confianza].toLowerCase()}.`;
     return t.trim();
   }
+
+  const titulo = (t) => String(t).toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase());
 
   function abrirPais(a3, respaldo, centrar = true) {
     estado.elegido = a3;
@@ -726,10 +730,20 @@
       const relevantes = (a.escenarios || []).filter((e) => e.riesgo !== "bajo");
       if (!relevantes.length) html += `<p class="explicacion">Ningún escenario de crisis tiene indicadores suficientes ahora mismo.</p>`;
       for (const e of relevantes) {
-        html += `<div class="escenario riesgo-${e.riesgo}"><p><strong>${esc(e.estimativo)} ${esc(e.nombre.toLowerCase())}</strong></p><ul>${e.indicadores.map((i) =>
+        html += `<div class="escenario riesgo-${e.riesgo}"><p><strong>${esc(e.estimativo)} ${esc(e.nombre.toLowerCase())}</strong>${e.rebajado ? ` <span class="detalle-gris">(rebajado un grado por señales de desescalada)</span>` : ""}</p><ul>${e.indicadores.map((i) =>
           `<li class="${i.activo ? "activo" : ""}"><span aria-hidden="true">${i.activo ? "●" : "○"}</span> ${esc(i.texto)}${i.activo ? "" : `<span class="oculto"> (no se observa)</span>`}</li>`).join("")}</ul></div>`;
       }
       if (a.vecinos_mal?.length) html += `<p class="explicacion">Vecinos en alerta o empeorando: ${esc(lista(a.vecinos_mal.map((v) => nombrePais(v))))}.</p>`;
+      html += `</div>`;
+    }
+    const an = a?.analisis;
+    if (an && (an.donde || an.actores || an.contra || an.alternativas || an.desmentiria)) {
+      html += `<h3 class="grupo">Análisis</h3><div class="ficha analisis">`;
+      if (an.donde?.length) html += `<p><strong>Dónde se concentra la violencia:</strong> ${esc(an.donde.map(([r, c]) => `${r} (${Math.round(c * 100)} %)`).join(", "))}.</p>`;
+      if (an.actores?.length) html += `<p><strong>Quién contra quién</strong> <span class="detalle-gris">(nombres tal como los codifica GDELT, en inglés)</span>:</p><ul class="motivos">${an.actores.map(([x, y]) => `<li>${esc(titulo(x))} contra ${esc(titulo(y))}</li>`).join("")}</ul>`;
+      if (an.contra?.length) html += `<p><strong>Señales en contra:</strong></p><ul class="motivos contra">${an.contra.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>`;
+      if (an.alternativas?.length) html += `<p><strong>Otras explicaciones posibles:</strong></p><ul class="motivos">${an.alternativas.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>`;
+      if (an.desmentiria?.length) html += `<p><strong>Qué desmentiría «${esc(an.hipotesis.toLowerCase())}»:</strong></p><ul class="motivos">${an.desmentiria.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>`;
       html += `</div>`;
     }
     if (a?.exteriores || a?.espana?.length || a?.muertes_ucdp) {
