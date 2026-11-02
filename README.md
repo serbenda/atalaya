@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/img/atalaya-marca.png" alt="atalaya: visor de la situación mundial con alerta temprana" width="640">
+
 # atalaya
 
 **Español** · [English](README.en.md)
@@ -219,6 +221,8 @@ Para activarlo:
 
 La primera ejecución solo guarda el estado, para no mandar de golpe todo lo que ya está en marcha. Un fallo de Telegram nunca rompe la actualización.
 
+**Guía completa paso a paso** (crear el bot, el canal, el identificador, los secretos, comprobarlo y resolver errores): [`docs/telegram.md`](docs/telegram.md). Bot del proyecto: [@atalaya_world_bot](https://t.me/atalaya_world_bot).
+
 El mismo contenido se publica siempre, haya bot o no, como feed RSS en `data/avisos.xml` de la rama `datos` (enlazado en *Cómo se calcula*).
 
 ### Variables y secretos
@@ -277,6 +281,8 @@ atalaya/
 │   ├── telegram.py            Avisos por Telegram y feed RSS
 │   ├── retroceso.py           Reconstrucción del pasado con GDELT (backtesting)
 │   └── salud.py               Comprueba el estado de las fuentes
+├── img/atalaya.svg            Logo de la web (también favicon)
+├── docs/                      Guía de Telegram (es, en) y logo
 ├── tests/                     Pruebas con respuestas de ejemplo de cada fuente
 └── .github/workflows/         actualizar.yml y pruebas.yml
 ```

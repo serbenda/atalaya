@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 100" class="torre-l" aria-hidden="true">
+  <defs>
+    <radialGradient id="tl-r" cx="18" cy="20" r="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D9483B" stop-opacity=".6"/><stop offset="1" stop-color="#D9483B" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="18" cy="20" r="18" fill="url(#tl-r)"/>
+  <path d="M10 100 L11.8 41 L24.2 41 L26 100 Z" fill="currentColor"/>
+  <rect x="8" y="35.5" width="20" height="6.5" rx="1" fill="currentColor"/>
+  <rect x="8" y="29.5" width="5.2" height="6.5" fill="currentColor"/><rect x="15.4" y="29.5" width="5.2" height="6.5" fill="currentColor"/><rect x="22.8" y="29.5" width="5.2" height="6.5" fill="currentColor"/>
+  <rect x="16.4" y="52" width="3.2" height="10" rx="1.6" fill="#0F222C"/>
+  <path d="M18 9 C22 13.5 23.6 17 22.4 20.6 C21.6 23 14.4 23 13.6 20.6 C12.4 17 14 13.5 18 9 Z" fill="#D9483B"/>
+  <path d="M18 13.5 C19.8 16 20.4 17.6 19.8 19.4 C19.4 20.4 16.6 20.4 16.2 19.4 C15.6 17.6 16.2 16 18 13.5 Z" fill="#F4C26B"/>
+</svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="r" cx="32" cy="22" r="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D9483B" stop-opacity=".6"/><stop offset="1" stop-color="#D9483B" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  </defs>
+  <g clip-path="url(#c)">
+    <rect width="64" height="64" fill="#13293A"/>
+    <path d="M32 21 L64 15 L64 27 Z M32 21 L0 15 L0 27 Z" fill="#F4C26B" opacity=".28"/>
+    <circle cx="32" cy="22" r="22" fill="url(#r)"/>
+    <path d="M-4 54 Q32 42 68 54 L68 70 L-4 70 Z" fill="#0B1A22"/>
+    <path d="M25 50 L27.5 27 L36.5 27 L39 50 Z" fill="#4F7888"/>
+    <rect x="25.5" y="24.5" width="13" height="3" fill="#6A94A4"/>
+    <rect x="25.5" y="21" width="3" height="4" fill="#6A94A4"/><rect x="30.5" y="21" width="3" height="4" fill="#6A94A4"/><rect x="35.5" y="21" width="3" height="4" fill="#6A94A4"/>
+    <path d="M31 50 V45.5 Q32 44 33 45.5 V50 Z" fill="#0B1A22"/>
+    <path d="M32 11 C35 15 36.5 17.5 35.3 20.3 C34.6 22 29.4 22 28.7 20.3 C27.5 17.5 29 15 32 11 Z" fill="#D9483B"/>
+    <path d="M32 15 C33.4 17.2 34 18.5 33.4 20 C33 21 31 21 30.6 20 C30 18.5 30.6 17.2 32 15 Z" fill="#F4C26B"/>
+  </g>
+</svg>

@@ -66,6 +66,8 @@
     "Vista": "View",
     "Globo": "Globe",
     "Plano": "Flat",
+    "Parar el giro": "Stop spinning",
+    "Girar el globo": "Spin the globe",
     "Zoom": "Zoom",
     "Acercar": "Zoom in",
     "Alejar": "Zoom out",
