@@ -1491,6 +1491,8 @@ def elecciones(paises):
     datos = descargar(WIKIDATA_URL + "?format=json&query=" + urllib.parse.quote(consulta), intentos=1,
                       cabeceras={"Accept": "application/sparql-results+json"})
     if datos is None:
+        # Si no responde, no se reintenta hasta dentro de 12 horas (cada intento cuesta un minuto)
+        escribir("elecciones.json", {"consultado": iso(AHORA), "elecciones": cache.get("elecciones") or []})
         return None
     filas = (datos.get("results") or {}).get("bindings")
     exigir(isinstance(filas, list), "respuesta SPARQL sin resultados")
