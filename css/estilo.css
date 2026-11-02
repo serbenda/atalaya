@@ -481,3 +481,8 @@ i.nivel-late { background: var(--rojo); animation: latido-icono 2.6s ease-in-out
 .leyenda-simulacion { display: none !important; }
 .simulando .leyenda-simulacion { display: flex !important; }
 i.nivel-simulado { background: repeating-linear-gradient(45deg, var(--ambar) 0 2px, transparent 2px 5px); }
+
+/* Apoyo en GitHub Sponsors: discreto, en la leyenda y en Cómo se calcula */
+.apoyo { color: #E8A2C4; }
+.apoyo::before { content: "♥ "; }
+.apoyo-texto { padding-top: 10px; border-top: 1px solid var(--linea); color: var(--tinta-suave); }
