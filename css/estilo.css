@@ -486,3 +486,14 @@ i.nivel-simulado { background: repeating-linear-gradient(45deg, var(--ambar) 0 2
 .apoyo { color: #E8A2C4; }
 .apoyo::before { content: "♥ "; }
 .apoyo-texto { padding-top: 10px; border-top: 1px solid var(--linea); color: var(--tinta-suave); }
+
+.sim-resumen { display: grid; gap: 8px; margin: 10px 20px 4px; }
+.sim-resumen p { margin: 0; padding: 8px 12px; border-radius: 8px; background: var(--mar-hondo); font-size: 13px; }
+.sim-resumen span { display: block; color: var(--tinta-suave); font-size: 12px; }
+.rama-cab small { font-size: 11px; }
+.sim-tabla-cab, .sim-fila { display: grid; grid-template-columns: 12px 1fr 52px 46px 70px; gap: 8px; align-items: center; }
+.sim-tabla-cab { padding: 2px 20px; font-size: 11px; color: var(--tinta-suave); text-align: right; }
+.sim-pct { text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; }
+.sim-escala { color: #F0897E; }
+.sim-igual { color: var(--tinta-suave); }
+.sim-contiene { color: #8CCB9F; }

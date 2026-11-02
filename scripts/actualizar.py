@@ -522,6 +522,9 @@ def gdelt(paises, filas=None):
 
     lugares, por_pais = {}, {}
     pasos = {p["id"]: 0 for p in PASOS}
+    # Aceleración: hechos de las últimas 12 h frente a las 12 h anteriores (tendencia desde el primer día)
+    mas_reciente = max((f[G_FECHA] for f in filas if len(f) >= 61 and f[G_FECHA].isdigit()), default="")
+    corte = (fecha(mas_reciente) - timedelta(hours=12)).strftime("%Y%m%d%H%M%S") if mas_reciente else ""
     for f in filas:
         if len(f) < 61 or not f[G_GEO_LAT] or not f[G_GEO_LON]:
             continue
@@ -551,6 +554,8 @@ def gdelt(paises, filas=None):
         if not tipo:
             continue
         agg[tipo] += 1
+        mitad = "_12h" if f[G_FECHA] >= corte else "_12h_antes"
+        agg[tipo + mitad] = agg.get(tipo + mitad, 0) + 1
         if tipo == "conflicto":
             if f[G_A1_PAIS] and f[G_A2_PAIS] and f[G_A1_PAIS] != f[G_A2_PAIS]:
                 agg["interestatal"] += 1
@@ -1090,6 +1095,16 @@ CLAVES_PUNTOS = ("conflicto", "protestas", "desastres", "internet", "censura", "
 PARTE_DE = {"internet": "internet", "censura": "censura", "aviso": "avisos", "epidemia": "epidemias", "crisis": "humanitaria"}
 
 
+def aceleracion(g):
+    """Cómo cambia la violencia y la protesta entre las 12 h anteriores y las últimas 12 h.
+    Devuelve el cociente (1 = igual, 2 = el doble) solo si hay volumen suficiente para fiarse."""
+    ahora = g.get("conflicto_12h", 0) + g.get("protesta_12h", 0)
+    antes = g.get("conflicto_12h_antes", 0) + g.get("protesta_12h_antes", 0)
+    if ahora + antes < 8:
+        return None
+    return round((ahora + 1) / (antes + 1), 2)
+
+
 def puntuar(eventos, gdelt_paises):
     """Puntuación de cada país con lo ocurrido en las últimas 48 h (30 días para epidemias)."""
     comp = {}
@@ -1126,6 +1141,7 @@ def puntuar(eventos, gdelt_paises):
         cuota_p = g["protesta"] / max(g["total"], 20)
         c["protestas"] = 1.5 * math.log2(1 + g["protesta"]) * min(1.0, cuota_p / CUOTA_PLENA)
         c["cuota_violencia"] = round(cuota, 3)
+        c["aceleracion"] = aceleracion(g)
         c["hechos_violentos"] = g["conflicto"]
         c["protestas_n"] = g["protesta"]
         if c["conflicto"] >= 3 or c["protestas"] >= 3:
@@ -1138,7 +1154,7 @@ def puntuar(eventos, gdelt_paises):
                          "rango_evento": c["rango"], "familias": sorted(c["familias"]),
                          "crisis_abierta": c["crisis_abierta"], "cuota_violencia": c.get("cuota_violencia", 0),
                          "hechos_violentos": c.get("hechos_violentos", 0), "protestas_n": c.get("protestas_n", 0),
-                         "rango_desastre": c.get("rango_desastre", 0),
+                         "rango_desastre": c.get("rango_desastre", 0), "aceleracion": c.get("aceleracion"),
                          "cuota_protestas": round(c.get("protestas_n", 0) / max((gdelt_paises or {}).get(a3, {}).get("total", 0), 20), 3)}
     return resultado
 

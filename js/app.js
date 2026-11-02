@@ -539,24 +539,57 @@
       el.innerHTML = html + `<p class="vacio">No hay crisis con datos suficientes para simular ahora mismo.</p>`;
       return;
     }
-    html += `<p class="resumen">Qué podría pasar en los próximos ${sim.horizonte_dias || 7} días en las crisis abiertas. En el mapa, los países rayados son los que podrían contagiarse.</p>`;
+    const nombres = (xs) => lista((xs || []).map((a) => nombrePais(a)));
+    const r = sim.resumen || {};
+    html += `<p class="resumen">Qué podría pasar en los próximos ${sim.horizonte_dias || 7} días en ${plural(sim.casos.length, "crisis abierta", "crisis abiertas")}. En el mapa, los países rayados son los que podrían contagiarse.</p>
+      <div class="sim-resumen">
+        <p><span>Más riesgo de escalada</span><strong>${esc(nombres(r.mas_escala))}</strong></p>
+        <p><span>Más margen para contenerse</span><strong>${esc(nombres(r.mas_contiene))}</strong></p>
+      </div>`;
+
+    if (sim.regiones?.length) {
+      html += `<h3 class="grupo">Por regiones: que al menos una crisis escale</h3>` + sim.regiones.map((g) => `<div class="fila">
+        <span class="punto ${g.probabilidad >= 60 ? "rojo" : g.probabilidad >= 35 ? "ambar" : "neutro"}"></span>
+        <span class="nombre">${esc(g.region)}<span class="detalle">${esc(nombres(g.paises.slice(0, 4)))}${g.paises.length > 4 ? ` y ${g.paises.length - 4} más` : ""}</span></span>
+        <span class="cifra">≈ ${g.probabilidad} %</span></div>`).join("");
+    }
+
     const ramaTitulo = { escala: "Escala", igual: "Sigue igual", contiene: "Se contiene" };
-    for (const c of sim.casos) {
+    const detallados = sim.casos.slice(0, sim.detallados || 8);
+    const resto = sim.casos.slice(sim.detallados || 8);
+    html += `<h3 class="grupo">Las crisis más graves, en detalle</h3>`;
+    for (const c of detallados) {
       html += `<article class="caso-sim">
         <header><button class="enlace-pais" data-pais="${c.pais}"><span class="punto ${c.nivel}"></span>${esc(nombrePais(c.pais))}</button>
           <span class="etiqueta-sim">Simulado</span>${etiquetaConfianza(c.confianza)}</header>
-        ${c.escenario ? `<p class="detalle-gris">Escenario principal: ${esc(c.escenario.toLowerCase())}. Se basa en: ${esc(lista(c.base.slice(0, 3).map((t, i) => (i ? t.charAt(0).toLowerCase() + t.slice(1) : t.charAt(0).toLowerCase() + t.slice(1))).map((t) => t.replace(/^españa/, "España"))))}.</p>` : ""}
-        <ul class="ramas">${c.ramas.map((r) => `<li class="rama rama-${r.id}">
-          <span class="barra" style="--p:${r.probabilidad}%"></span>
-          <span class="rama-cab"><strong>${ramaTitulo[r.id]}</strong><span>≈ ${r.probabilidad} %, ${esc(r.palabras)}</span></span>
-          <span class="rama-texto">${esc(r.texto)}</span></li>`).join("")}</ul>
+        ${c.escenario ? `<p class="detalle-gris">Escenario principal: ${esc(c.escenario.toLowerCase())}.</p>` : ""}
+        <ul class="ramas">${c.ramas.map((rm) => `<li class="rama rama-${rm.id}">
+          <span class="barra" style="--p:${rm.probabilidad}%"></span>
+          <span class="rama-cab"><strong>${ramaTitulo[rm.id]}</strong><span>≈ ${rm.probabilidad} % <small>(${rm.intervalo[0]}–${rm.intervalo[1]} %)</small>, ${esc(rm.palabras)}</span></span>
+          <span class="rama-texto">${esc(rm.texto)}</span></li>`).join("")}</ul>
+        ${c.factores?.length ? `<p class="sim-linea"><strong>Por qué:</strong> ${esc(lista(c.factores))}.</p>` : ""}
         ${c.contagio?.length ? `<p class="sim-linea"><strong>Si escala, podría extenderse a:</strong> ${esc(lista(c.contagio.map((v) => `${nombrePais(v.pais)} (≈ ${v.probabilidad} %)`)))}.</p>` : ""}
         ${c.espana?.length ? `<p class="sim-linea"><strong>Para España:</strong> ${esc(c.espana.join(" "))}</p>` : ""}
         ${c.confirman?.length ? `<p class="sim-linea"><strong>Señales de que escala:</strong> ${esc(lista(c.confirman).toLowerCase())}.</p>` : ""}
         <p class="sim-linea"><strong>Señales de que se contiene:</strong> ${esc(lista(c.desmienten).toLowerCase())}.</p>
       </article>`;
     }
-    html += `<p class="resumen">Cómo se simula: la probabilidad de cada rama sale del pronóstico, de los indicadores encendidos, de la tendencia de la última semana y de la situación de los vecinos. Son reglas sencillas, no un modelo entrenado, y pueden equivocarse.</p>`;
+    if (resto.length) {
+      html += `<h3 class="grupo">El resto de crisis abiertas</h3>
+        <div class="sim-tabla-cab"><span></span><span>Escala</span><span>Igual</span><span>Se contiene</span></div>` +
+        resto.map((c) => `<button class="fila sim-fila" data-pais="${c.pais}">
+          <span class="punto ${c.nivel}"></span>
+          <span class="nombre">${esc(nombrePais(c.pais))}<span class="detalle">${esc(c.escenario || (c.nivel !== "verde" ? "Crisis prolongada, sin señales nuevas" : "Sin escenario dominante"))}</span></span>
+          ${c.ramas.map((rm) => `<span class="sim-pct sim-${rm.id}" title="${esc(ramaTitulo[rm.id])}: ${rm.intervalo[0]}–${rm.intervalo[1]} %">${rm.probabilidad} %</span>`).join("")}
+        </button>`).join("");
+    }
+
+    html += `<h3 class="grupo">Cómo se simula</h3><p class="resumen">
+      La probabilidad de que una crisis escale parte del ${sim.pesos?.alto ?? 40} % si el pronóstico es que probablemente empeore, del ${sim.pesos?.medio ?? 25} % si es posible y del ${sim.pesos?.bajo ?? 10} % si es poco probable.
+      Sube con cada indicador encendido, si la situación empeora en la última semana o se acelera en las últimas 12 horas, si hay vecinos en crisis y si el país ya está en alerta; baja si se frena.
+      El rango entre paréntesis es el margen de incertidumbre: más estrecho cuantas más fuentes independientes coinciden.
+      ${sim.calibrado ? "Estas probabilidades ya están ajustadas con el acierto real de los pronósticos anteriores." : "Cuando haya suficientes pronósticos comprobados, las probabilidades se ajustarán solas con su acierto real."}
+      En una semana, lo más frecuente es que una crisis siga como está: por eso «sigue igual» suele ser la rama más probable.</p>`;
     el.innerHTML = html;
   }
 

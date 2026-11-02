@@ -381,8 +381,10 @@ class TestSimulacion(Base):
 
     def test_probabilidades_suman_100_y_suben_con_el_riesgo(self):
         esc = {"indicadores": [{"activo": True}, {"activo": True}, {"activo": False}]}
-        alto = self.sim.probabilidades({"pronostico": {"riesgo": "alto", "pendiente": 2}}, esc, ["TCD", "LBY"])
-        bajo = self.sim.probabilidades({"pronostico": {"riesgo": "bajo", "pendiente": -1}}, None, [])
+        alto, factores = self.sim.probabilidades({"pronostico": {"riesgo": "alto", "pendiente": 2}, "aceleracion": 2.5},
+                                                 esc, ["TCD", "LBY"])
+        bajo, _ = self.sim.probabilidades({"pronostico": {"riesgo": "bajo", "pendiente": -1}}, None, [])
+        self.assertTrue(any("12 horas" in f for f in factores))
         self.assertEqual(sum(alto.values()), 100)
         self.assertEqual(sum(bajo.values()), 100)
         self.assertGreater(alto["escala"], bajo["escala"])
@@ -398,7 +400,7 @@ class TestSimulacion(Base):
             "NER": {"nivel": "ambar", "puntuacion": 10, "pronostico": {"riesgo": "bajo"}},
             "DZA": {"nivel": "verde", "puntuacion": 1, "pronostico": {"riesgo": "bajo"}},
             "CHL": {"nivel": "verde", "puntuacion": 1, "pronostico": {"riesgo": "bajo"}}}}
-        r = self.sim.simular(alertas, {"MLI": ["NER", "DZA"]},
+        r = self.sim.simular(alertas, {"MLI": ["NER", "DZA"]}, {"MLI": "Sahel", "NER": "Sahel"}, {},
                              lambda a: ["Rutas migratorias hacia España"] if a == "MLI" else [], lambda a: [])
         self.assertIn("no tiene ninguna validez oficial", r["aviso"])
         caso = r["casos"][0]
@@ -409,6 +411,22 @@ class TestSimulacion(Base):
         self.assertIn("Posible aumento de salidas por las rutas migratorias hacia España.", caso["espana"])
         self.assertEqual(caso["confirman"], ["B"])
         self.assertNotIn("CHL", [c["pais"] for c in r["casos"]])
+        # Región: que al menos una de sus crisis escale es más probable que la media de sus crisis
+        sahel = r["regiones"][0]
+        self.assertEqual(sahel["region"], "Sahel")
+        media = sum(c["ramas"][0]["probabilidad"] for c in r["casos"] if c["region"] == "Sahel") / 2
+        self.assertGreaterEqual(sahel["probabilidad"], media)
+        self.assertEqual(caso["ramas"][0]["intervalo"][1] - caso["ramas"][0]["intervalo"][0], 10)  # confianza alta: ±5
+
+    def test_calibracion_con_el_acierto_real(self):
+        pesos, calibrado = self.sim.pesos_calibrados({"alto": {"aciertos": 80, "total": 100}})
+        self.assertTrue(calibrado)
+        self.assertAlmostEqual(pesos["alto"], 0.6)  # mitad peso de partida (0,40), mitad lo observado (0,80)
+        self.assertEqual(self.sim.pesos_calibrados({"alto": {"aciertos": 1, "total": 5}}), (self.sim.PESOS_RIESGO, False))
+
+    def test_aceleracion(self):
+        self.assertEqual(act.aceleracion({"conflicto_12h": 20, "conflicto_12h_antes": 9}), 2.1)
+        self.assertIsNone(act.aceleracion({"conflicto_12h": 2, "conflicto_12h_antes": 1}))
 
 
 class TestAlertas(Base):
