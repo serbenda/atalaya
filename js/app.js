@@ -125,6 +125,10 @@
   let rotacion = [...ROTACION_INICIAL];
   let ultimoZoom = d3.zoomIdentity;
   let girando = null;
+  let reanudar = null;
+  // Giro del globo: activado por defecto; si se toca el mapa, se para y vuelve solo a los pocos segundos
+  const ESPERA_GIRO = 6000;
+  let giroActivo = (() => { try { return localStorage.getItem("atalaya-giro") !== "no"; } catch { return true; } })();
 
   function areaUtil() {
     const { width, height } = contenedor.getBoundingClientRect();
@@ -173,6 +177,7 @@
 
   const zoom = d3.zoom().scaleExtent([1, 14])
     .on("start", (ev) => { if (ev.sourceEvent) { pararGiro(); ocultarFicha(); } })
+    .on("end", (ev) => { if (ev.sourceEvent) reanudarLuego(); })
     .on("zoom", (ev) => aplicarZoom(ev.transform));
   svg.call(zoom).on("dblclick.zoom", null);
 
@@ -410,7 +415,7 @@
   }
 
   function empezarGiro() {
-    if (reducirMovimiento || estado.modo !== "globo" || girando) return;
+    if (reducirMovimiento || !giroActivo || estado.modo !== "globo" || girando) return;
     let previo = performance.now();
     girando = d3.timer((ahora) => {
       rotacion = [rotacion[0] + (ahora - previo) * 0.004, rotacion[1], 0];
@@ -419,7 +424,24 @@
       redibujar();
     });
   }
-  function pararGiro() { if (girando) { girando.stop(); girando = null; } }
+  function pararGiro() {
+    clearTimeout(reanudar);
+    if (girando) { girando.stop(); girando = null; }
+  }
+  // Vuelve a girar tras unos segundos sin tocar el mapa, salvo con un país abierto o reproduciendo
+  function reanudarLuego() {
+    clearTimeout(reanudar);
+    reanudar = setTimeout(() => {
+      if (!estado.elegido && !estado.reproduciendo) empezarGiro();
+    }, ESPERA_GIRO);
+  }
+  function ponerGiro(activo) {
+    giroActivo = activo;
+    try { localStorage.setItem("atalaya-giro", activo ? "si" : "no"); } catch { /* sin almacenamiento */ }
+    const b = $("#giro");
+    if (b) { b.setAttribute("aria-pressed", String(activo)); b.title = activo ? t("Parar el giro") : t("Girar el globo"); }
+    if (activo) empezarGiro(); else pararGiro();
+  }
 
   function cambiarModo(modo) {
     if (modo === estado.modo) return;
@@ -431,6 +453,8 @@
     configurarProyeccion();
     redibujar();
     if (estado.elegido) centrarEn(estado.elegido);
+    else empezarGiro();
+    $("#giro").hidden = modo !== "globo";
   }
 
   // ----------------------------------------------------------------- panel
@@ -855,6 +879,7 @@
     mostrarVista("parte");
     dibujarPaises();
     actualizarEnlace();
+    reanudarLuego();
   }
 
   function plegar(cerrado) {
@@ -899,6 +924,7 @@
     boton.textContent = t("Reproducir la semana");
     $("#reloj").textContent = "";
     dibujarEventos();
+    reanudarLuego();
   }
 
   // ------------------------------------------------------------ controles
@@ -923,9 +949,11 @@
     if (dia) { verDia(dia.dataset.dia); return; }
     const modo = ev.target.closest("[data-modo]");
     if (modo) { cambiarModo(modo.dataset.modo); return; }
+    if (ev.target.closest("#giro")) { ponerGiro(!giroActivo); return; }
     const z = ev.target.closest("[data-zoom]");
     if (z) {
       pararGiro();
+      reanudarLuego();
       const paso = Number(z.dataset.zoom);
       if (paso === 0) {
         rotacion = [...ROTACION_INICIAL];
@@ -1104,6 +1132,8 @@
     const m = location.hash.match(/pais=([A-Z]{3})/);
     if (m) abrirPais(m[1]);
     else empezarGiro();
+    $("#giro").setAttribute("aria-pressed", String(giroActivo));
+    $("#giro").title = giroActivo ? t("Parar el giro") : t("Girar el globo");
     setInterval(cargarDatos, 5 * 60 * 1000);
   })();
 })();

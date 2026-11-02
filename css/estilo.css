@@ -525,3 +525,11 @@ i.nivel-simulado { background: repeating-linear-gradient(45deg, var(--ambar) 0 2
 html[lang="en"] .solo-es, html:not([lang="en"]) .solo-en { display: none; }
 .cabecera .idioma { display: inline-flex; margin-left: 12px; vertical-align: 14px; }
 .idioma button { min-width: 36px; padding: 4px 8px; font-size: 12px; }
+
+/* Logo junto al nombre */
+.marca .logo {
+  width: 0.78em; height: 0.78em; margin-right: 0.14em; vertical-align: -0.04em;
+  border-radius: 50%; box-shadow: 0 0 0 1px rgba(233, 238, 240, 0.14), 0 0 18px rgba(217, 72, 59, 0.35);
+}
+#giro { font-size: 16px; min-width: 36px; }
+#giro[aria-pressed="false"] { opacity: 0.6; }

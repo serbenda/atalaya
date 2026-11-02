@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640">
+  <defs>
+    <linearGradient id="cielo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0B1A22"/><stop offset=".62" stop-color="#16303C"/><stop offset="1" stop-color="#1E3D4B"/>
+    </linearGradient>
+    <radialGradient id="fuego" cx="320" cy="214" r="190" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF8A5B" stop-opacity=".85"/><stop offset=".25" stop-color="#D9483B" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#D9483B" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="haz" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F4C26B" stop-opacity=".55"/><stop offset="1" stop-color="#F4C26B" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="piedra" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3E6474"/><stop offset=".5" stop-color="#4F7888"/><stop offset="1" stop-color="#2E4E5C"/>
+    </linearGradient>
+    <clipPath id="c"><circle cx="320" cy="320" r="320"/></clipPath>
+  </defs>
+  <g clip-path="url(#c)">
+    <rect width="640" height="640" fill="url(#cielo)"/>
+    <!-- estrellas -->
+    <g fill="#E9EEF0">
+      <circle cx="120" cy="120" r="2.2" opacity=".7"/><circle cx="182" cy="70" r="1.6" opacity=".5"/><circle cx="470" cy="96" r="2" opacity=".6"/>
+      <circle cx="540" cy="170" r="1.5" opacity=".5"/><circle cx="88" cy="230" r="1.4" opacity=".4"/><circle cx="560" cy="270" r="1.8" opacity=".45"/>
+      <circle cx="410" cy="52" r="1.3" opacity=".5"/><circle cx="240" cy="150" r="1.2" opacity=".35"/>
+    </g>
+    <!-- haces de luz que barren el horizonte -->
+    <path d="M320 214 L640 150 L640 262 Z" fill="url(#haz)" opacity=".8"/>
+    <path d="M320 214 L0 150 L0 262 Z" fill="url(#haz)" opacity=".8" transform="matrix(-1 0 0 1 640 0)" style="display:none"/>
+    <g transform="translate(640 0) scale(-1 1)"><path d="M320 214 L640 150 L640 262 Z" fill="url(#haz)" opacity=".8"/></g>
+    <!-- resplandor -->
+    <circle cx="320" cy="214" r="190" fill="url(#fuego)"/>
+    <!-- horizonte: la curva del mundo -->
+    <path d="M-40 520 Q320 400 680 520 L680 700 L-40 700 Z" fill="#10232D"/>
+    <path d="M-40 520 Q320 400 680 520" fill="none" stroke="#57778A" stroke-width="3" opacity=".6"/>
+    <path d="M-40 575 Q320 470 680 575" fill="none" stroke="#57778A" stroke-width="2" opacity=".25"/>
+    <!-- torre -->
+    <g>
+      <!-- cuerpo, ligeramente troncocónico -->
+      <path d="M262 470 L282 262 L358 262 L378 470 Z" fill="url(#piedra)"/>
+      <!-- hiladas de piedra -->
+      <g stroke="#1E3D4B" stroke-width="3" opacity=".55">
+        <line x1="279" y1="300" x2="361" y2="300"/><line x1="275" y1="340" x2="365" y2="340"/>
+        <line x1="271" y1="380" x2="369" y2="380"/><line x1="267" y1="420" x2="373" y2="420"/>
+      </g>
+      <!-- puerta y saetera -->
+      <path d="M306 470 L306 438 Q320 424 334 438 L334 470 Z" fill="#0B1A22"/>
+      <rect x="315" y="320" width="10" height="34" rx="4" fill="#0B1A22"/>
+      <!-- matacán / balcón -->
+      <rect x="268" y="246" width="104" height="20" rx="3" fill="#5C8696"/>
+      <!-- almenas -->
+      <g fill="#5C8696">
+        <rect x="268" y="214" width="20" height="34"/><rect x="300" y="214" width="16" height="34"/>
+        <rect x="324" y="214" width="16" height="34"/><rect x="352" y="214" width="20" height="34"/>
+      </g>
+      <!-- fuego de aviso -->
+      <path d="M320 150 C336 172 344 186 338 204 C334 216 306 216 302 204 C296 186 306 172 320 150 Z" fill="#D9483B"/>
+      <path d="M320 172 C328 186 332 194 328 204 C325 211 315 211 312 204 C308 194 313 186 320 172 Z" fill="#F4C26B"/>
+    </g>
+    <!-- base del cerro -->
+    <path d="M200 492 Q320 452 440 492 L440 520 L200 520 Z" fill="#10232D"/>
+  </g>
+  <circle cx="320" cy="320" r="318" fill="none" stroke="#2A4D5E" stroke-width="4"/>
+</svg>
