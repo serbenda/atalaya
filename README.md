@@ -1,16 +1,43 @@
 # atalaya
 
-Visor de la situación mundial: mapa en tiempo real con conflictos, noticias y catástrofes naturales, y un nivel de alerta por país que detecta cuándo algo se está calentando.
+Visor de la situación mundial: mapa en tiempo real con conflictos, protestas, desastres, epidemias y cortes de internet, y un nivel de alerta por país que detecta cuándo algo se está calentando.
 
 ## Qué muestra
 
-- **Conflictos y protestas**: lugares donde la prensa mundial recoge ataques, enfrentamientos o protestas en las últimas 24 horas.
-- **Cortes de internet** que afectan a todo un país.
-- **Cambios en los avisos de viaje** oficiales.
-- **Terremotos** de magnitud 4,5 o más de los últimos 7 días.
-- **Desastres naturales**: ciclones, inundaciones, volcanes, sequías e incendios.
-- **Titulares** en español sobre conflictos.
-- **Nivel de alerta por país**: alerta, vigilar o lo habitual, con la evolución de los últimos 30 días.
+- **Globo o mapa plano**, con día y noche, que se puede girar, acercar y compartir (`#pais=SDN`).
+- **Conflictos y protestas** recogidos por la prensa mundial en las últimas 24 horas.
+- **Terremotos**, **desastres** con alerta oficial y **brotes epidémicos** de la OMS.
+- **Cortes de internet** grandes en todo un país.
+- **Rutas marítimas estratégicas** (Ormuz, Bab el-Mandeb, Suez, Gibraltar…) según la violencia en su zona.
+- **Parte de situación**: qué empeora, qué cambia desde ayer y el estado de cada fuente.
+- **Reproducción de la última semana** y titulares en español.
+
+## Modelo de alerta
+
+Como en los equipos de alerta temprana, se separan tres cosas:
+
+- **Gravedad**: lo mal que está un país. Incluye las crisis prolongadas, que siguen en alerta aunque hoy no empeoren.
+- **Escalada**: si está peor de lo que es normal para él (más de 1,5 desviaciones sobre su media de 30 días) o lleva tres días seguidos subiendo. En el mapa, esos países laten.
+- **Confianza**: cuántos tipos de fuente independientes coinciden (prensa, oficial, técnica, sanitaria, humanitaria). Si solo lo recoge la prensa, la confianza es baja.
+
+Cada país suma una puntuación con lo ocurrido en las últimas 48 horas (30 días para epidemias):
+
+| Señal | Puntos |
+|---|---|
+| Violencia política (GDELT) | `3 × log2(1 + hechos)`, al 100 % cuando es al menos el 5 % de lo que se cuenta del país |
+| Protestas (GDELT) | La mitad que la violencia, con la misma proporción |
+| Terremotos (USGS) | `(magnitud − 4)²`, más un extra con alerta PAGER |
+| Desastres (GDACS, NASA EONET) | 1, 6 o 15 según alerta verde, naranja o roja |
+| Brotes (OMS) | 3, u 8 si es una enfermedad grave (ébola, Marburgo, cólera…) |
+| Cortes de internet (IODA) | Hasta 12 según la gravedad; los cortes pequeños no cuentan |
+| Avisos de viaje de EE. UU. | 4 por cada nivel que suben |
+| Crisis humanitarias (ReliefWeb) | 6 si están en alerta (opcional) |
+
+Para no confundir delincuencia con conflicto, de GDELT solo cuentan los hechos principales de cada noticia y la violencia en la que intervienen ejércitos, grupos armados, insurgentes, gobiernos o dos países distintos.
+
+El nivel sale de la puntuación, de su comparación con lo habitual, de las alertas oficiales naranja o roja y de las crisis prolongadas. El nivel 4 de los avisos de EE. UU. solo refuerza lo que ya muestran los datos, porque también refleja la política exterior de ese país. Durante los primeros 7 días solo cuentan los umbrales absolutos.
+
+Son señales tempranas, no predicciones.
 
 ## Cómo funciona
 
@@ -21,37 +48,31 @@ GitHub Pages (rama main)
   └─ index.html + js/app.js  →  lee esos JSON de la rama `datos` y pinta el mapa
 ```
 
-- El navegador no llama a ninguna API: todo lo descarga la Action, así no hay problemas de CORS, claves ni límites de peticiones. El script solo usa la biblioteca estándar de Python.
-- Los datos viven en la rama `datos`, que solo guarda la última versión (un único commit que se reemplaza en cada ejecución). En `main` solo entra código, siempre por PR desde `development`.
-- Si una fuente falla, el mapa sigue con sus últimos datos buenos. Si lleva 3 horas fallando, la Action abre (o actualiza) el issue **Fuentes de datos caídas** con el error.
+- El navegador no llama a ninguna API: todo lo descarga la Action. El script solo usa la biblioteca estándar de Python.
+- La rama `datos` solo guarda la última versión (un único commit que se reemplaza). En `main` solo entra código, por PR desde `development`.
+- Si una fuente falla, el mapa sigue con sus últimos datos buenos. Si lleva 3 horas fallando, la Action abre el issue **Fuentes de datos caídas**.
+- Para probar cambios con datos reales sin tocar la web: Actions → *Actualizar datos* → *Run workflow* en `development` con *Publicar* desmarcado. Los datos quedan en la rama `datos-prueba`.
 
-### Nivel de alerta
+### ReliefWeb (opcional)
 
-Cada país suma una puntuación con lo ocurrido en las últimas 48 horas:
-
-- Terremotos: `(magnitud − 4)²`, más un extra si USGS emite alerta PAGER amarilla, naranja o roja.
-- Desastres de GDACS: 1 (verde), 6 (naranja) o 15 (rojo). Eventos de NASA EONET: entre 0,5 y 2 según el tipo.
-- Conflictos: `3 × log2(1 + hechos violentos)`, multiplicado por la proporción de lo que se cuenta del país que es violencia (al 100 % a partir del 15 %). Así, que de EE. UU. se hable mucho no lo pone en alerta. Las protestas se calculan igual con la mitad de peso.
-- Cortes de internet (IODA): según la gravedad del corte, hasta 15.
-- Avisos de viaje de EE. UU.: 4 puntos por cada nivel que suben.
-
-La puntuación se compara con la media del país en los últimos 30 días (`data/historial.json`). El país pasa a **vigilar** o **alerta** cuando sube claramente sobre lo normal para él, cuando lleva tres días seguidos subiendo, cuando supera un umbral absoluto o cuando un organismo oficial emite una alerta naranja o roja. Durante los primeros 7 días solo cuentan los umbrales absolutos.
-
-Son señales tempranas, no predicciones: las noticias no son hechos verificados.
+La API de ReliefWeb (OCHA) exige un nombre de aplicación aprobado. Se pide en [apidoc.reliefweb.int](https://apidoc.reliefweb.int/). Cuando lo tengas, créalo como variable del repositorio: Settings → Secrets and variables → Actions → Variables → `RELIEFWEB_APPNAME`.
 
 ## Fuentes
 
 | Fuente | Datos |
 |---|---|
-| [GDELT](https://www.gdeltproject.org/) | Eventos geolocalizados de la prensa mundial (ficheros cada 15 min) y titulares |
+| [GDELT](https://www.gdeltproject.org/) | Hechos geolocalizados de la prensa mundial (ficheros cada 15 min) |
+| [Google Noticias](https://news.google.com/) | Titulares en español |
 | [USGS](https://earthquake.usgs.gov/) | Terremotos |
 | [GDACS](https://www.gdacs.org/) | Alertas de desastres (ONU y Comisión Europea) |
 | [NASA EONET](https://eonet.gsfc.nasa.gov/) | Fenómenos naturales activos |
+| [OMS](https://www.who.int/emergencies/disease-outbreak-news) | Brotes epidémicos |
 | [IODA](https://ioda.inetintel.cc.gatech.edu/) | Cortes de internet por país (Georgia Tech) |
 | [Travel Advisories](https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html) | Avisos de viaje del Departamento de Estado de EE. UU. |
+| [ReliefWeb](https://reliefweb.int/) | Crisis humanitarias (opcional) |
 | [world.geo.json](https://github.com/johan/world.geo.json) | Fronteras de los países (dominio público) |
 
-Las recomendaciones de viaje del Ministerio de Asuntos Exteriores de España no tienen API ni RSS, por eso de momento se usan las de EE. UU.
+Las recomendaciones de viaje del Ministerio de Asuntos Exteriores de España no tienen API ni RSS.
 
 ## Probar en local
 

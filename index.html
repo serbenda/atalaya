@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>atalaya</title>
-  <meta name="description" content="Mapa en tiempo real con conflictos, noticias y catástrofes naturales, y un nivel de alerta por país que detecta cuándo algo se está calentando.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%231F3A4A'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23D9483B'/%3E%3C/svg%3E">
+  <meta name="description" content="Visor de la situación mundial: conflictos, protestas, desastres, epidemias y cortes de internet, con un nivel de alerta por país.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%231B3542'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23D9483B'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
@@ -19,24 +19,53 @@
     <header class="cabecera">
       <h1 class="marca">atalaya</h1>
       <p class="actualizado" id="actualizado">Cargando datos…</p>
+      <div class="buscador">
+        <label for="buscar" class="oculto">Buscar un país</label>
+        <input id="buscar" type="search" placeholder="Buscar un país" list="lista-paises" autocomplete="off">
+        <datalist id="lista-paises"></datalist>
+      </div>
       <fieldset class="capas" aria-label="Capas del mapa">
         <label><input type="checkbox" data-capa="conflicto" checked><span class="forma forma-conflicto" aria-hidden="true"></span>Conflictos</label>
         <label><input type="checkbox" data-capa="protesta" checked><span class="forma forma-protesta" aria-hidden="true"></span>Protestas</label>
         <label><input type="checkbox" data-capa="terremoto" checked><span class="forma forma-terremoto" aria-hidden="true"></span>Terremotos</label>
         <label><input type="checkbox" data-capa="desastre" checked><span class="forma forma-desastre" aria-hidden="true"></span>Desastres</label>
+        <label><input type="checkbox" data-capa="epidemia" checked><span class="forma forma-epidemia" aria-hidden="true"></span>Epidemias</label>
         <label><input type="checkbox" data-capa="internet" checked><span class="forma forma-internet" aria-hidden="true"></span>Cortes de internet</label>
+        <label><input type="checkbox" data-capa="pasos" checked><span class="forma forma-paso" aria-hidden="true"></span>Rutas marítimas</label>
       </fieldset>
     </header>
+
+    <div class="controles" aria-label="Controles del mapa">
+      <div class="tiempo" aria-label="Periodo">
+        <p class="reloj" id="reloj" aria-live="polite"></p>
+        <button class="reproducir" id="reproducir">Reproducir la semana</button>
+        <div class="grupo-botones" role="group">
+          <button data-ventana="24" aria-pressed="false">24 h</button>
+          <button data-ventana="168" aria-pressed="true">7 días</button>
+        </div>
+      </div>
+      <div class="grupo-botones" role="group" aria-label="Vista">
+        <button data-modo="globo" aria-pressed="true">Globo</button>
+        <button data-modo="plano" aria-pressed="false">Plano</button>
+      </div>
+      <div class="grupo-botones" role="group" aria-label="Zoom">
+        <button data-zoom="1" aria-label="Acercar">+</button>
+        <button data-zoom="-1" aria-label="Alejar">−</button>
+        <button data-zoom="0">Centrar</button>
+      </div>
+    </div>
 
     <aside class="panel" id="panel">
       <button class="asa" id="asa" aria-expanded="true" aria-controls="panel-cuerpo">Ocultar panel</button>
       <div class="panel-cuerpo" id="panel-cuerpo">
         <nav class="pestanas" role="tablist">
-          <button role="tab" aria-selected="true" data-pestana="paises">Países</button>
+          <button role="tab" aria-selected="true" data-pestana="parte">Parte</button>
+          <button role="tab" aria-selected="false" data-pestana="paises">Países</button>
           <button role="tab" aria-selected="false" data-pestana="eventos">Eventos</button>
           <button role="tab" aria-selected="false" data-pestana="titulares">Titulares</button>
         </nav>
-        <section class="vista" id="vista-paises" role="tabpanel"></section>
+        <section class="vista" id="vista-parte" role="tabpanel"></section>
+        <section class="vista" id="vista-paises" role="tabpanel" hidden></section>
         <section class="vista" id="vista-eventos" role="tabpanel" hidden></section>
         <section class="vista" id="vista-titulares" role="tabpanel" hidden></section>
         <section class="vista" id="vista-pais" hidden></section>
@@ -47,27 +76,34 @@
       <p class="niveles">
         <span><i class="nivel-rojo"></i>Alerta</span>
         <span><i class="nivel-ambar"></i>Vigilar</span>
-        <span><i class="nivel-verde"></i>Lo habitual</span>
+        <span><i class="nivel-verde"></i>Actividad sin alerta</span>
+        <span><i class="nivel-late"></i>Late si empeora</span>
       </p>
-      <p class="aviso">Señales tempranas a partir de fuentes públicas, no predicciones. <a href="#metodo" id="ver-metodo">Cómo se calcula</a></p>
+      <p class="aviso">Señales tempranas de fuentes públicas, no predicciones. <a href="#metodo" id="ver-metodo">Cómo se calcula</a></p>
     </div>
 
-    <div class="globo" id="globo" role="tooltip" hidden></div>
+    <div class="ficha-mapa" id="ficha-mapa" hidden></div>
+    <div class="globo-info" id="globo-info" role="tooltip" hidden></div>
   </main>
 
   <dialog class="metodo" id="metodo">
-    <h2>Cómo se calcula el nivel de alerta</h2>
-    <p>Cada 30 minutos se descargan los datos de las últimas horas y se suma una puntuación por país:</p>
+    <h2>Cómo se calcula</h2>
+    <p>Cada 30 minutos se descargan los datos de fuentes públicas y se puntúa cada país. Se miran tres cosas por separado, como hacen los equipos de alerta temprana:</p>
     <ul>
-      <li><strong>Terremotos</strong> de magnitud 4,5 o más (USGS). Pesan más cuanto mayor es la magnitud y si USGS emite alerta de impacto.</li>
-      <li><strong>Desastres</strong>: ciclones, inundaciones, volcanes, sequías e incendios (GDACS y NASA EONET), según su nivel de alerta oficial.</li>
-      <li><strong>Conflictos y protestas</strong>: hechos que recoge la prensa de todo el mundo (GDELT). No cuenta cuántas noticias hay, sino qué parte de lo que se cuenta del país es violencia. Así, que de un país grande se hable mucho no lo pone en alerta.</li>
-      <li><strong>Cortes de internet</strong> en todo un país (IODA). Suelen adelantarse a golpes, represión u ofensivas.</li>
-      <li><strong>Avisos de viaje</strong> de EE. UU.: cuenta cuando suben de nivel.</li>
+      <li><strong>Gravedad.</strong> Lo mal que está un país, incluidas las crisis prolongadas. Una guerra que dura meses sigue en alerta aunque hoy no empeore.</li>
+      <li><strong>Escalada.</strong> Si está peor de lo que es normal para él, o lleva tres días seguidos subiendo. En el mapa, esos países laten.</li>
+      <li><strong>Confianza.</strong> Cuántos tipos de fuente independientes lo confirman: prensa, organismos oficiales, datos técnicos, sanitarios o humanitarios. Si solo lo recoge la prensa, la confianza es baja.</li>
     </ul>
-    <p>Esa puntuación se compara con la media del país en los últimos 30 días. Un país pasa a <em>vigilar</em> o <em>alerta</em> cuando la actividad sube claramente sobre lo que es normal para él, cuando lleva tres días seguidos subiendo o cuando un organismo oficial emite una alerta naranja o roja.</p>
-    <p>Durante la primera semana el histórico aún es corto y solo cuentan los valores absolutos.</p>
-    <p>Las noticias no son hechos verificados: un pico puede ser solo ruido mediático. Cada evento enlaza a su fuente para comprobarlo.</p>
+    <p>Lo que suma puntos:</p>
+    <ul>
+      <li><strong>Conflictos y protestas</strong> recogidos por la prensa de todo el mundo (GDELT). Solo cuentan los hechos principales de cada noticia y la violencia con ejércitos, grupos armados, policía o gobiernos. No cuenta cuántas noticias hay, sino qué parte de lo que se cuenta del país es violencia.</li>
+      <li><strong>Terremotos</strong> (USGS) y <strong>desastres</strong> con alerta oficial (GDACS, NASA).</li>
+      <li><strong>Brotes epidémicos</strong> publicados por la OMS.</li>
+      <li><strong>Cortes de internet</strong> grandes en todo un país (IODA). Suelen adelantarse a golpes, represión u ofensivas.</li>
+      <li><strong>Avisos de viaje</strong> de EE. UU.: el nivel 4 marca una crisis prolongada y las subidas suman puntos. Son una fuente oficial, pero también reflejan la política exterior de ese país.</li>
+    </ul>
+    <p>Las <strong>rutas marítimas</strong> se marcan según los hechos violentos a menos de 350 km en las últimas 24 horas.</p>
+    <p>Son señales tempranas, no predicciones. Cada evento enlaza a su fuente para comprobarlo.</p>
     <form method="dialog"><button>Cerrar</button></form>
   </dialog>
 

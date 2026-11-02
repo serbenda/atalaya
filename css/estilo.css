@@ -1,12 +1,13 @@
 :root {
-  --mar: #142832;
+  --fondo: #0F222C;
   --mar-hondo: #10212A;
   --esfera: #1B3542;
+  --esfera-luz: #2A4D5E;
   --tierra: #355564;
   --frontera: #57778A;
   --tinta: #E9EEF0;
   --tinta-suave: #A3B7C0;
-  --panel: rgba(21, 42, 54, 0.94);
+  --panel: rgba(18, 37, 48, 0.94);
   --linea: rgba(233, 238, 240, 0.12);
   --verde: #5E9C76;
   --ambar: #E6A03B;
@@ -14,6 +15,8 @@
   --marcador: #F4EFE6;
   --protesta: #C7B8E6;
   --internet: #7FD3E0;
+  --epidemia: #9BD17A;
+  --paso: #F2C46D;
   --radio: 10px;
   --fuente: "Archivo", system-ui, sans-serif;
 }
@@ -23,7 +26,7 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: var(--mar);
+  background: var(--fondo);
   color: var(--tinta);
   font-family: var(--fuente);
   font-size: 15px;
@@ -32,71 +35,109 @@ html, body {
 }
 
 a { color: inherit; text-underline-offset: 2px; }
-button { font: inherit; color: inherit; }
+button, input { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px; }
+.oculto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 .visor { position: fixed; inset: 0; overflow: hidden; }
 
 /* ---------------------------------------------------------------- mapa */
 
 .mapa { position: absolute; inset: 0; }
-.mapa svg { display: block; width: 100%; height: 100%; cursor: grab; }
+.mapa svg { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .mapa svg:active { cursor: grabbing; }
 
-.esfera { fill: var(--esfera); }
-.reticula { fill: none; stroke: rgba(233, 238, 240, 0.05); stroke-width: 0.6; }
+.atmosfera { fill: url(#halo); pointer-events: none; }
+.esfera { fill: url(#luz-esfera); }
+.plano .esfera { fill: var(--esfera); }
+.reticula { fill: none; stroke: rgba(233, 238, 240, 0.06); stroke-width: 0.6; pointer-events: none; }
+.noche { fill: #050E13; fill-opacity: 0.32; pointer-events: none; }
+
 .pais {
   fill: var(--tierra);
   stroke: var(--frontera);
-  stroke-width: 0.4;
-  vector-effect: non-scaling-stroke;
+  stroke-width: 0.5;
   cursor: pointer;
-  transition: fill 0.2s;
+  transition: fill 0.25s;
 }
-.pais:hover { fill: #426676; }
+.pais:hover { fill: #45697A; }
 .pais.verde { fill: color-mix(in srgb, var(--verde) 45%, var(--tierra)); }
-.pais.ambar { fill: color-mix(in srgb, var(--ambar) 70%, var(--tierra)); }
+.pais.ambar { fill: color-mix(in srgb, var(--ambar) 72%, var(--tierra)); }
 .pais.rojo { fill: var(--rojo); }
-.pais.elegido { stroke: var(--tinta); stroke-width: 1.6; }
+.pais.elegido { stroke: var(--tinta); stroke-width: 1.8; }
 
-/* El único movimiento automático: los países en alerta laten despacio */
-.pais.rojo { animation: latido 2.8s ease-in-out infinite; }
-@keyframes latido {
-  0%, 100% { fill: var(--rojo); }
-  50% { fill: color-mix(in srgb, var(--rojo) 70%, var(--tierra)); }
+/* El único movimiento automático en los países: los que empeoran laten */
+.pais.escalada { animation: latido 2.6s ease-in-out infinite; }
+@keyframes latido { 50% { fill-opacity: 0.55; } }
+
+.etiqueta {
+  font-size: 12px;
+  font-weight: 700;
+  font-stretch: 80%;
+  fill: var(--tinta);
+  paint-order: stroke;
+  stroke: rgba(10, 24, 32, 0.85);
+  stroke-width: 3px;
+  text-anchor: middle;
+  pointer-events: none;
 }
 
-.marcador { cursor: pointer; vector-effect: non-scaling-stroke; }
-.marcador.conflicto { fill: var(--marcador); fill-opacity: 0.85; stroke: var(--mar-hondo); stroke-width: 0.8; }
-.marcador.terremoto { fill: none; stroke: var(--marcador); stroke-width: 1.5; }
+.brillo { pointer-events: none; mix-blend-mode: screen; }
+
+.marcador { cursor: pointer; }
+.marcador.conflicto { fill: var(--marcador); fill-opacity: 0.9; stroke: var(--mar-hondo); stroke-width: 0.8; }
+.marcador.protesta { fill: var(--protesta); fill-opacity: 0.9; stroke: var(--mar-hondo); stroke-width: 0.8; }
+.marcador.terremoto { fill: rgba(16, 33, 42, 0.35); stroke: var(--marcador); stroke-width: 1.5; }
 .marcador.desastre { fill: var(--marcador); stroke: var(--mar-hondo); stroke-width: 0.8; }
-.marcador.protesta { fill: var(--protesta); fill-opacity: 0.85; stroke: var(--mar-hondo); stroke-width: 0.8; }
+.marcador.epidemia { fill: var(--epidemia); stroke: var(--mar-hondo); stroke-width: 0.8; }
 .marcador.internet { fill: var(--mar-hondo); fill-opacity: 0.6; stroke: var(--internet); stroke-width: 1.8; }
-.marcador:hover { fill-opacity: 1; stroke: var(--ambar); }
+.marcador.verde-oficial { stroke: var(--verde); }
+.marcador.ambar-oficial { stroke: var(--ambar); stroke-width: 2; }
+.marcador.rojo-oficial { stroke: var(--rojo); stroke-width: 2.4; }
+.marcador:hover { stroke: var(--ambar); stroke-width: 2; }
+
+.paso { cursor: pointer; }
+.paso .rombo { fill: var(--fondo); stroke: var(--paso); stroke-width: 1.6; }
+.paso.ambar .rombo { fill: var(--ambar); stroke: var(--fondo); }
+.paso.rojo .rombo { fill: var(--rojo); stroke: var(--fondo); }
+.paso text { font-size: 11px; font-weight: 600; fill: var(--paso); paint-order: stroke; stroke: var(--fondo); stroke-width: 3px; }
+
+/* Ondas en los eventos más recientes y relevantes */
+.onda { fill: none; stroke: var(--marcador); stroke-width: 1.4; pointer-events: none;
+  transform-box: fill-box; transform-origin: center; animation: onda 2.4s ease-out infinite; }
+.onda.rojo { stroke: var(--rojo); }
+.onda.ambar { stroke: var(--ambar); }
+@keyframes onda { from { transform: scale(1); opacity: 0.9; } to { transform: scale(3.4); opacity: 0; } }
 
 /* ------------------------------------------------------------ cabecera */
 
-.cabecera {
-  position: absolute;
-  top: 16px;
-  left: 20px;
-  pointer-events: none;
-}
+.cabecera { position: absolute; top: 16px; left: 20px; right: 420px; pointer-events: none; }
 .cabecera > * { pointer-events: auto; }
 
 .marca {
+  display: inline-block;
   margin: 0;
-  font-size: clamp(44px, 7vw, 76px);
+  font-size: clamp(44px, 6vw, 72px);
   font-weight: 800;
   font-stretch: 62%;
   line-height: 0.85;
   letter-spacing: -0.01em;
-  text-shadow: 0 2px 18px rgba(23, 46, 59, 0.8);
+  text-shadow: 0 2px 18px rgba(10, 24, 32, 0.9);
 }
 
-.actualizado { margin: 6px 0 12px; color: var(--tinta-suave); font-size: 13px; }
+.actualizado { margin: 6px 0 10px; color: var(--tinta-suave); font-size: 13px; max-width: 560px; }
 
-.capas { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; border: 0; }
+.buscador input {
+  width: min(280px, 100%);
+  padding: 7px 12px;
+  background: var(--panel);
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  font-size: 14px;
+}
+.buscador input::placeholder { color: var(--tinta-suave); }
+
+.capas { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; padding: 0; border: 0; max-width: 620px; }
 .capas label {
   display: inline-flex;
   align-items: center;
@@ -108,17 +149,58 @@ button { font: inherit; color: inherit; }
   font-size: 13px;
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
 }
 .capas input { position: absolute; opacity: 0; pointer-events: none; }
-.capas label:has(input:not(:checked)) { color: var(--tinta-suave); opacity: 0.6; }
+.capas label:has(input:not(:checked)) { color: var(--tinta-suave); opacity: 0.55; }
 .capas label:has(input:focus-visible) { outline: 2px solid var(--ambar); outline-offset: 2px; }
 
 .forma { display: inline-block; width: 10px; height: 10px; flex: none; }
 .forma-conflicto { border-radius: 50%; background: var(--marcador); }
+.forma-protesta { width: 8px; height: 8px; background: var(--protesta); }
 .forma-terremoto { border-radius: 50%; border: 1.5px solid var(--marcador); }
 .forma-desastre { background: var(--marcador); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
-.forma-protesta { width: 8px; height: 8px; background: var(--protesta); }
+.forma-epidemia { background: var(--epidemia); clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); border-radius: 2px; }
 .forma-internet { width: 9px; height: 9px; border: 1.5px solid var(--internet); transform: rotate(45deg); }
+.forma-paso { width: 9px; height: 9px; border: 1.5px solid var(--paso); transform: rotate(45deg); background: var(--fondo); }
+
+/* ----------------------------------------------- controles y tiempo */
+
+.controles {
+  position: absolute;
+  right: 416px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.grupo-botones { display: inline-flex; background: var(--panel); border: 1px solid var(--linea); border-radius: 8px; overflow: hidden; }
+.grupo-botones button {
+  min-width: 36px;
+  padding: 6px 11px;
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--linea);
+  font-size: 13px;
+  cursor: pointer;
+}
+.grupo-botones button:first-child { border-left: 0; }
+.grupo-botones button:hover { background: rgba(233, 238, 240, 0.07); }
+.grupo-botones button[aria-pressed="true"] { background: var(--tinta); color: var(--mar-hondo); font-weight: 600; }
+.grupo-botones button[data-zoom] { font-size: 15px; }
+
+.tiempo { display: flex; align-items: center; gap: 8px; }
+.reproducir {
+  padding: 6px 12px;
+  background: var(--panel);
+  border: 1px solid var(--linea);
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.reproducir[aria-pressed="true"] { border-color: var(--ambar); color: var(--ambar); }
+.reloj { margin: 0; min-width: 9em; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ambar); font-weight: 600; }
 
 /* --------------------------------------------------------------- panel */
 
@@ -127,7 +209,7 @@ button { font: inherit; color: inherit; }
   top: 16px;
   right: 16px;
   bottom: 16px;
-  width: min(380px, calc(100vw - 32px));
+  width: 384px;
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -142,7 +224,7 @@ button { font: inherit; color: inherit; }
 .pestanas { display: flex; border-bottom: 1px solid var(--linea); padding: 0 6px; }
 .pestanas button {
   flex: 1;
-  padding: 13px 4px 11px;
+  padding: 13px 2px 11px;
   background: none;
   border: 0;
   border-bottom: 2px solid transparent;
@@ -154,11 +236,12 @@ button { font: inherit; color: inherit; }
 }
 .pestanas button[aria-selected="true"] { color: var(--tinta); border-bottom-color: var(--ambar); }
 
-.vista { overflow-y: auto; padding: 4px 0 12px; flex: 1; scrollbar-width: thin; }
-.vacio { padding: 24px 20px; color: var(--tinta-suave); }
+.vista { overflow-y: auto; padding: 4px 0 14px; flex: 1; scrollbar-width: thin; }
+.vacio { padding: 20px; color: var(--tinta-suave); margin: 0; }
 
-.resumen { padding: 14px 20px 10px; color: var(--tinta-suave); font-size: 13px; margin: 0; }
+.resumen { padding: 14px 20px 6px; color: var(--tinta-suave); font-size: 14px; margin: 0; }
 .resumen strong { color: var(--tinta); font-weight: 600; }
+.titular-parte { margin: 14px 20px 0; font-size: 26px; line-height: 1.1; font-weight: 800; font-stretch: 70%; }
 
 .fila {
   display: grid;
@@ -175,53 +258,86 @@ button { font: inherit; color: inherit; }
 }
 .fila:hover { background: rgba(233, 238, 240, 0.05); }
 .fila .punto { width: 10px; height: 10px; border-radius: 50%; align-self: center; }
-.fila .nombre { font-weight: 600; }
+.fila .nombre { font-weight: 600; min-width: 0; }
 .fila .detalle { display: block; color: var(--tinta-suave); font-size: 13px; font-weight: 400; }
-.fila .cifra { font-variant-numeric: tabular-nums; color: var(--tinta-suave); font-size: 13px; }
+.fila .cifra { font-variant-numeric: tabular-nums; color: var(--tinta-suave); font-size: 13px; text-align: right; }
 .fila .cifra.sube { color: var(--ambar); }
 .fila.sin-punto { grid-template-columns: 1fr auto; }
 
-.grupo { margin: 14px 20px 2px; font-size: 13px; font-weight: 700; font-stretch: 85%; color: var(--tinta-suave); }
+.grupo { margin: 16px 20px 2px; font-size: 13px; font-weight: 700; font-stretch: 85%; color: var(--tinta-suave); }
 
 .punto.rojo, i.nivel-rojo { background: var(--rojo); }
 .punto.ambar, i.nivel-ambar { background: var(--ambar); }
 .punto.verde, i.nivel-verde { background: var(--verde); }
 .punto.neutro { background: var(--frontera); }
+i.nivel-late { background: var(--rojo); animation: latido-icono 2.6s ease-in-out infinite; }
+@keyframes latido-icono { 50% { opacity: 0.45; } }
+
+.etiqueta-conf {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: 1px;
+  border: 1px solid currentColor;
+}
+.conf-alta { color: #9FD6B0; }
+.conf-media { color: var(--tinta-suave); }
+.conf-baja { color: #8496A0; border-style: dashed; }
+
+.fuentes { margin: 6px 20px 0; padding: 0; list-style: none; font-size: 13px; color: var(--tinta-suave); columns: 2; }
+.fuentes li { break-inside: avoid; padding: 2px 0; }
+.fuentes .caida { color: var(--ambar); }
 
 /* ficha de país */
 .volver { margin: 12px 20px 0; padding: 0; background: none; border: 0; color: var(--tinta-suave); cursor: pointer; font-size: 13px; }
 .volver:hover { color: var(--tinta); }
 .ficha { padding: 6px 20px 8px; }
 .ficha h2 { margin: 0; font-size: 34px; font-weight: 800; font-stretch: 70%; line-height: 1.05; }
-.ficha .estado { display: inline-flex; align-items: center; gap: 8px; margin: 8px 0 14px; font-weight: 600; }
+.ficha .estado { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 12px; font-weight: 600; }
 .ficha .estado .punto { width: 10px; height: 10px; border-radius: 50%; }
+.ficha .empeora { color: var(--ambar); }
+.motivos { margin: 0 0 14px; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.motivos li { padding: 3px 9px; border-radius: 999px; background: rgba(233, 238, 240, 0.08); font-size: 13px; }
 .cifras { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--linea); border: 1px solid var(--linea); border-radius: 8px; overflow: hidden; margin: 0; }
 .cifras div { background: var(--mar-hondo); padding: 10px 12px; }
 .cifras dt { font-size: 12px; color: var(--tinta-suave); }
 .cifras dd { margin: 2px 0 0; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ficha .explicacion { color: var(--tinta-suave); font-size: 13px; margin: 12px 0 0; }
 .grafica { margin: 12px 0 0; }
-.grafica svg { display: block; width: 100%; height: 54px; }
-.grafica path { fill: none; stroke: var(--tinta-suave); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.grafica svg { display: block; width: 100%; height: 54px; overflow: visible; }
+.grafica .area { fill: rgba(230, 160, 59, 0.12); }
+.grafica .linea { fill: none; stroke: var(--ambar); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
 .grafica circle { fill: var(--ambar); }
 .grafica figcaption { font-size: 12px; color: var(--tinta-suave); }
-.ficha .explicacion { color: var(--tinta-suave); font-size: 13px; margin: 12px 0 0; }
 
-/* ------------------------------------------------------------- leyenda */
+/* ------------------------------------------- ficha flotante y globo */
 
-.leyenda {
+.ficha-mapa {
   position: absolute;
-  left: 20px;
-  bottom: 16px;
-  max-width: min(440px, calc(100vw - 440px));
+  z-index: 6;
+  width: 290px;
+  padding: 14px 16px 12px;
+  background: var(--mar-hondo);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  box-shadow: 0 10px 32px rgba(5, 14, 19, 0.6);
   font-size: 13px;
-  color: var(--tinta-suave);
 }
-.leyenda p { margin: 0; }
-.niveles { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 6px !important; color: var(--tinta); }
-.niveles span { display: inline-flex; align-items: center; gap: 7px; }
-.niveles i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.ficha-mapa h3 { margin: 0 24px 2px 0; font-size: 17px; line-height: 1.2; }
+.ficha-mapa .meta { margin: 0 0 8px; color: var(--tinta-suave); }
+.ficha-mapa ul { margin: 6px 0 0; padding-left: 16px; }
+.ficha-mapa li { margin: 3px 0; overflow-wrap: anywhere; }
+.ficha-mapa .cerrar { position: absolute; top: 6px; right: 8px; padding: 2px 6px; background: none; border: 0; font-size: 18px; color: var(--tinta-suave); cursor: pointer; }
+.ficha-mapa .acciones { display: flex; gap: 8px; margin-top: 10px; }
+.ficha-mapa .acciones a, .ficha-mapa .acciones button {
+  padding: 5px 10px; border-radius: 6px; border: 1px solid var(--linea); background: none; text-decoration: none; cursor: pointer; font-size: 13px;
+}
+.ficha-mapa .acciones .principal { background: var(--tinta); color: var(--mar-hondo); border-color: var(--tinta); font-weight: 600; }
 
-.globo {
+.globo-info {
   position: absolute;
   z-index: 5;
   max-width: 280px;
@@ -231,13 +347,23 @@ button { font: inherit; color: inherit; }
   border-radius: 8px;
   font-size: 13px;
   pointer-events: none;
-  box-shadow: 0 6px 24px rgba(10, 22, 30, 0.5);
+  box-shadow: 0 6px 24px rgba(5, 14, 19, 0.5);
 }
-.globo strong { display: block; font-size: 14px; }
-.globo span { color: var(--tinta-suave); }
+.globo-info strong { display: block; font-size: 14px; }
+.globo-info span { color: var(--tinta-suave); }
+
+/* ------------------------------------------------------------- leyenda */
+
+.leyenda { position: absolute; left: 20px; bottom: 16px; max-width: 360px; font-size: 13px; color: var(--tinta-suave); pointer-events: none; }
+.leyenda a { pointer-events: auto; }
+.leyenda p { margin: 0; }
+.niveles { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 6px !important; color: var(--tinta); }
+.niveles span { display: inline-flex; align-items: center; gap: 7px; }
+.niveles i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 
 .metodo {
-  max-width: 560px;
+  max-width: 600px;
+  max-height: 86vh;
   padding: 24px 28px;
   background: var(--mar-hondo);
   color: var(--tinta);
@@ -245,44 +371,45 @@ button { font: inherit; color: inherit; }
   border-radius: var(--radio);
   line-height: 1.55;
 }
-.metodo::backdrop { background: rgba(10, 22, 30, 0.6); }
+.metodo::backdrop { background: rgba(5, 14, 19, 0.65); }
 .metodo h2 { margin: 0 0 10px; font-size: 26px; font-stretch: 70%; font-weight: 800; }
 .metodo li { margin-bottom: 6px; }
 .metodo button { margin-top: 8px; padding: 8px 16px; background: var(--tinta); color: var(--mar-hondo); border: 0; border-radius: 6px; font-weight: 600; cursor: pointer; }
 
+/* ------------------------------------------------- pantallas medianas */
+
+@media (max-width: 1180px) {
+  .leyenda .aviso { display: none; }
+}
+
 /* -------------------------------------------------------------- móvil */
 
 @media (max-width: 760px) {
-  .cabecera { left: 16px; top: 12px; }
-  .marca { font-size: 46px; }
+  .cabecera { left: 0; right: 0; top: 10px; padding: 0 16px; }
+  .marca { font-size: 42px; }
+  .actualizado { margin: 4px 0 8px; }
+  .buscador { display: none; }
+  .capas { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; max-width: none; scrollbar-width: none; }
   .panel {
-    top: auto;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: 46vh;
+    top: auto; left: 0; right: 0; bottom: 0;
+    width: 100%; height: 44vh;
     border-radius: var(--radio) var(--radio) 0 0;
     border-bottom: 0;
   }
   .panel.plegado { height: auto; }
   .panel.plegado .panel-cuerpo { display: none; }
-  .asa {
-    display: block;
-    padding: 8px;
-    background: none;
-    border: 0;
-    border-bottom: 1px solid var(--linea);
-    color: var(--tinta-suave);
-    font-size: 13px;
-    cursor: pointer;
-  }
-  .leyenda { bottom: calc(46vh + 10px); left: 16px; max-width: calc(100vw - 32px); }
-  .panel.plegado ~ .leyenda { bottom: 50px; }
-  .leyenda .aviso { display: none; }
+  .asa { display: block; padding: 8px; background: none; border: 0; border-bottom: 1px solid var(--linea); color: var(--tinta-suave); font-size: 13px; cursor: pointer; }
+  .controles { right: 12px; bottom: calc(44vh + 10px); flex-direction: row; }
+  .controles > .grupo-botones:last-child button:last-child { display: none; }
+  .controles { left: 12px; justify-content: flex-end; flex-wrap: wrap; }
+  .reproducir, .reloj { display: none; }
+  .leyenda { display: none; }
+  .panel.plegado ~ .controles { bottom: 52px; }
+  .ficha-mapa { left: 12px !important; right: 12px; width: auto; top: auto !important; bottom: calc(44vh + 96px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pais.rojo { animation: none; }
+  .pais.escalada, i.nivel-late { animation: none; }
+  .onda { display: none; }
   .pais { transition: none; }
 }
