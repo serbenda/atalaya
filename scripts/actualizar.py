@@ -421,8 +421,8 @@ GDELT_VIOLENCIA = {"18", "19", "20"}
 GDELT_PROTESTA = {"14"}
 # Tipos de actor que hacen que la violencia sea política y no delincuencia común:
 # ejército, rebeldes, insurgentes, separatistas, fuerzas armadas no estatales, gobierno,
-# policía, inteligencia y oposición
-ACTORES_POLITICOS = {"MIL", "REB", "INS", "SEP", "UAF", "GOV", "COP", "SPY", "OPP"}
+# inteligencia y oposición. La policía (COP) no entra: en la prensa casi siempre es crónica de sucesos.
+ACTORES_POLITICOS = {"MIL", "REB", "INS", "SEP", "UAF", "GOV", "SPY", "OPP"}
 
 
 def es_politico(f):
@@ -539,6 +539,9 @@ def titulares(paises=None):
         if medio and titulo.endswith(" - " + medio):
             titulo = titulo[: -len(medio) - 3]
         clave = normalizar(titulo)[:70]
+        # Fuera aniversarios y efemérides ("el bombardeo de 1937")
+        if any(int(a) < AHORA.year - 1 for a in re.findall(r"\b(1[89]\d\d|20\d\d)\b", titulo)):
+            continue
         if not clave or clave in vistos:
             continue
         vistos.add(clave)
@@ -689,6 +692,9 @@ def reliefweb(paises):
 
 # ----------------------------------------------------------------- alertas
 
+# Proporción de violencia a partir de la cual cuenta todo el volumen. Calibrado con datos
+# reales: en un país en guerra abierta ronda el 3-7 %; en uno en paz, por debajo del 1 %.
+CUOTA_PLENA = 0.05
 CLAVES_PUNTOS = ("conflicto", "protestas", "desastres", "internet", "avisos", "epidemias", "humanitaria")
 PARTE_DE = {"internet": "internet", "aviso": "avisos", "epidemia": "epidemias", "crisis": "humanitaria"}
 
@@ -723,9 +729,9 @@ def puntuar(eventos, gdelt_paises):
         # Proporción de lo que se cuenta del país que es violencia política: corrige que de EE. UU.
         # o Rusia siempre se hable mucho. Hasta 20 hechos, el volumen pesa menos.
         cuota = g["conflicto"] / max(g["total"], 20)
-        c["conflicto"] = 3 * math.log2(1 + g["conflicto"]) * min(1.0, cuota / 0.08)
+        c["conflicto"] = 3 * math.log2(1 + g["conflicto"]) * min(1.0, cuota / CUOTA_PLENA)
         cuota_p = g["protesta"] / max(g["total"], 20)
-        c["protestas"] = 1.5 * math.log2(1 + g["protesta"]) * min(1.0, cuota_p / 0.08)
+        c["protestas"] = 1.5 * math.log2(1 + g["protesta"]) * min(1.0, cuota_p / CUOTA_PLENA)
         c["cuota_violencia"] = round(cuota, 3)
         c["hechos_violentos"] = g["conflicto"]
         c["protestas_n"] = g["protesta"]
@@ -810,7 +816,9 @@ def calcular_alertas(puntos, historial, avisos=None):
         elif not calibrando and media >= 18:
             rango = max(rango, 1)
             motivos.append("Crisis prolongada")
-        if aviso == 4:
+        # El aviso de EE. UU. también refleja su política exterior: solo refuerza lo que ya muestran
+        # los datos propios, no colorea un país por sí solo
+        if aviso == 4 and actual >= 3:
             rango = max(rango, 1)
             motivos.append("EE. UU. desaconseja viajar")
         if p.get("crisis_abierta"):

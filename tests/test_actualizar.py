@@ -106,6 +106,8 @@ RESPUESTAS = {
     "news.google.com": f"""<?xml version="1.0"?><rss><channel>
         <item><title>Nuevo ataque en Járkov - EL PAÍS</title><link>https://m/1</link><pubDate>{RFC822}</pubDate>
               <source url="https://elpais.com">EL PAÍS</source></item>
+        <item><title>2 de noviembre de 1937: el bombardeo de Lleida - La Vanguardia</title><link>https://m/3</link>
+              <pubDate>{RFC822}</pubDate><source url="https://lavanguardia.com">La Vanguardia</source></item>
         <item><title>Nuevo ataque en Járkov - ABC</title><link>https://m/2</link><pubDate>{RFC822}</pubDate>
               <source url="https://abc.es">ABC</source></item></channel></rss>""",
     "ioda": {"data": [
@@ -262,9 +264,10 @@ class TestAlertas(Base):
         self.assertEqual((a["UKR"]["nivel"], a["UKR"]["escalada"]), ("ambar", False))
         self.assertIn("Crisis prolongada", a["UKR"]["motivos"])
 
-    def test_aviso_nivel_4_marca_crisis_desde_el_primer_dia(self):
-        a = act.calcular_alertas({}, {}, {"SDN": 4, "ESP": 2})["paises"]
+    def test_aviso_nivel_4_refuerza_pero_no_colorea_solo(self):
+        a = act.calcular_alertas({"SDN": {"puntuacion": 5}, "RUS": {"puntuacion": 1}}, {}, {"SDN": 4, "RUS": 4, "ESP": 2})["paises"]
         self.assertEqual(a["SDN"]["nivel"], "ambar")
+        self.assertEqual(a["RUS"]["nivel"], "verde")
         self.assertNotIn("ESP", a)
 
     def test_escalada_frente_a_su_media(self):
