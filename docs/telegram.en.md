@@ -169,9 +169,9 @@ In **Actions → Actualizar datos →** latest run **→ Avisos por Telegram y R
 
 | Error in the log | Cause | Fix |
 |---|---|---|
-| `HTTP Error 401: Unauthorized` | Wrong or revoked token | Copy the current token into `TELEGRAM_TOKEN` again |
-| `HTTP Error 400: Bad Request` (*chat not found*) | Wrong `TELEGRAM_CHAT` | Check the at sign and the name, or the full `-100…` number |
-| `HTTP Error 403: Forbidden` | The bot is not a channel administrator, or you have not sent it `/start` | Add it as an administrator (step 3), or tap *Start* in the bot |
+| `HTTP 401 Unauthorized` | Wrong or revoked token | Copy the current token into `TELEGRAM_TOKEN` again |
+| `HTTP 400 Bad Request: chat not found` | Wrong `TELEGRAM_CHAT` | Check the at sign and the name, or the full `-100…` number |
+| `HTTP 403 Forbidden: bot is not a member…` | The bot is not a channel administrator, or you have not sent it `/start` | Add it as an administrator (step 3), or tap *Start* in the bot |
 | The step does not appear | It was a test run (*Publicar* unchecked) | Expected: alerts are only sent in runs that publish |
 | The summary arrives but no alerts | Nothing has changed | Expected on quiet days |
 

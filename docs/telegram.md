@@ -169,9 +169,9 @@ En **Actions → Actualizar datos →** la última ejecución **→ Avisos por T
 
 | Error en el registro | Causa | Solución |
 |---|---|---|
-| `HTTP Error 401: Unauthorized` | El token está mal o se ha revocado | Copia de nuevo el token actual en `TELEGRAM_TOKEN` |
-| `HTTP Error 400: Bad Request` (*chat not found*) | `TELEGRAM_CHAT` está mal | Revisa la arroba y el nombre, o el `-100…` completo |
-| `HTTP Error 403: Forbidden` | El bot no es administrador del canal, o no le has escrito `/start` | Añádelo como administrador (paso 3), o pulsa *Iniciar* en el bot |
+| `HTTP 401 Unauthorized` | El token está mal o se ha revocado | Copia de nuevo el token actual en `TELEGRAM_TOKEN` |
+| `HTTP 400 Bad Request: chat not found` | `TELEGRAM_CHAT` está mal | Revisa la arroba y el nombre, o el `-100…` completo |
+| `HTTP 403 Forbidden: bot is not a member…` | El bot no es administrador del canal, o no le has escrito `/start` | Añádelo como administrador (paso 3), o pulsa *Iniciar* en el bot |
 | No aparece el paso | Era una ejecución de prueba (*Publicar* desmarcado) | Es normal: solo avisa en las ejecuciones que publican |
 | Llega el resumen pero ningún aviso | No ha habido cambios | Es normal en días tranquilos |
 

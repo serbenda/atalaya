@@ -20,6 +20,7 @@ import json
 import os
 import re
 import sys
+import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -79,6 +80,14 @@ def enviar(texto):
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
             return json.loads(r.read()).get("ok", False)
+    except urllib.error.HTTPError as e:
+        # Telegram explica el motivo en el cuerpo ("chat not found", "bot is not a member"…)
+        try:
+            motivo = json.loads(e.read()).get("description", "")
+        except Exception:  # noqa: BLE001
+            motivo = ""
+        print(f"  Telegram no ha aceptado el mensaje: HTTP {e.code} {motivo}".rstrip(), file=sys.stderr)
+        return False
     except Exception as e:  # noqa: BLE001
         print(f"  Telegram no ha aceptado el mensaje: {e}", file=sys.stderr)
         return False
