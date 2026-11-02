@@ -426,3 +426,26 @@ i.nivel-late { background: var(--rojo); animation: latido-icono 2.6s ease-in-out
   .onda { display: none; }
   .pais { transition: none; }
 }
+
+/* ----------------------------------------------------------- informe */
+.seccion-informe { margin: 16px 20px 0; font-size: 13px; color: var(--ambar); font-weight: 600; }
+.seccion-informe + .titular-parte { margin-top: 4px; }
+.juicio .detalle strong { color: var(--tinta); font-weight: 600; }
+.pronostico { margin: 0 0 10px; font-size: 14px; }
+.pronostico.riesgo-alto strong { color: var(--rojo); }
+.pronostico.riesgo-medio strong { color: var(--ambar); }
+.escenario { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--linea); border-radius: 8px; background: var(--mar-hondo); }
+.escenario p { margin: 0 0 6px; font-size: 14px; }
+.escenario ul { margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--tinta-suave); }
+.escenario li { padding: 2px 0; }
+.escenario li span[aria-hidden] { display: inline-block; width: 1.1em; color: var(--frontera); }
+.escenario li.activo { color: var(--tinta); }
+.escenario li.activo span[aria-hidden] { color: var(--ambar); }
+.exteriores { margin: 0 0 10px; font-size: 13px; color: var(--tinta-suave); }
+.exteriores strong { color: var(--tinta); }
+.nivel-ext-4 strong, .nivel-ext-3 strong { color: var(--ambar); }
+.detalle-gris { color: var(--tinta-suave); }
+.marcador.censura { fill: var(--mar-hondo); fill-opacity: 0.6; stroke: var(--protesta); stroke-width: 1.8; stroke-dasharray: 2 2; }
+.escenario.riesgo-alto { border-color: color-mix(in srgb, var(--rojo) 60%, transparent); }
+.escenario.riesgo-alto strong { color: var(--rojo); }
+.escenario.riesgo-medio strong { color: var(--ambar); }

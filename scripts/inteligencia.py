@@ -48,13 +48,13 @@ PASOS_PAISES = {"ormuz": ["IRN", "OMN", "ARE"], "bab": ["YEM", "DJI", "ERI"], "s
 # Escenarios: (id, nombre, [(indicador, peso)]). Un indicador clave pesa 2.
 ESCENARIOS = [
     ("escalada", "Escalada militar", [("violencia_sube", 2), ("interestatal", 2), ("militar", 1),
-                                      ("aviso_sube", 1), ("contagio", 1), ("ruta_cercana", 1)]),
+                                      ("aviso_sube", 1), ("exteriores_alto", 1), ("contagio", 1), ("ruta_cercana", 1)]),
     ("golpe", "Golpe o crisis de gobierno", [("corte_internet", 2), ("censura", 2), ("militar", 1),
                                              ("protestas_suben", 1), ("golpe_en_prensa", 2), ("aviso_sube", 1)]),
     ("disturbios", "Disturbios graves", [("protestas_suben", 2), ("disturbios", 2), ("censura", 1),
                                         ("corte_internet", 1), ("violencia_sube", 1)]),
     ("humanitaria", "Emergencia humanitaria", [("desastre_grave", 2), ("epidemia_grave", 2), ("crisis_humanitaria", 2),
-                                               ("violencia_alta", 1), ("muertes_verificadas", 1)]),
+                                               ("violencia_alta", 1), ("muertes_verificadas", 1), ("exteriores_alto", 1)]),
 ]
 TEXTO_INDICADOR = {
     "violencia_sube": "La violencia política sube respecto a lo habitual",
@@ -62,6 +62,7 @@ TEXTO_INDICADOR = {
     "interestatal": "Enfrentamientos entre países",
     "militar": "Hechos con ejército o grupos armados",
     "aviso_sube": "Un gobierno ha subido su aviso de viaje",
+    "exteriores_alto": "España desaconseja viajar al país",
     "contagio": "Países vecinos en alerta o empeorando",
     "ruta_cercana": "Ruta marítima cercana en riesgo",
     "corte_internet": "Corte de internet en el país",
@@ -108,21 +109,26 @@ def pendiente(serie):
 def indicadores(a3, p, ctx):
     """Qué indicadores están encendidos para un país."""
     g = ctx["gdelt"].get(a3, {})
+    # Umbrales relativos al volumen de noticias del país: en EE. UU. o India siempre hay de todo
+    base = max(g.get("total", 0), 1)
+    def notable(clave, minimo, cuota):
+        return g.get(clave, 0) >= max(minimo, cuota * base)
     escalando = {a for a, q in ctx["paises"].items() if q.get("escalada") or q.get("nivel") == "rojo"}
     vecinos_mal = [v for v in ctx["vecinos"].get(a3, []) if v in escalando]
     rutas = [pid for pid, lista in PASOS_PAISES.items() if a3 in lista and ctx["pasos"].get(pid, "verde") != "verde"]
     return {
         "violencia_sube": p.get("conflicto", 0) >= 4 and (p.get("z", 0) >= 1 or p.get("dias_subiendo", 0) >= 2),
         "violencia_alta": p.get("conflicto", 0) >= 12,
-        "interestatal": g.get("interestatal", 0) >= 5,
-        "militar": g.get("militar", 0) >= 5,
+        "interestatal": notable("interestatal", 5, 0.005),
+        "militar": notable("militar", 5, 0.005),
         "aviso_sube": p.get("avisos", 0) > 0,
+        "exteriores_alto": (ctx.get("exteriores", {}).get(a3) or {}).get("nivel", 0) >= 3,
         "contagio": len(vecinos_mal) >= 2,
         "ruta_cercana": bool(rutas),
         "corte_internet": p.get("internet", 0) > 0,
         "censura": p.get("censura", 0) > 0,
-        "protestas_suben": p.get("protestas", 0) >= 4 and (p.get("z", 0) >= 1 or p.get("protestas_n", 0) >= 25),
-        "disturbios": g.get("disturbios", 0) >= 3,
+        "protestas_suben": p.get("protestas", 0) >= 4 and (p.get("z", 0) >= 1 or p.get("cuota_protestas", 0) >= 0.05),
+        "disturbios": notable("disturbios", 3, 0.003),
         "golpe_en_prensa": a3 in ctx["golpe_en_prensa"],
         "desastre_grave": p.get("rango_desastre", 0) >= 1,
         "epidemia_grave": p.get("epidemias", 0) >= 8,
@@ -146,7 +152,12 @@ def escenarios(a3, p, ctx):
             "id": ide, "nombre": nombre, "riesgo": RIESGO[riesgo], "estimativo": ESTIMATIVO[RIESGO[riesgo]],
             "indicadores": [{"texto": TEXTO_INDICADOR[i], "activo": encendidos[i]} for i, _ in lista],
         })
-    resultado.sort(key=lambda e: {"alto": 0, "medio": 1, "bajo": 2}[e["riesgo"]])
+    # Con el mismo riesgo, primero el escenario que encaja con lo que más pesa en el país
+    componentes = {"escalada": p.get("conflicto", 0), "disturbios": p.get("protestas", 0),
+                   "humanitaria": p.get("desastres", 0) + p.get("epidemias", 0) + p.get("humanitaria", 0),
+                   "golpe": p.get("internet", 0) + p.get("censura", 0)}
+    preferido = max(componentes, key=componentes.get) if any(componentes.values()) else None
+    resultado.sort(key=lambda e: ({"alto": 0, "medio": 1, "bajo": 2}[e["riesgo"]], e["id"] != preferido))
     return resultado, vecinos_mal
 
 
@@ -208,7 +219,8 @@ def informe(paises, pasos, intereses, calibrando):
         juicios.append({
             "pais": a3, "nivel": p["nivel"], "confianza": p.get("confianza"),
             "pronostico": p.get("pronostico", {}).get("texto"),
-            "escenario": principal and f'{principal["estimativo"]}: {principal["nombre"].lower()}',
+            "escenario": principal and f'{principal["estimativo"]} {principal["nombre"].lower()}',
+            "escenario_id": principal and principal["id"],
             "porque": [i["texto"] for i in (principal or {}).get("indicadores", []) if i["activo"]][:3] or p.get("motivos", [])[:3],
         })
 

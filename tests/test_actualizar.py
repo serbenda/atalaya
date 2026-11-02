@@ -105,11 +105,11 @@ RESPUESTAS = {
     "lastupdate.txt": "1 a http://data.gdeltproject.org/gdeltv2/20261102081500.export.CSV.zip\n",
     "export.CSV.zip": zip_gdelt(FILAS_GDELT),
     "news.google.com": f"""<?xml version="1.0"?><rss><channel>
-        <item><title>Nuevo ataque en Járkov - EL PAÍS</title><link>https://m/1</link><pubDate>{RFC822}</pubDate>
+        <item><title>Nuevo ataque ruso con drones en Járkov - EL PAÍS</title><link>https://m/1</link><pubDate>{RFC822}</pubDate>
               <source url="https://elpais.com">EL PAÍS</source></item>
         <item><title>2 de noviembre de 1937: el bombardeo de Lleida - La Vanguardia</title><link>https://m/3</link>
               <pubDate>{RFC822}</pubDate><source url="https://lavanguardia.com">La Vanguardia</source></item>
-        <item><title>Nuevo ataque en Járkov - ABC</title><link>https://m/2</link><pubDate>{RFC822}</pubDate>
+        <item><title>Nuevo ataque ruso con drones en Járkov - ABC</title><link>https://m/2</link><pubDate>{RFC822}</pubDate>
               <source url="https://abc.es">ABC</source></item></channel></rss>""",
     "ioda": {"data": [
         {"entity": {"code": "IR", "name": "Iran", "type": "country"}, "scores": {"overall": 5e7}, "event_cnt": 3},
@@ -138,6 +138,8 @@ def _ooni(url):
     if "whatsapp" in url:
         filas.append({"probe_cc": "ET", "measurement_count": 40, "anomaly_count": 30 if ahora else 1})
         filas.append({"probe_cc": "IR", "measurement_count": 50, "anomaly_count": 45})
+    if "telegram" in url:
+        filas.append({"probe_cc": "IR", "measurement_count": 50, "anomaly_count": 44})
     filas.append({"probe_cc": "ES", "measurement_count": 100, "anomaly_count": 1})
     return {"result": filas}
 
@@ -256,7 +258,7 @@ class TestFuentes(Base):
     def test_titulares(self):
         t = act.titulares()["titulares"]
         self.assertEqual(len(t), 1)
-        self.assertEqual((t[0]["titulo"], t[0]["medio"]), ("Nuevo ataque en Járkov", "EL PAÍS"))
+        self.assertEqual((t[0]["titulo"], t[0]["medio"]), ("Nuevo ataque ruso con drones en Járkov", "EL PAÍS"))
 
     def test_ioda_ignora_cortes_pequenos(self):
         ev = act.ioda(self.paises)["eventos"]
@@ -300,6 +302,15 @@ class TestFuentesNuevas(Base):
         self.assertEqual(act.exteriores_nivel("Se desaconseja el viaje salvo por razones de extrema necesidad."), 3)
         self.assertEqual(act.exteriores_nivel("Se recomienda extremar la precaución en la frontera."), 2)
         self.assertEqual(act.exteriores_nivel("Se recomienda a los españoles que abandonen el país."), 4)
+        # Casos reales de las fichas
+        self.assertEqual(act.exteriores_nivel("SE DESACONSEJA EL VIAJE SALVO POR RAZONES QUE LO HAGAN NECESARIO. "
+                                              "EN TODO CASO, SE DEBERÁN EVITAR DETERMINADAS ZONAS."), 3)
+        self.assertEqual(act.exteriores_nivel("Se aconseja aplazar viaje hasta nuevo aviso. Para los ciudadanos que "
+                                              "deseen abandonar el país, existen vuelos."), 3)
+        self.assertEqual(act.exteriores_nivel("ANTE EL CONTEXTO DE CONFLICTO REGIONAL, SE DESACONSEJA COMPLETAMENTE VIAJAR A IRÁN."), 4)
+        self.assertEqual(act.exteriores_nivel("Se desaconseja participar en actos o concentraciones políticas."), 1)
+        self.assertEqual(act.exteriores_nivel("Se desaconseja viajar a las zonas fronterizas con Yemen."), 2)
+        self.assertEqual(act.exteriores_nivel("S E DESACONSEJA EL VIAJE A MALI BAJO CUALQUIER CIRCUNSTANCIA."), 4)
 
     def test_ooni_bloqueo_nuevo_y_habitual(self):
         ev = {e["pais"]: e for e in act.ooni(self.paises)["eventos"]}

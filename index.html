@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/estilo.css?v=5">
+  <link rel="stylesheet" href="css/estilo.css?v=6">
   <meta name="atalaya-datos" content="https://raw.githubusercontent.com/serbenda/atalaya/datos/data/">
 </head>
 <body>
@@ -30,7 +30,7 @@
         <label><input type="checkbox" data-capa="terremoto" checked><span class="forma forma-terremoto" aria-hidden="true"></span>Terremotos</label>
         <label><input type="checkbox" data-capa="desastre" checked><span class="forma forma-desastre" aria-hidden="true"></span>Desastres</label>
         <label><input type="checkbox" data-capa="epidemia" checked><span class="forma forma-epidemia" aria-hidden="true"></span>Epidemias</label>
-        <label><input type="checkbox" data-capa="internet" checked><span class="forma forma-internet" aria-hidden="true"></span>Cortes de internet</label>
+        <label><input type="checkbox" data-capa="internet" checked><span class="forma forma-internet" aria-hidden="true"></span>Internet y censura</label>
         <label><input type="checkbox" data-capa="pasos" checked><span class="forma forma-paso" aria-hidden="true"></span>Rutas marítimas</label>
       </fieldset>
     </header>
@@ -63,7 +63,7 @@
       <button class="asa" id="asa" aria-expanded="true" aria-controls="panel-cuerpo">Ocultar panel</button>
       <div class="panel-cuerpo" id="panel-cuerpo">
         <nav class="pestanas" role="tablist">
-          <button role="tab" aria-selected="true" data-pestana="parte">Parte</button>
+          <button role="tab" aria-selected="true" data-pestana="parte">Informe</button>
           <button role="tab" aria-selected="false" data-pestana="paises">Países</button>
           <button role="tab" aria-selected="false" data-pestana="eventos">Eventos</button>
           <button role="tab" aria-selected="false" data-pestana="titulares">Titulares</button>
@@ -106,6 +106,14 @@
       <li><strong>Cortes de internet</strong> grandes en todo un país (IODA). Suelen adelantarse a golpes, represión u ofensivas.</li>
       <li><strong>Avisos de viaje</strong> de EE. UU.: el nivel 4 marca una crisis prolongada y las subidas suman puntos. Son una fuente oficial, pero también reflejan la política exterior de ese país.</li>
     </ul>
+    <p>Sobre esos datos se hace el análisis que haría un gabinete de crisis:</p>
+    <ul>
+      <li><strong>Escenarios</strong> (escalada militar, golpe o crisis de gobierno, disturbios graves, emergencia humanitaria). Cada uno tiene una lista de indicadores observables, como un corte de internet, un bloqueo de WhatsApp o enfrentamientos entre países. Cuantos más se encienden, más probable es el escenario.</li>
+      <li><strong>Pronóstico a 7 días</strong> con lenguaje estimativo (probable, posible, poco probable), según la tendencia de la última semana y los escenarios. Cada pronóstico se guarda y se compara con lo que pasó después, para medir su acierto.</li>
+      <li><strong>Contagio regional</strong>: los conflictos se extienden a los vecinos.</li>
+      <li><strong>Interés para España</strong>: vecindad, rutas migratorias, energía, despliegues militares y comunidades españolas. Es una lista orientativa en <code>data/intereses_espana.json</code>.</li>
+    </ul>
+    <p>Las recomendaciones de viaje de <strong>Exteriores</strong> y los análisis del Real Instituto Elcano, el IEEE y el CIDOB aparecen en la ficha de cada país.</p>
     <p>Las <strong>rutas marítimas</strong> se marcan según los hechos violentos a menos de 350 km en las últimas 24 horas.</p>
     <p>Cada día se guarda una foto del mundo: niveles, parte, rutas marítimas y los eventos más relevantes. Puedes verla con <em>Ver otro día</em> o pinchando un día en la evolución de un país.</p>
     <p>Son señales tempranas, no predicciones. Cada evento enlaza a su fuente para comprobarlo.</p>
@@ -113,6 +121,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>

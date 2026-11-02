@@ -85,8 +85,8 @@ def google_noticias(consulta):
         {"q": consulta, "hl": "es", "gl": "ES", "ceid": "ES:es"})
 
 
-TITULARES_MAS = [google_noticias("site:efe.com (internacional OR ataque OR conflicto OR crisis) when:1d"),
-                 google_noticias("site:rtve.es internacional when:1d")]
+TITULARES_MAS = [google_noticias("site:efe.com (ataque OR guerra OR ofensiva OR conflicto OR crisis OR golpe) when:1d"),
+                 google_noticias("site:rtve.es (ataque OR guerra OR ofensiva OR conflicto OR crisis OR golpe) when:1d")]
 ANALISIS_URLS = {"Real Instituto Elcano": google_noticias("site:realinstitutoelcano.org when:60d"),
                  "IEEE": google_noticias("site:ieee.es when:90d"),
                  "CIDOB": google_noticias("site:cidob.org when:90d")}
@@ -613,7 +613,9 @@ def titulares(paises=None):
             continue
         vistos.add(clave)
         cuando = fecha(it.get("pubDate")) or AHORA
-        if cuando < AHORA - timedelta(hours=36):
+        # Fuera portadas de sección, directos y notas de prensa
+        if (cuando < AHORA - timedelta(hours=36) or len(titulo.split()) < 5 or "comunica" in normalizar(medio)
+                or "en directo" in normalizar(titulo)):
             continue
         lista.append({"titulo": titulo.strip(), "url": it.get("link"), "medio": medio, "fecha": iso(cuando),
                       "paises": paises.en_texto(titulo) if paises else []})
@@ -734,21 +736,48 @@ def oms(paises):
 
 MESES = {m: i for i, m in enumerate(["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
                                       "septiembre", "octubre", "noviembre", "diciembre"], 1)}
-EXTERIORES_NIVELES = {1: "sin restricciones especiales", 2: "precaución", 3: "se desaconseja salvo necesidad",
-                      4: "se desaconseja viajar"}
+EXTERIORES_NIVELES = {1: "sin restricciones especiales", 2: "precaución o zonas desaconsejadas",
+                      3: "se desaconseja viajar salvo necesidad", 4: "se desaconseja viajar bajo cualquier circunstancia"}
+
+
+ZONAS = re.compile(r"\b(zona|zonas|region|regiones|frontera|fronteras|fronteriza|fronterizas|provincia|provincias|"
+                   r"departamento|departamentos|estados de|estado de|norte de|sur de|este de|oeste de|areas)\b")
 
 
 def exteriores_nivel(notas):
-    """Nivel de la recomendación a partir de las notas importantes de la ficha."""
-    n = normalizar(notas)
-    if re.search(r"desaconseja (el viaje|viajar|todo viaje)[^.]{0,80}(cualquier circunstancia|en todo caso)", n) \
-            or "abandonen el pais" in n or "abandonar el pais" in n:
-        return 4
-    if re.search(r"desaconseja (el viaje|viajar|todo viaje|los viajes)[^.]{0,60}(salvo|excepto)", n):
-        return 3
-    if "desaconseja" in n or "extremar la precaucion" in n or "maxima precaucion" in n:
-        return 2
-    return 1
+    """Nivel de la recomendación a partir de las notas importantes de la ficha, frase a frase.
+    4: no viajar bajo ninguna circunstancia; 3: no viajar salvo necesidad; 2: zonas desaconsejadas o
+    precaución extrema; 1: sin restricciones especiales."""
+    nivel = 1
+    for frase in re.split(r"(?<=[.;:])\s+", normalizar_frases(notas)):
+        f = normalizar(frase)
+        if "abandonen el pais" in f or re.search(r"(recomienda|insta|aconseja)[^.]{0,40}abandonar el pais", f):
+            nivel = max(nivel, 4)
+            continue
+        # Solo cuentan las frases sobre viajar al país ("se desaconseja participar en manifestaciones" no)
+        contra = re.search(r"desaconsejan? (totalmente |absolutamente |completamente )?(el |todo |cualquier |los |realizar )?(viaje|viajes|viajar)"
+                           r"|no viajar(?! de noche)|aplazar (el |su )?viaje|evitar (todo|cualquier) viaje", f)
+        if not contra:
+            if re.search(r"extremar (la|las) precaucion|maxima precaucion", f):
+                nivel = max(nivel, 2)
+            continue
+        parcial = ZONAS.search(f) and not re.search(r"todo el (pais|territorio)", f)
+        if parcial:
+            nivel = max(nivel, 2)
+        elif re.search(r"(cualquier|ninguna) circunstancia", f):
+            nivel = max(nivel, 4)
+        elif re.search(r"\b(salvo|excepto)\b", f):
+            nivel = max(nivel, 3)
+        elif re.search(r"(totalmente|absolutamente|completamente) (el |todo |cualquier )?viaj", f):
+            nivel = max(nivel, 4)
+        else:
+            nivel = max(nivel, 3)
+    return nivel
+
+
+def normalizar_frases(texto):
+    # Las fichas a veces separan letras con espacios ("S E DESACONSEJA"); se juntan las mayúsculas sueltas
+    return re.sub(r"\b([A-ZÁÉÍÓÚÑ]) (?=[A-ZÁÉÍÓÚÑ]{2,})", r"\1", texto or "")
 
 
 def exteriores_ficha(url):
@@ -846,12 +875,16 @@ def ooni(paises):
         elif ahora >= 0.5:
             por_pais.setdefault(a3, {"nuevo": [], "cronico": []})["cronico"].append(OONI_APPS[app])
     for a3, b in por_pais.items():
-        lon, lat = paises.centro(a3)
         nuevo = bool(b["nuevo"])
+        # Un bloqueo habitual de una sola aplicación suele ser ruido de medida: solo cuentan dos o más
+        if not nuevo and len(b["cronico"]) < 2:
+            continue
+        lon, lat = paises.centro(a3)
         apps = b["nuevo"] or b["cronico"]
         eventos.append({
             "id": f"ooni-{a3}", "tipo": "censura",
-            "titulo": ("Nuevo bloqueo de " if nuevo else "Bloqueo habitual de ") + " y ".join(apps),
+            "titulo": ("Nuevo bloqueo de " if nuevo else "Bloqueo habitual de ") +
+                      (", ".join(apps[:-1]) + " y " + apps[-1] if len(apps) > 1 else apps[0]),
             "lugar": "", "pais": a3, "lat": lat, "lon": lon, "fecha": iso(AHORA),
             "peso": 6 if nuevo else 0, "nivel": "ambar" if nuevo else "verde", "fuente": "OONI", "familia": "tecnica",
             "url": f"https://explorer.ooni.org/country/{paises.a2_de(a3)}",
@@ -957,7 +990,7 @@ def analisis(paises):
             if medio and titulo.endswith(" - " + medio):
                 titulo = titulo[: -len(medio) - 3]
             quienes = paises.en_texto(titulo)
-            if quienes:
+            if quienes and not normalizar(titulo).startswith(("novedades", "boletin", "agenda")):
                 lista.append({"titulo": titulo.strip(), "url": it.get("link"), "centro": centro,
                               "fecha": iso(fecha(it.get("pubDate")) or AHORA), "paises": quienes})
     if not lista:
@@ -1105,7 +1138,8 @@ def puntuar(eventos, gdelt_paises):
                          "rango_evento": c["rango"], "familias": sorted(c["familias"]),
                          "crisis_abierta": c["crisis_abierta"], "cuota_violencia": c.get("cuota_violencia", 0),
                          "hechos_violentos": c.get("hechos_violentos", 0), "protestas_n": c.get("protestas_n", 0),
-                         "rango_desastre": c.get("rango_desastre", 0)}
+                         "rango_desastre": c.get("rango_desastre", 0),
+                         "cuota_protestas": round(c.get("protestas_n", 0) / max((gdelt_paises or {}).get(a3, {}).get("total", 0), 20), 3)}
     return resultado
 
 
