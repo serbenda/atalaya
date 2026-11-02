@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/img/atalaya-marca-en.png" alt="atalaya: world situation viewer with early warning" width="640">
+
 # atalaya
 
 **World situation viewer with early warning**

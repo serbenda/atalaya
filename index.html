@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/estilo.css?v=12">
+  <link rel="stylesheet" href="css/estilo.css?v=13">
   <meta name="atalaya-datos" content="https://raw.githubusercontent.com/serbenda/atalaya/datos/data/">
 </head>
 <body>
@@ -18,7 +18,20 @@
     <div id="mapa" class="mapa" aria-label="Mapa del mundo con el nivel de alerta de cada país" data-i18n-attr="aria-label"></div>
 
     <header class="cabecera">
-      <h1 class="marca"><img src="img/atalaya.svg" alt="" class="logo" width="40" height="40">atalaya</h1>
+      <h1 class="marca" aria-label="atalaya"><span aria-hidden="true">ata</span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 100" class="torre-l" aria-hidden="true">
+  <defs>
+    <radialGradient id="tl-r" cx="18" cy="20" r="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D9483B" stop-opacity=".6"/><stop offset="1" stop-color="#D9483B" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="18" cy="20" r="18" fill="url(#tl-r)"/>
+  <path d="M10 100 L11.8 41 L24.2 41 L26 100 Z" fill="currentColor"/>
+  <rect x="8" y="35.5" width="20" height="6.5" rx="1" fill="currentColor"/>
+  <rect x="8" y="29.5" width="5.2" height="6.5" fill="currentColor"/><rect x="15.4" y="29.5" width="5.2" height="6.5" fill="currentColor"/><rect x="22.8" y="29.5" width="5.2" height="6.5" fill="currentColor"/>
+  <rect x="16.4" y="52" width="3.2" height="10" rx="1.6" fill="#0F222C"/>
+  <path d="M18 9 C22 13.5 23.6 17 22.4 20.6 C21.6 23 14.4 23 13.6 20.6 C12.4 17 14 13.5 18 9 Z" fill="#D9483B"/>
+  <path d="M18 13.5 C19.8 16 20.4 17.6 19.8 19.4 C19.4 20.4 16.6 20.4 16.2 19.4 C15.6 17.6 16.2 16 18 13.5 Z" fill="#F4C26B"/>
+</svg><span aria-hidden="true">aya</span></h1>
       <div class="grupo-botones idioma" role="group" aria-label="Idioma" data-i18n-attr="aria-label">
         <button data-idioma="es" lang="es" aria-pressed="true">ES</button>
         <button data-idioma="en" lang="en" aria-pressed="false">EN</button>
@@ -178,7 +191,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="js/i18n.js?v=12"></script>
-  <script src="js/app.js?v=12"></script>
+  <script src="js/i18n.js?v=13"></script>
+  <script src="js/app.js?v=13"></script>
 </body>
 </html>
