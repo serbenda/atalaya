@@ -11,6 +11,7 @@ Visor de la situación mundial: mapa en tiempo real con conflictos, protestas, d
 - **Rutas marítimas estratégicas** (Ormuz, Bab el-Mandeb, Suez, Gibraltar…) según la violencia en su zona.
 - **Parte de situación**: qué empeora, qué cambia desde ayer y el estado de cada fuente.
 - **Reproducción de la última semana** y titulares en español.
+- **Histórico**: la foto del mundo de cualquier día pasado (*Ver otro día*) y la evolución completa de cada país. Se puede compartir un día concreto: `#dia=2026-10-28&pais=SDN`.
 
 ## Modelo de alerta
 
@@ -50,6 +51,7 @@ GitHub Pages (rama main)
 
 - El navegador no llama a ninguna API: todo lo descarga la Action. El script solo usa la biblioteca estándar de Python.
 - La rama `datos` solo guarda la última versión (un único commit que se reemplaza). En `main` solo entra código, por PR desde `development`.
+- El histórico no se recorta nunca: `historico.json` guarda la puntuación y el nivel de cada país por día, y `archivo/AAAA-MM-DD.json` la foto de cada día (niveles, parte, rutas y los 300 eventos más relevantes). Ocupa del orden de 50 MB al año.
 - Si una fuente falla, el mapa sigue con sus últimos datos buenos. Si lleva 3 horas fallando, la Action abre el issue **Fuentes de datos caídas**.
 - Para probar cambios con datos reales sin tocar la web: Actions → *Actualizar datos* → *Run workflow* en `development` con *Publicar* desmarcado. Los datos quedan en la rama `datos-prueba`.
 

@@ -3,3 +3,5 @@ data/alertas.json
 data/historial.json
 data/avisos.json
 __pycache__/
+data/historico.json
+data/archivo/

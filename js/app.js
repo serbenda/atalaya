@@ -35,7 +35,11 @@
     eventos: [], titulares: [], alertas: {}, pasos: [], parte: {}, fuentes: {}, calibrando: true, actualizado: null,
     paises: new Map(), capas: new Set(["conflicto", "protesta", "terremoto", "desastre", "epidemia", "internet", "pasos"]),
     elegido: null, modo: "globo", ventanaHoras: 168, reproduciendo: null, instante: null,
+    dia: null, dias: [], historico: null,
   };
+  const fechaLarga = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const fechaDia = (d) => mayuscula(fechaLarga.format(new Date(`${d}T12:00:00Z`)));
+  const hoy = () => new Date().toISOString().slice(0, 10);
 
   const $ = (sel) => document.querySelector(sel);
   const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -51,7 +55,10 @@
     return respaldo || p?.nombres?.[0] || a3;
   }
 
+  const fechaHora = new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   function haceCuanto(iso) {
+    // Viendo un día pasado, "hace 14 horas" confunde: se da la fecha
+    if (estado.dia) return fechaHora.format(new Date(iso));
     let v = (new Date(iso) - Date.now()) / 1000;
     for (const [n, u] of [[60, "second"], [60, "minute"], [24, "hour"], [7, "day"]]) {
       if (Math.abs(v) < n) return relativo.format(Math.round(v), u);
@@ -554,6 +561,29 @@
     </figure>`;
   }
 
+  // Evolución completa del país con el histórico: un punto por día, coloreado por nivel.
+  // Pinchar un día abre la foto del mundo de ese día.
+  function evolucion(a3) {
+    const h = estado.historico;
+    const dias = h ? Object.keys(h).sort() : [];
+    if (dias.length < 2) return null;
+    const serie = dias.map((d) => ({ d, v: h[d][a3]?.[0] ?? 0, n: h[d][a3]?.[1] ?? 0 }));
+    const w = 300, hgt = 70, max = Math.max(...serie.map((p) => p.v), 1);
+    const x = (i) => (i / (serie.length - 1)) * (w - 10) + 5;
+    const y = (v) => hgt - 8 - (v / max) * (hgt - 18);
+    const puntos = serie.map((p, i) => `${x(i).toFixed(1)},${y(p.v).toFixed(1)}`);
+    const color = ["var(--frontera)", "var(--ambar)", "var(--rojo)"];
+    const marcado = estado.dia || dias.at(-1);
+    return `<figure class="grafica evolucion">
+      <svg viewBox="0 0 ${w} ${hgt}" role="img" aria-label="Evolución desde ${fechaDia(dias[0])}">
+        <path class="area" d="M${x(0)},${hgt - 8}L${puntos.join("L")}L${x(serie.length - 1)},${hgt - 8}Z" />
+        <path class="linea" d="M${puntos.join("L")}" />
+        ${serie.map((p, i) => `<circle class="dia${p.d === marcado ? " marcado" : ""}" data-dia="${p.d}" cx="${x(i)}" cy="${y(p.v)}" r="${p.d === marcado ? 4.5 : 3}" fill="${color[p.n]}"><title>${esc(fechaDia(p.d))}: ${numero.format(p.v)} puntos</title></circle>`).join("")}
+      </svg>
+      <figcaption>Evolución desde el ${esc(fechaLarga.format(new Date(`${dias[0]}T12:00:00Z`)))}. Pincha un día para ver el mundo ese día.</figcaption>
+    </figure>`;
+  }
+
   function explicar(a) {
     const partes = [];
     if (a.conflicto) partes.push(`${numero.format(a.conflicto)} por hechos violentos${a.cuota_violencia ? ` (el ${Math.round(a.cuota_violencia * 100)} % de lo que se cuenta del país)` : ""}`);
@@ -563,7 +593,7 @@
     if (a.internet) partes.push(`${numero.format(a.internet)} por cortes de internet`);
     if (a.avisos) partes.push(`${numero.format(a.avisos)} por subir el aviso de viaje`);
     if (a.humanitaria) partes.push(`${numero.format(a.humanitaria)} por crisis humanitaria`);
-    let t = partes.length ? `La puntuación de hoy suma ${lista(partes)}.` : "";
+    let t = partes.length ? `La puntuación ${estado.dia ? "de ese día" : "de hoy"} suma ${lista(partes)}.` : "";
     if (a.tendencia === "sube") t += " Está por encima de lo habitual para este país.";
     else if (a.tendencia === "baja") t += " Está por debajo de lo habitual para este país.";
     else if (a.tendencia === "estable") t += " Es parecida a lo habitual para este país.";
@@ -583,10 +613,10 @@
     if (a) {
       if (a.motivos?.length) html += `<ul class="motivos">${a.motivos.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>`;
       html += `<dl class="cifras">
-        <div><dt>Hoy</dt><dd>${numero.format(a.puntuacion)}</dd></div>
+        <div><dt>${estado.dia ? "Ese día" : "Hoy"}</dt><dd>${numero.format(a.puntuacion)}</dd></div>
         <div><dt>Media 30 días</dt><dd>${a.tendencia === "sin datos" ? "–" : numero.format(a.media)}</dd></div>
         <div><dt>Tendencia</dt><dd>${{ sube: "Sube", baja: "Baja", estable: "Estable" }[a.tendencia] || "–"}</dd></div>
-      </dl>${grafica(a.serie)}<p class="explicacion">${esc(explicar(a))}</p>`;
+      </dl>${evolucion(a3) ?? grafica(a.serie)}<p class="explicacion">${esc(explicar(a))}</p>`;
     }
     html += `</div>`;
     html += ev.length ? `<h3 class="grupo">Eventos</h3>` + ev.map((e) => filaEvento(e, false)).join("") : `<p class="vacio">No hay eventos registrados en este país en los últimos 7 días.</p>`;
@@ -595,15 +625,30 @@
     plegar(false);
     ocultarFicha();
     dibujarPaises();
-    try { history.replaceState(null, "", `#pais=${a3}`); } catch { /* sin historial */ }
+    actualizarEnlace();
     if (centrar) centrarEn(a3);
+    if (!estado.historico) cargarHistorico().then(() => { if (estado.elegido === a3) abrirPais(a3, respaldo, false); });
+  }
+
+  // El enlace de la página recuerda el día y el país: #dia=2026-10-28&pais=SDN
+  function actualizarEnlace() {
+    const partes = [];
+    if (estado.dia) partes.push(`dia=${estado.dia}`);
+    if (estado.elegido) partes.push(`pais=${estado.elegido}`);
+    try { history.replaceState(null, "", partes.length ? `#${partes.join("&")}` : location.pathname + location.search); } catch { /* sin historial */ }
+  }
+
+  let historicoPedido = null;
+  function cargarHistorico() {
+    historicoPedido ??= json(DATOS + "historico.json").then((h) => { estado.historico = h; }).catch(() => { estado.historico = {}; });
+    return historicoPedido;
   }
 
   function cerrarPais() {
     estado.elegido = null;
     mostrarVista("parte");
     dibujarPaises();
-    try { history.replaceState(null, "", location.pathname + location.search); } catch { /* sin historial */ }
+    actualizarEnlace();
   }
 
   function plegar(cerrado) {
@@ -658,6 +703,9 @@
     const fila = ev.target.closest("[data-pais]");
     if (fila) { abrirPais(fila.dataset.pais); return; }
     if (ev.target.closest("[data-volver]")) { cerrarPais(); return; }
+    if (ev.target.closest("[data-hoy]")) { verDia(null); return; }
+    const dia = ev.target.closest("[data-dia]");
+    if (dia) { verDia(dia.dataset.dia); return; }
     const modo = ev.target.closest("[data-modo]");
     if (modo) { cambiarModo(modo.dataset.modo); return; }
     const z = ev.target.closest("[data-zoom]");
@@ -683,6 +731,7 @@
   }));
 
   $("#reproducir").addEventListener("click", reproducir);
+  $("#dia").addEventListener("change", (ev) => verDia(ev.target.value));
   $("#asa").addEventListener("click", () => plegar(!$("#panel").classList.contains("plegado")));
   $("#ver-metodo").addEventListener("click", (ev) => { ev.preventDefault(); $("#metodo").showModal(); });
 
@@ -704,7 +753,9 @@
     if (!ficha.hidden) ocultarFicha();
     else if (!$("#vista-pais").hidden) cerrarPais();
   });
-  addEventListener("hashchange", () => {
+  addEventListener("hashchange", async () => {
+    const d = location.hash.match(/dia=(\d{4}-\d{2}-\d{2})/);
+    if ((d?.[1] ?? null) !== estado.dia) await verDia(d?.[1]);
     const m = location.hash.match(/pais=([A-Z]{3})/);
     if (m && m[1] !== estado.elegido) abrirPais(m[1]);
   });
@@ -712,6 +763,7 @@
   // ----------------------------------------------------------------- carga
 
   async function cargarDatos() {
+    if (estado.dia) return; // viendo un día pasado: no se refresca
     try {
       const [eventos, alertas] = await Promise.all([json(DATOS + "eventos.json"), json(DATOS + "alertas.json")]);
       estado.eventos = eventos.eventos || [];
@@ -739,13 +791,74 @@
     if (estado.elegido && !$("#vista-pais").hidden) abrirPais(estado.elegido, null, false);
   }
 
+  // ------------------------------------------------------------ histórico
+
+  function pintarTodo() {
+    dibujarPaises();
+    dibujarEventos();
+    pintarParte();
+    pintarPaises();
+    pintarEventos();
+    pintarTitulares();
+    if (estado.elegido && !$("#vista-pais").hidden) abrirPais(estado.elegido, null, false);
+  }
+
+  async function verDia(dia) {
+    if (estado.reproduciendo) pararReproduccion();
+    const selector = $("#dia");
+    if (!dia || dia >= hoy() || !estado.dias.includes(dia)) {
+      estado.dia = null;
+      estado.instante = null;
+      selector.value = "";
+      document.body.classList.remove("pasado");
+      await cargarDatos();
+      actualizarEnlace();
+      return;
+    }
+    try {
+      const foto = await json(`${DATOS}archivo/${dia}.json`);
+      estado.dia = dia;
+      estado.eventos = foto.eventos || [];
+      estado.titulares = foto.titulares || [];
+      estado.alertas = foto.paises || {};
+      estado.pasos = foto.pasos || [];
+      estado.parte = foto.parte || {};
+      estado.fuentes = {};
+      estado.calibrando = false;
+      estado.instante = new Date(foto.actualizado).getTime();
+      selector.value = dia;
+      document.body.classList.add("pasado");
+      $("#actualizado").innerHTML = `${esc(fechaDia(dia))}, foto de las ${new Date(foto.actualizado).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}. <button class="volver-hoy" data-hoy>Volver a hoy</button>`;
+      pintarTodo();
+      actualizarEnlace();
+    } catch (e) {
+      console.error(e);
+      $("#actualizado").textContent = `No hay foto guardada del ${fechaDia(dia).toLowerCase()}.`;
+    }
+  }
+
+  async function cargarIndice() {
+    try {
+      const { dias } = await json(DATOS + "archivo/indice.json");
+      estado.dias = dias || [];
+    } catch { estado.dias = []; }
+    const selector = $("#dia");
+    if (estado.dias.length > 1) {
+      selector.min = estado.dias[0];
+      selector.max = estado.dias.at(-1);
+      $("#historico").hidden = false;
+    }
+  }
+
   (async () => {
     const [geo, paises] = await Promise.all([json("data/mundo.geojson"), json("data/paises.json")]);
     mundo = geo;
     for (const p of paises) estado.paises.set(p.a3, p);
     $("#lista-paises").innerHTML = mundo.features.map((f) => `<option value="${esc(nombrePais(f.id, f.properties.name))}">`).join("");
     configurarProyeccion();
-    await cargarDatos();
+    await Promise.all([cargarDatos(), cargarIndice()]);
+    const d = location.hash.match(/dia=(\d{4}-\d{2}-\d{2})/);
+    if (d) await verDia(d[1]);
     const m = location.hash.match(/pais=([A-Z]{3})/);
     if (m) abrirPais(m[1]);
     else empezarGiro();

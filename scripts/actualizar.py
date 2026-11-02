@@ -14,6 +14,8 @@ Escribe en $ATALAYA_SALIDA (por defecto data/; en la Action, la rama `datos`):
   alertas.json    nivel de alerta por país, pasos marítimos y parte de situación
   historial.json  puntuación diaria por país (últimos 30 días)
   avisos.json     último nivel de los avisos de viaje y sus cambios
+  historico.json  puntuación y nivel de cada país, día a día, sin límite
+  archivo/        foto de cada día para consultarla después
 """
 
 import csv
@@ -865,6 +867,51 @@ def parte(alertas, previas):
     return {"suben": suben[:10], "bajan": bajan[:10], "empeoran": empeoran[:8]}, referencia
 
 
+# ---------------------------------------------------------------- histórico
+# El histórico no se recorta nunca:
+#   historico.json          por día y país: [puntuación, nivel (0-2), empeora (0/1)]
+#   archivo/AAAA-MM-DD.json la foto del día: niveles, parte, pasos y los eventos más relevantes
+#   archivo/indice.json     los días disponibles
+# Cada ejecución sobrescribe la foto de hoy, así que se queda la última del día.
+
+EVENTOS_ARCHIVO = 300
+
+
+def relevancia(e):
+    """Orden para quedarse con los eventos que importan en la foto del día."""
+    if e["tipo"] in ("conflicto", "protesta"):
+        return e.get("menciones", 0) / 10
+    return 100 * RANGO.get(e["nivel"], 0) + e.get("peso", 0) + 5
+
+
+def archivar(alertas, eventos, titulares):
+    dir_archivo = SALIDA / "archivo"
+    dir_archivo.mkdir(exist_ok=True)
+
+    historico = leer("historico.json", {})
+    historico[HOY] = {a3: [p["puntuacion"], RANGO[p["nivel"]], int(p["escalada"])]
+                      for a3, p in alertas["paises"].items()}
+    escribir("historico.json", dict(sorted(historico.items())))
+
+    campos_pais = ("nivel", "escalada", "motivos", "confianza", "puntuacion", "media", "tendencia",
+                   "dias_subiendo", "aviso_viaje", "conflicto", "protestas", "desastres", "epidemias",
+                   "internet", "avisos", "humanitaria", "cuota_violencia", "hechos_violentos", "protestas_n")
+    campos_evento = ("id", "tipo", "titulo", "lugar", "pais", "lat", "lon", "fecha", "nivel", "peso",
+                     "magnitud", "menciones", "hechos", "fuente", "url", "estado")
+    del_dia = [e for e in eventos if reciente(e, VENTANA_PUNTUACION) or e["tipo"] in ("epidemia", "crisis")]
+    del_dia.sort(key=relevancia, reverse=True)
+    foto = {
+        "fecha": HOY, "actualizado": alertas["actualizado"],
+        "paises": {a3: {k: p[k] for k in campos_pais if k in p} for a3, p in alertas["paises"].items()},
+        "parte": alertas.get("parte", {}), "pasos": alertas.get("pasos", []),
+        "eventos": [{k: e[k] for k in campos_evento if k in e} for e in del_dia[:EVENTOS_ARCHIVO]],
+        "titulares": titulares[:20],
+    }
+    (dir_archivo / f"{HOY}.json").write_text(json.dumps(foto, ensure_ascii=False, separators=(",", ":")), "utf-8")
+    dias = sorted(f.stem for f in dir_archivo.glob("????-??-??.json"))
+    (dir_archivo / "indice.json").write_text(json.dumps({"dias": dias}), "utf-8")
+
+
 # --------------------------------------------------------------------- main
 
 FUENTES = [("USGS", usgs), ("GDACS", gdacs), ("NASA EONET", eonet), ("GDELT", gdelt),
@@ -931,6 +978,7 @@ def main():
                               "gdelt_paises": gdelt_paises, "gdelt_pasos": gdelt_pasos})
     escribir("alertas.json", alertas)
     escribir("historial.json", historial)
+    archivar(alertas, eventos, extra.get("titulares", []))
     log("Listo:", {k: ("ok" if v["ok"] else v["error"]) + f" ({v['eventos']})" for k, v in estado.items()})
     from collections import Counter
     log("Niveles:", dict(Counter(p["nivel"] for p in alertas["paises"].values())))
