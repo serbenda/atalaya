@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/estilo.css?v=6">
+  <link rel="stylesheet" href="css/estilo.css?v=7">
   <meta name="atalaya-datos" content="https://raw.githubusercontent.com/serbenda/atalaya/datos/data/">
 </head>
 <body>
@@ -64,11 +64,13 @@
       <div class="panel-cuerpo" id="panel-cuerpo">
         <nav class="pestanas" role="tablist">
           <button role="tab" aria-selected="true" data-pestana="parte">Informe</button>
+          <button role="tab" aria-selected="false" data-pestana="simulacion">Simulación</button>
           <button role="tab" aria-selected="false" data-pestana="paises">Países</button>
           <button role="tab" aria-selected="false" data-pestana="eventos">Eventos</button>
           <button role="tab" aria-selected="false" data-pestana="titulares">Titulares</button>
         </nav>
         <section class="vista" id="vista-parte" role="tabpanel"></section>
+        <section class="vista" id="vista-simulacion" role="tabpanel" hidden></section>
         <section class="vista" id="vista-paises" role="tabpanel" hidden></section>
         <section class="vista" id="vista-eventos" role="tabpanel" hidden></section>
         <section class="vista" id="vista-titulares" role="tabpanel" hidden></section>
@@ -83,7 +85,8 @@
         <span><i class="nivel-verde"></i>Actividad sin alerta</span>
         <span><i class="nivel-late"></i>Late si empeora</span>
       </p>
-      <p class="aviso">Señales tempranas de fuentes públicas, no predicciones. <a href="#metodo" id="ver-metodo">Cómo se calcula</a></p>
+      <p class="niveles leyenda-simulacion"><span><i class="nivel-simulado"></i>Contagio simulado</span></p>
+      <p class="aviso">Pronósticos y simulaciones: estimaciones automáticas a partir de noticias, sin validez oficial. <a href="#metodo" id="ver-metodo">Cómo se calcula</a></p>
     </div>
 
     <div class="ficha-mapa" id="ficha-mapa" hidden></div>
@@ -116,11 +119,13 @@
     <p>Las recomendaciones de viaje de <strong>Exteriores</strong> y los análisis del Real Instituto Elcano, el IEEE y el CIDOB aparecen en la ficha de cada país.</p>
     <p>Las <strong>rutas marítimas</strong> se marcan según los hechos violentos a menos de 350 km en las últimas 24 horas.</p>
     <p>Cada día se guarda una foto del mundo: niveles, parte, rutas marítimas y los eventos más relevantes. Puedes verla con <em>Ver otro día</em> o pinchando un día en la evolución de un país.</p>
+    <p>La pestaña <strong>Simulación</strong> imagina qué podría pasar en los próximos 7 días en las crisis abiertas: tres ramas (se contiene, sigue igual, escala) con una probabilidad aproximada, el posible contagio a los vecinos y el impacto para España. La probabilidad sale de los indicadores encendidos, la tendencia de la semana y la situación de los vecinos.</p>
+    <p class="aviso-oficial"><strong>Sin validez oficial.</strong> Los pronósticos y las simulaciones son estimaciones automáticas hechas con reglas sencillas a partir de noticias y datos públicos. No son predicciones oficiales ni análisis de inteligencia, pueden equivocarse y no sirven para tomar decisiones. Para viajar o actuar, consulta siempre fuentes oficiales como el Ministerio de Asuntos Exteriores.</p>
     <p>Son señales tempranas, no predicciones. Cada evento enlaza a su fuente para comprobarlo.</p>
     <form method="dialog"><button>Cerrar</button></form>
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="js/app.js?v=7"></script>
 </body>
 </html>

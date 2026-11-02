@@ -402,6 +402,7 @@ i.nivel-late { background: var(--rojo); animation: latido-icono 2.6s ease-in-out
   .marca { font-size: 42px; }
   .actualizado { margin: 4px 0 8px; }
   .buscador { display: none; }
+  .pestanas button { font-size: 13px; padding: 12px 1px 10px; }
   .capas { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; max-width: none; scrollbar-width: none; }
   .panel {
     top: auto; left: 0; right: 0; bottom: 0;
@@ -449,3 +450,34 @@ i.nivel-late { background: var(--rojo); animation: latido-icono 2.6s ease-in-out
 .escenario.riesgo-alto { border-color: color-mix(in srgb, var(--rojo) 60%, transparent); }
 .escenario.riesgo-alto strong { color: var(--rojo); }
 .escenario.riesgo-medio strong { color: var(--ambar); }
+
+/* -------------------------------------------------------- simulación */
+.aviso-simulacion {
+  margin: 14px 20px 4px; padding: 12px 14px; border-radius: 8px; font-size: 13px; line-height: 1.5;
+  background: color-mix(in srgb, var(--ambar) 14%, transparent); border: 1px solid color-mix(in srgb, var(--ambar) 55%, transparent);
+}
+.aviso-simulacion strong { color: var(--ambar); }
+.caso-sim { margin: 12px 20px; padding: 12px 14px; border: 1px dashed color-mix(in srgb, var(--tinta) 30%, transparent); border-radius: 10px; }
+.caso-sim header { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.enlace-pais { display: inline-flex; align-items: center; gap: 8px; padding: 0; background: none; border: 0; font-size: 18px; font-weight: 700; cursor: pointer; }
+.enlace-pais .punto { width: 10px; height: 10px; border-radius: 50%; }
+.etiqueta-sim { padding: 0 6px; border-radius: 4px; font-size: 11px; font-weight: 700; color: var(--mar-hondo); background: var(--ambar); }
+.caso-sim > p { margin: 6px 0 0; font-size: 13px; }
+.ramas { list-style: none; margin: 10px 0 4px; padding: 0; display: grid; gap: 8px; }
+.rama { position: relative; padding: 6px 8px 6px 10px; border-radius: 6px; background: var(--mar-hondo); overflow: hidden; font-size: 13px; }
+.rama .barra { position: absolute; inset: 0 auto 0 0; width: var(--p); opacity: 0.18; }
+.rama-escala .barra { background: var(--rojo); }
+.rama-igual .barra { background: var(--frontera); }
+.rama-contiene .barra { background: var(--verde); }
+.rama-cab { position: relative; display: flex; justify-content: space-between; gap: 8px; }
+.rama-cab span { color: var(--tinta-suave); font-variant-numeric: tabular-nums; }
+.rama-texto { position: relative; display: block; color: var(--tinta-suave); margin-top: 2px; }
+.sim-linea { color: var(--tinta-suave); }
+.sim-linea strong { color: var(--tinta); font-weight: 600; }
+.aviso-oficial { padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--ambar) 14%, transparent); }
+/* Mapa en modo simulación: los países que podrían contagiarse, rayados */
+.simulando .pais.contagio-simulado { fill: url(#rayado-simulado); }
+.simulando .pais.caso-simulado { stroke: var(--ambar); stroke-width: 1.6; stroke-dasharray: 4 3; }
+.leyenda-simulacion { display: none !important; }
+.simulando .leyenda-simulacion { display: flex !important; }
+i.nivel-simulado { background: repeating-linear-gradient(45deg, var(--ambar) 0 2px, transparent 2px 5px); }

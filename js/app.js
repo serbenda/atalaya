@@ -35,7 +35,7 @@
     eventos: [], titulares: [], alertas: {}, pasos: [], parte: {}, fuentes: {}, calibrando: true, actualizado: null,
     paises: new Map(), capas: new Set(["conflicto", "protesta", "terremoto", "desastre", "epidemia", "internet", "pasos"]),
     elegido: null, modo: "globo", ventanaHoras: 168, reproduciendo: null, instante: null,
-    dia: null, dias: [], historico: null, informe: {}, fiabilidad: {}, analisis: [],
+    dia: null, dias: [], historico: null, informe: {}, fiabilidad: {}, analisis: [], simulacion: {},
   };
   const fechaLarga = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const fechaDia = (d) => mayuscula(fechaLarga.format(new Date(`${d}T12:00:00Z`)));
@@ -82,6 +82,11 @@
   const luz = defs.append("radialGradient").attr("id", "luz-esfera").attr("cx", "38%").attr("cy", "32%").attr("r", "75%");
   luz.append("stop").attr("offset", "0%").attr("stop-color", "#2D5263");
   luz.append("stop").attr("offset", "100%").attr("stop-color", "#14303C");
+  // Rayado para los países que la simulación marca como posible contagio
+  const rayado = defs.append("pattern").attr("id", "rayado-simulado").attr("patternUnits", "userSpaceOnUse")
+    .attr("width", 6).attr("height", 6).attr("patternTransform", "rotate(45)");
+  rayado.append("rect").attr("width", 6).attr("height", 6).attr("fill", "#355564");
+  rayado.append("rect").attr("width", 2.4).attr("height", 6).attr("fill", "#E6A03B");
   const halo = defs.append("radialGradient").attr("id", "halo");
   halo.append("stop").attr("offset", "86%").attr("stop-color", "#7FD3E0").attr("stop-opacity", 0.16);
   halo.append("stop").attr("offset", "100%").attr("stop-color", "#7FD3E0").attr("stop-opacity", 0);
@@ -205,12 +210,17 @@
     capaPaises.selectAll("path").data(mundo.features, (f) => f.id).join("path")
       .attr("class", (f) => {
         const a = estado.alertas[f.id];
-        return ["pais", a?.nivel, a?.escalada && !reducirMovimiento ? "escalada" : "", f.id === estado.elegido ? "elegido" : ""].join(" ");
+        const simulado = document.body.classList.contains("simulando") ? estado.simulacion?.contagio?.[f.id] : null;
+        const caso = document.body.classList.contains("simulando") && estado.simulacion?.casos?.some((c) => c.pais === f.id);
+        return ["pais", a?.nivel, a?.escalada && !reducirMovimiento ? "escalada" : "", f.id === estado.elegido ? "elegido" : "",
+          simulado ? "contagio-simulado" : "", caso ? "caso-simulado" : ""].join(" ");
       })
       .on("click", (ev, f) => { ev.stopPropagation(); abrirPais(f.id, f.properties.name); })
       .on("mousemove", (ev, f) => {
         const a = estado.alertas[f.id];
-        const texto = a ? `${NIVELES[a.nivel].texto}${a.escalada ? ", empeora" : ""}${a.motivos?.length ? `<br>${esc(a.motivos.join(". "))}` : ""}` : "Sin eventos recientes";
+        let texto = a ? `${NIVELES[a.nivel].texto}${a.escalada ? ", empeora" : ""}${a.motivos?.length ? `<br>${esc(a.motivos.join(". "))}` : ""}` : "Sin eventos recientes";
+        const sim = estado.simulacion?.contagio?.[f.id];
+        if (sim && document.body.classList.contains("simulando")) texto += `<br>Simulación: ${sim} % de contagio en 7 días (sin validez oficial)`;
         mostrarInfo(ev, `<strong>${esc(nombrePais(f.id, f.properties.name))}</strong><span>${texto}</span>`);
       })
       .on("mouseleave", ocultarInfo);
@@ -412,9 +422,15 @@
 
   // ----------------------------------------------------------------- panel
 
-  const vistas = ["parte", "paises", "eventos", "titulares", "pais"];
+  const vistas = ["parte", "simulacion", "paises", "eventos", "titulares", "pais"];
   function mostrarVista(nombre) {
     for (const v of vistas) $(`#vista-${v}`).hidden = v !== nombre;
+    // En la pestaña Simulación el mapa muestra el contagio simulado
+    const simulando = nombre === "simulacion";
+    if (simulando !== document.body.classList.contains("simulando")) {
+      document.body.classList.toggle("simulando", simulando);
+      dibujarPaises();
+    }
     document.querySelectorAll(".pestanas button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.pestana === nombre)));
   }
 
@@ -511,6 +527,36 @@
       html += `<h3 class="grupo">Estado de las fuentes</h3><ul class="fuentes">` + fuentes.map(([n, fu]) =>
         `<li class="${fu.ok ? "" : "caida"}">${esc(n)}: ${fu.ok ? "al día" : `sin respuesta${fu.ultimo_ok ? `, datos de ${haceCuanto(fu.ultimo_ok)}` : ""}`}</li>`).join("") + "</ul>";
     }
+    el.innerHTML = html;
+  }
+
+  // Simulación de escenarios: siempre con el aviso de que no tiene validez oficial
+  function pintarSimulacion() {
+    const el = $("#vista-simulacion");
+    const sim = estado.simulacion || {};
+    let html = `<div class="aviso-simulacion" role="note"><strong>Esto es una simulación.</strong> ${esc(sim.aviso || "Simulación automática basada en noticias y datos públicos. No tiene ninguna validez oficial.")}</div>`;
+    if (!sim.casos?.length) {
+      el.innerHTML = html + `<p class="vacio">No hay crisis con datos suficientes para simular ahora mismo.</p>`;
+      return;
+    }
+    html += `<p class="resumen">Qué podría pasar en los próximos ${sim.horizonte_dias || 7} días en las crisis abiertas. En el mapa, los países rayados son los que podrían contagiarse.</p>`;
+    const ramaTitulo = { escala: "Escala", igual: "Sigue igual", contiene: "Se contiene" };
+    for (const c of sim.casos) {
+      html += `<article class="caso-sim">
+        <header><button class="enlace-pais" data-pais="${c.pais}"><span class="punto ${c.nivel}"></span>${esc(nombrePais(c.pais))}</button>
+          <span class="etiqueta-sim">Simulado</span>${etiquetaConfianza(c.confianza)}</header>
+        ${c.escenario ? `<p class="detalle-gris">Escenario principal: ${esc(c.escenario.toLowerCase())}. Se basa en: ${esc(lista(c.base.slice(0, 3).map((t, i) => (i ? t.charAt(0).toLowerCase() + t.slice(1) : t.charAt(0).toLowerCase() + t.slice(1))).map((t) => t.replace(/^españa/, "España"))))}.</p>` : ""}
+        <ul class="ramas">${c.ramas.map((r) => `<li class="rama rama-${r.id}">
+          <span class="barra" style="--p:${r.probabilidad}%"></span>
+          <span class="rama-cab"><strong>${ramaTitulo[r.id]}</strong><span>≈ ${r.probabilidad} %, ${esc(r.palabras)}</span></span>
+          <span class="rama-texto">${esc(r.texto)}</span></li>`).join("")}</ul>
+        ${c.contagio?.length ? `<p class="sim-linea"><strong>Si escala, podría extenderse a:</strong> ${esc(lista(c.contagio.map((v) => `${nombrePais(v.pais)} (≈ ${v.probabilidad} %)`)))}.</p>` : ""}
+        ${c.espana?.length ? `<p class="sim-linea"><strong>Para España:</strong> ${esc(c.espana.join(" "))}</p>` : ""}
+        ${c.confirman?.length ? `<p class="sim-linea"><strong>Señales de que escala:</strong> ${esc(lista(c.confirman).toLowerCase())}.</p>` : ""}
+        <p class="sim-linea"><strong>Señales de que se contiene:</strong> ${esc(lista(c.desmienten).toLowerCase())}.</p>
+      </article>`;
+    }
+    html += `<p class="resumen">Cómo se simula: la probabilidad de cada rama sale del pronóstico, de los indicadores encendidos, de la tendencia de la última semana y de la situación de los vecinos. Son reglas sencillas, no un modelo entrenado, y pueden equivocarse.</p>`;
     el.innerHTML = html;
   }
 
@@ -643,7 +689,7 @@
     html += `</div>`;
     if (a?.pronostico || a?.escenarios?.length) {
       html += `<h3 class="grupo">Pronóstico y escenarios</h3><div class="ficha">`;
-      if (a.pronostico) html += `<p class="pronostico riesgo-${a.pronostico.riesgo}"><strong>${esc(a.pronostico.texto)}.</strong>${a.pronostico.pendiente ? ` Tendencia de la última semana: ${a.pronostico.pendiente > 0 ? "+" : ""}${numero.format(a.pronostico.pendiente)} puntos al día.` : ""}</p>`;
+      if (a.pronostico) html += `<p class="pronostico riesgo-${a.pronostico.riesgo}"><strong>${esc(a.pronostico.texto)}.</strong> <span class="detalle-gris">Estimación automática, sin validez oficial.</span>${a.pronostico.pendiente ? ` Tendencia de la última semana: ${a.pronostico.pendiente > 0 ? "+" : ""}${numero.format(a.pronostico.pendiente)} puntos al día.` : ""}</p>`;
       const relevantes = (a.escenarios || []).filter((e) => e.riesgo !== "bajo");
       if (!relevantes.length) html += `<p class="explicacion">Ningún escenario de crisis tiene indicadores suficientes ahora mismo.</p>`;
       for (const e of relevantes) {
@@ -829,6 +875,7 @@
       estado.pasos = alertas.pasos || [];
       estado.parte = alertas.parte || {};
       estado.informe = alertas.informe || {};
+      estado.simulacion = alertas.simulacion || {};
       estado.fiabilidad = alertas.fiabilidad || {};
       estado.analisis = eventos.analisis || [];
       estado.calibrando = alertas.calibrando;
@@ -844,6 +891,7 @@
     dibujarPaises();
     dibujarEventos();
     pintarParte();
+    pintarSimulacion();
     pintarPaises();
     pintarEventos();
     pintarTitulares();
@@ -856,6 +904,7 @@
     dibujarPaises();
     dibujarEventos();
     pintarParte();
+    pintarSimulacion();
     pintarPaises();
     pintarEventos();
     pintarTitulares();
@@ -883,6 +932,7 @@
       estado.pasos = foto.pasos || [];
       estado.parte = foto.parte || {};
       estado.informe = foto.informe || {};
+      estado.simulacion = foto.simulacion || {};
       estado.fuentes = {};
       estado.calibrando = false;
       estado.instante = new Date(foto.actualizado).getTime();

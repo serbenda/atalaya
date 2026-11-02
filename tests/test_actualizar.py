@@ -372,6 +372,45 @@ class TestInteligencia(Base):
         self.assertEqual(f["alto"], {"aciertos": 1, "total": 2})
 
 
+class TestSimulacion(Base):
+    def setUp(self):
+        super().setUp()
+        sys.path.insert(0, str(RAIZ / "scripts"))
+        import simulacion
+        self.sim = simulacion
+
+    def test_probabilidades_suman_100_y_suben_con_el_riesgo(self):
+        esc = {"indicadores": [{"activo": True}, {"activo": True}, {"activo": False}]}
+        alto = self.sim.probabilidades({"pronostico": {"riesgo": "alto", "pendiente": 2}}, esc, ["TCD", "LBY"])
+        bajo = self.sim.probabilidades({"pronostico": {"riesgo": "bajo", "pendiente": -1}}, None, [])
+        self.assertEqual(sum(alto.values()), 100)
+        self.assertEqual(sum(bajo.values()), 100)
+        self.assertGreater(alto["escala"], bajo["escala"])
+        self.assertGreater(bajo["contiene"], alto["contiene"])
+        self.assertTrue(all(v % 5 == 0 for v in alto.values()))
+
+    def test_simular_contagio_e_impacto_en_espana(self):
+        alertas = {"paises": {
+            "MLI": {"nivel": "rojo", "puntuacion": 30, "confianza": "alta", "motivos": ["X"],
+                    "pronostico": {"riesgo": "alto", "pendiente": 1},
+                    "escenarios": [{"id": "escalada", "nombre": "Escalada militar", "riesgo": "alto",
+                                    "indicadores": [{"texto": "A", "activo": True}, {"texto": "B", "activo": False}]}]},
+            "NER": {"nivel": "ambar", "puntuacion": 10, "pronostico": {"riesgo": "bajo"}},
+            "DZA": {"nivel": "verde", "puntuacion": 1, "pronostico": {"riesgo": "bajo"}},
+            "CHL": {"nivel": "verde", "puntuacion": 1, "pronostico": {"riesgo": "bajo"}}}}
+        r = self.sim.simular(alertas, {"MLI": ["NER", "DZA"]},
+                             lambda a: ["Rutas migratorias hacia España"] if a == "MLI" else [], lambda a: [])
+        self.assertIn("no tiene ninguna validez oficial", r["aviso"])
+        caso = r["casos"][0]
+        self.assertEqual(caso["pais"], "MLI")
+        self.assertEqual([x["id"] for x in caso["ramas"]], ["escala", "igual", "contiene"])
+        # Níger ya está en crisis (es otro caso simulado): no cuenta como contagio; Argelia sí
+        self.assertEqual([v["pais"] for v in caso["contagio"]], ["DZA"])
+        self.assertIn("Posible aumento de salidas por las rutas migratorias hacia España.", caso["espana"])
+        self.assertEqual(caso["confirman"], ["B"])
+        self.assertNotIn("CHL", [c["pais"] for c in r["casos"]])
+
+
 class TestAlertas(Base):
     def test_gdacs_sequia_no_se_atribuye(self):
         rss = GDACS_RSS.replace("<gdacs:eventtype>TC</gdacs:eventtype><gdacs:eventid>1</gdacs:eventid><gdacs:eventname>",
@@ -450,6 +489,8 @@ class TestEjecucionCompleta(Base):
         ext = json.loads((Path(TMP) / "exteriores.json").read_text())
         self.assertEqual(ext["paises"]["SDN"]["nivel"], 4)
         self.assertIn("vigilar", a["informe"])
+        self.assertIn("simulacion", a)
+        self.assertIn("validez oficial", a["simulacion"]["aviso"])
 
         # Histórico: foto del día, índice y serie por país
         foto = json.loads((Path(TMP) / "archivo" / f"{act.HOY}.json").read_text())
