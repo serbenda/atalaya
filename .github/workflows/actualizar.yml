@@ -51,24 +51,18 @@ jobs:
       - name: Descargar fuentes y calcular alertas
         run: python scripts/actualizar.py
 
-      - name: Guardar los datos de la prueba
-        if: env.PUBLICAR != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: datos-prueba
-          path: salida/data
-
-      - name: Publicar en la rama datos
-        if: env.PUBLICAR == 'true'
+      # En una ejecución de prueba los datos van a la rama `datos-prueba` y la web no cambia
+      - name: Publicar los datos
         working-directory: salida
         run: |
+          rama=$([ "$PUBLICAR" = "true" ] && echo datos || echo datos-prueba)
           git init -q
-          git checkout -q --orphan datos
+          git checkout -q --orphan "$rama"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data
           git commit -q -m "Datos $(date -u +'%Y-%m-%d %H:%M') UTC"
-          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" datos
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$rama"
 
       - name: Avisar si una fuente lleva tiempo caída
         if: env.PUBLICAR == 'true'

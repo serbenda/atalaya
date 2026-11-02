@@ -69,26 +69,27 @@ RELIEFWEB_URL = "https://api.reliefweb.int/v2/disasters?" + urllib.parse.urlenco
     ("fields[include][]", "name"), ("fields[include][]", "status"), ("fields[include][]", "country.iso3"),
     ("fields[include][]", "primary_type.name"), ("fields[include][]", "date.created"), ("fields[include][]", "url")])
 
-# Pasos marítimos por los que pasa buena parte de la energía y el comercio que llega a Europa
+# Pasos marítimos por los que pasa buena parte de la energía y el comercio que llega a Europa.
+# "zona": puntos (lon, lat) y radio en km que cubren el paso sin meter ciudades cercanas ajenas
+# a la ruta (por ejemplo, Gaza o El Cairo quedan fuera de Suez).
 PASOS = [
-    {"id": "ormuz", "nombre": "Estrecho de Ormuz", "lon": 56.4, "lat": 26.6,
-     "porque": "Salida del petróleo y el gas del golfo Pérsico"},
-    {"id": "bab", "nombre": "Bab el-Mandeb", "lon": 43.4, "lat": 12.6,
-     "porque": "Entrada al mar Rojo y al canal de Suez desde Asia"},
-    {"id": "suez", "nombre": "Canal de Suez", "lon": 32.35, "lat": 30.6,
-     "porque": "Ruta más corta entre Asia y Europa"},
-    {"id": "bosforo", "nombre": "Bósforo", "lon": 29.05, "lat": 41.1,
-     "porque": "Salida del mar Negro: cereal, petróleo y gas"},
-    {"id": "gibraltar", "nombre": "Estrecho de Gibraltar", "lon": -5.6, "lat": 35.95,
-     "porque": "Entrada al Mediterráneo, junto a España"},
-    {"id": "malaca", "nombre": "Estrecho de Malaca", "lon": 100.4, "lat": 3.0,
-     "porque": "Principal ruta entre el Índico y el Pacífico"},
-    {"id": "taiwan", "nombre": "Estrecho de Taiwán", "lon": 119.5, "lat": 24.0,
-     "porque": "Ruta de los semiconductores y del comercio de Asia oriental"},
-    {"id": "panama", "nombre": "Canal de Panamá", "lon": -79.7, "lat": 9.1,
-     "porque": "Paso entre el Atlántico y el Pacífico"},
+    {"id": "ormuz", "nombre": "Estrecho de Ormuz", "lon": 56.4, "lat": 26.6, "radio": 220,
+     "zona": [(56.4, 26.6)], "porque": "Salida del petróleo y el gas del golfo Pérsico"},
+    {"id": "bab", "nombre": "Bab el-Mandeb y mar Rojo sur", "lon": 43.4, "lat": 12.6, "radio": 250,
+     "zona": [(43.4, 12.6), (42.0, 15.5)], "porque": "Entrada al mar Rojo y al canal de Suez desde Asia"},
+    {"id": "suez", "nombre": "Canal de Suez", "lon": 32.35, "lat": 30.6, "radio": 90,
+     "zona": [(32.3, 31.2), (32.35, 30.6), (32.55, 29.95)], "porque": "Ruta más corta entre Asia y Europa"},
+    {"id": "bosforo", "nombre": "Bósforo", "lon": 29.05, "lat": 41.1, "radio": 80,
+     "zona": [(29.05, 41.1), (26.4, 40.2)], "porque": "Salida del mar Negro: cereal, petróleo y gas"},
+    {"id": "gibraltar", "nombre": "Estrecho de Gibraltar", "lon": -5.6, "lat": 35.95, "radio": 120,
+     "zona": [(-5.6, 35.95)], "porque": "Entrada al Mediterráneo, junto a España"},
+    {"id": "malaca", "nombre": "Estrecho de Malaca", "lon": 100.4, "lat": 3.0, "radio": 250,
+     "zona": [(98.5, 5.0), (100.4, 3.0), (103.8, 1.25)], "porque": "Principal ruta entre el Índico y el Pacífico"},
+    {"id": "taiwan", "nombre": "Estrecho de Taiwán", "lon": 119.5, "lat": 24.0, "radio": 200,
+     "zona": [(119.5, 24.0)], "porque": "Ruta de los semiconductores y del comercio de Asia oriental"},
+    {"id": "panama", "nombre": "Canal de Panamá", "lon": -79.7, "lat": 9.1, "radio": 100,
+     "zona": [(-79.7, 9.1)], "porque": "Paso entre el Atlántico y el Pacífico"},
 ]
-RADIO_PASO_KM = 350
 
 
 class FormatoInesperado(Exception):
@@ -347,6 +348,10 @@ def gdacs(paises):
         tipo = it.get("eventtype")
         if tipo not in GDACS_TIPOS:  # los terremotos ya vienen de USGS
             continue
+        alerta = (it.get("alertlevel") or "Green").lower()
+        # Incendios y sequías en verde son casi diarios y llenan el mapa sin aportar
+        if tipo in ("WF", "DR") and alerta == "green":
+            continue
         clave = f"gdacs-{tipo}-{it.get('eventid')}"
         if clave in vistos:
             continue
@@ -355,7 +360,6 @@ def gdacs(paises):
             lat, lon = float(it.get("lat")), float(it.get("long"))
         except (TypeError, ValueError):
             continue
-        alerta = (it.get("alertlevel") or "Green").lower()
         peso = {"green": 1, "orange": 6, "red": 15}.get(alerta, 1)
         nombre = it.get("eventname") or ""
         iso3 = (it.get("iso3") or "").upper()[:3]
@@ -473,7 +477,7 @@ def gdelt(paises, filas=None):
                 tipo = "protesta"
         if tipo == "conflicto" and f[G_GEO_TIPO] != "1":
             for p in PASOS:
-                if abs(lat - p["lat"]) < 4 and distancia_km(lon, lat, p["lon"], p["lat"]) <= RADIO_PASO_KM:
+                if abs(lat - p["lat"]) < 6 and any(distancia_km(lon, lat, x, y) <= p["radio"] for x, y in p["zona"]):
                     pasos[p["id"]] += 1
         if not pais:
             continue
@@ -819,12 +823,12 @@ def calcular_alertas(puntos, historial, avisos=None):
 
 
 def calcular_pasos(conteo):
-    """Riesgo en los pasos marítimos según los hechos violentos a menos de 350 km en 24 h."""
+    """Riesgo en los pasos marítimos según los hechos violentos en su zona en las últimas 24 h."""
     resultado = []
     for p in PASOS:
         n = (conteo or {}).get(p["id"], 0)
         nivel = "rojo" if n >= 25 else "ambar" if n >= 6 else "verde"
-        resultado.append({**p, "hechos": n, "nivel": nivel})
+        resultado.append({**{k: v for k, v in p.items() if k != "zona"}, "hechos": n, "nivel": nivel})
     return resultado
 
 

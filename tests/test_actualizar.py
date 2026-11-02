@@ -71,6 +71,8 @@ FILAS_GDELT = (
     # Cerca del estrecho de Ormuz y de Bab el-Mandeb
     + [fila_gdelt("19", "Bandar Abbas, Hormozgan, Iran", 27.18, 56.27) for _ in range(8)]
     + [fila_gdelt("18", "Al Hudaydah, Yemen", 14.8, 42.95) for _ in range(30)]
+    # Gaza está a 200 km de Suez, pero no es la ruta del canal
+    + [fila_gdelt("19", "Gaza City, Gaza Strip", 31.5, 34.45) for _ in range(20)]
 )
 
 GDACS_RSS = f"""<?xml version="1.0"?>
@@ -187,6 +189,7 @@ class TestFuentes(Base):
         pasos = act.gdelt(self.paises)["pasos"]
         self.assertEqual(pasos["ormuz"], 8)
         self.assertEqual(pasos["bab"], 30)
+        self.assertEqual(pasos["suez"], 0)
         niveles = {p["id"]: p["nivel"] for p in act.calcular_pasos(pasos)}
         self.assertEqual((niveles["bab"], niveles["ormuz"], niveles["gibraltar"]), ("rojo", "ambar", "verde"))
 
