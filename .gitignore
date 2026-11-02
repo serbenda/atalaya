@@ -6,3 +6,6 @@ __pycache__/
 data/historico.json
 data/archivo/
 data/exteriores.json
+data/telegram.json
+data/rss.json
+data/avisos.xml
