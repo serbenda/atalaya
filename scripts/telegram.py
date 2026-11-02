@@ -265,5 +265,22 @@ def main():
     print(f"Telegram: {len(avisos)} avisos{', primera ejecución: solo se guarda el estado' if primera_vez else ''}.")
 
 
+def prueba():
+    """Manda ya un mensaje de prueba y el resumen del día, sin tocar el estado. Para comprobar la configuración."""
+    if not (TOKEN and CHAT):
+        sys.exit("Faltan los secretos TELEGRAM_TOKEN o TELEGRAM_CHAT (o tienen otro nombre).")
+    ok = enviar("✅ <b>Prueba de atalaya</b>\nSi ves este mensaje, el bot y el canal están bien configurados.\n"
+                f"{enlace()}\n{PIE}")
+    if not ok:
+        sys.exit("Telegram ha rechazado la prueba: mira el motivo justo encima.")
+    alertas = leer("alertas.json", {})
+    if alertas.get("paises"):
+        print("Resumen del día:", "enviado" if enviar(resumen_diario(alertas)) else "rechazado")
+    print("Prueba enviada.")
+
+
 if __name__ == "__main__":
-    main()
+    if "--prueba" in sys.argv:
+        prueba()
+    else:
+        main()
