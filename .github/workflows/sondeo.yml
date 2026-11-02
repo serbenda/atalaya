@@ -1,0 +1,8 @@
+name: Sondeo de fuentes
+on: workflow_dispatch
+jobs:
+  sondeo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python scripts/sondeo.py
