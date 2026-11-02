@@ -145,7 +145,7 @@ class Base(unittest.TestCase):
         cls.paises = act.Paises()
 
     def setUp(self):
-        for f in Path(TMP).glob("*.json"):
+        for f in Path(TMP).glob("**/*.json"):
             f.unlink()
         mock.patch.object(act, "descargar", side_effect=falsa_descarga).start()
         mock.patch.object(act.time, "sleep", lambda s: None).start()
@@ -309,6 +309,16 @@ class TestEjecucionCompleta(Base):
         self.assertEqual(a["paises"]["PHL"]["nivel"], "rojo")
         self.assertEqual(len(a["pasos"]), len(act.PASOS))
         self.assertIn("ETH", a["paises"])  # brote de Marburgo
+
+        # Histórico: foto del día, índice y serie por país
+        foto = json.loads((Path(TMP) / "archivo" / f"{act.HOY}.json").read_text())
+        self.assertEqual(foto["paises"]["PHL"]["nivel"], "rojo")
+        self.assertLessEqual(len(foto["eventos"]), act.EVENTOS_ARCHIVO)
+        self.assertEqual(foto["eventos"][0]["nivel"], "rojo")  # lo más relevante primero
+        indice = json.loads((Path(TMP) / "archivo" / "indice.json").read_text())
+        self.assertEqual(indice["dias"], [act.HOY])
+        historico = json.loads((Path(TMP) / "historico.json").read_text())
+        self.assertEqual(historico[act.HOY]["PHL"][1], 2)
 
         # Segunda ejecución con USGS caído: se conservan sus datos y se cuenta el fallo
         with mock.patch.dict(RESPUESTAS, {"earthquake.usgs.gov": None}):

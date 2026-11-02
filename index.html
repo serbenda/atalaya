@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/estilo.css?v=4">
+  <link rel="stylesheet" href="css/estilo.css?v=5">
   <meta name="atalaya-datos" content="https://raw.githubusercontent.com/serbenda/atalaya/datos/data/">
 </head>
 <body>
@@ -36,6 +36,10 @@
     </header>
 
     <div class="controles" aria-label="Controles del mapa">
+      <label class="historico" id="historico" hidden>
+        <span>Ver otro día</span>
+        <input type="date" id="dia">
+      </label>
       <div class="tiempo" aria-label="Periodo">
         <p class="reloj" id="reloj" aria-live="polite"></p>
         <button class="reproducir" id="reproducir">Reproducir la semana</button>
@@ -103,11 +107,12 @@
       <li><strong>Avisos de viaje</strong> de EE. UU.: el nivel 4 marca una crisis prolongada y las subidas suman puntos. Son una fuente oficial, pero también reflejan la política exterior de ese país.</li>
     </ul>
     <p>Las <strong>rutas marítimas</strong> se marcan según los hechos violentos a menos de 350 km en las últimas 24 horas.</p>
+    <p>Cada día se guarda una foto del mundo: niveles, parte, rutas marítimas y los eventos más relevantes. Puedes verla con <em>Ver otro día</em> o pinchando un día en la evolución de un país.</p>
     <p>Son señales tempranas, no predicciones. Cada evento enlaza a su fuente para comprobarlo.</p>
     <form method="dialog"><button>Cerrar</button></form>
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>

@@ -191,6 +191,19 @@ button, input { font: inherit; color: inherit; }
 .grupo-botones button[data-zoom] { font-size: 15px; }
 
 .tiempo { display: flex; align-items: center; gap: 8px; }
+.historico { display: inline-flex; align-items: center; gap: 8px; padding: 4px 6px 4px 12px; background: var(--panel);
+  border: 1px solid var(--linea); border-radius: 8px; font-size: 13px; color: var(--tinta-suave); }
+.historico[hidden] { display: none; }
+.historico input { background: none; border: 0; color: var(--tinta); font-size: 13px; color-scheme: dark; }
+/* Viendo un día pasado: un aviso claro de que no es el presente */
+.pasado .historico { border-color: var(--ambar); color: var(--ambar); }
+.pasado .reproducir, .pasado .tiempo .grupo-botones { display: none; }
+.pasado .actualizado { color: var(--ambar); font-weight: 600; }
+.volver-hoy { margin-left: 6px; padding: 2px 10px; border-radius: 6px; border: 1px solid var(--ambar); background: none; color: var(--ambar); cursor: pointer; font-size: 13px; }
+.evolucion svg { height: auto; }
+.evolucion .dia { cursor: pointer; stroke: var(--mar-hondo); stroke-width: 1; }
+.evolucion .dia:hover { r: 5; }
+.evolucion .dia.marcado { stroke: var(--tinta); stroke-width: 1.5; }
 .reproducir {
   padding: 6px 12px;
   background: var(--panel);
