@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/estilo.css">
+  <meta name="atalaya-datos" content="https://raw.githubusercontent.com/serbenda/atalaya/datos/data/">
 </head>
 <body>
   <main class="visor">
@@ -20,8 +21,10 @@
       <p class="actualizado" id="actualizado">Cargando datos…</p>
       <fieldset class="capas" aria-label="Capas del mapa">
         <label><input type="checkbox" data-capa="conflicto" checked><span class="forma forma-conflicto" aria-hidden="true"></span>Conflictos</label>
+        <label><input type="checkbox" data-capa="protesta" checked><span class="forma forma-protesta" aria-hidden="true"></span>Protestas</label>
         <label><input type="checkbox" data-capa="terremoto" checked><span class="forma forma-terremoto" aria-hidden="true"></span>Terremotos</label>
         <label><input type="checkbox" data-capa="desastre" checked><span class="forma forma-desastre" aria-hidden="true"></span>Desastres</label>
+        <label><input type="checkbox" data-capa="internet" checked><span class="forma forma-internet" aria-hidden="true"></span>Cortes de internet</label>
       </fieldset>
     </header>
 
@@ -44,7 +47,7 @@
       <p class="niveles">
         <span><i class="nivel-rojo"></i>Alerta</span>
         <span><i class="nivel-ambar"></i>Vigilar</span>
-        <span><i class="nivel-verde"></i>Actividad normal</span>
+        <span><i class="nivel-verde"></i>Lo habitual</span>
       </p>
       <p class="aviso">Señales tempranas a partir de fuentes públicas, no predicciones. <a href="#metodo" id="ver-metodo">Cómo se calcula</a></p>
     </div>
@@ -58,9 +61,11 @@
     <ul>
       <li><strong>Terremotos</strong> de magnitud 4,5 o más (USGS). Pesan más cuanto mayor es la magnitud y si USGS emite alerta de impacto.</li>
       <li><strong>Desastres</strong>: ciclones, inundaciones, volcanes, sequías e incendios (GDACS y NASA EONET), según su nivel de alerta oficial.</li>
-      <li><strong>Conflictos</strong>: noticias de todo el mundo que hablan de ataques, bombardeos o enfrentamientos en ese lugar (GDELT).</li>
+      <li><strong>Conflictos y protestas</strong>: hechos que recoge la prensa de todo el mundo (GDELT). No cuenta cuántas noticias hay, sino qué parte de lo que se cuenta del país es violencia. Así, que de un país grande se hable mucho no lo pone en alerta.</li>
+      <li><strong>Cortes de internet</strong> en todo un país (IODA). Suelen adelantarse a golpes, represión u ofensivas.</li>
+      <li><strong>Avisos de viaje</strong> de EE. UU.: cuenta cuando suben de nivel.</li>
     </ul>
-    <p>Esa puntuación se compara con la media del país en los últimos 30 días. Un país pasa a <em>vigilar</em> o <em>alerta</em> cuando la actividad sube claramente sobre lo que es normal para él, o cuando un organismo oficial emite una alerta naranja o roja.</p>
+    <p>Esa puntuación se compara con la media del país en los últimos 30 días. Un país pasa a <em>vigilar</em> o <em>alerta</em> cuando la actividad sube claramente sobre lo que es normal para él, cuando lleva tres días seguidos subiendo o cuando un organismo oficial emite una alerta naranja o roja.</p>
     <p>Durante la primera semana el histórico aún es corto y solo cuentan los valores absolutos.</p>
     <p>Las noticias no son hechos verificados: un pico puede ser solo ruido mediático. Cada evento enlaza a su fuente para comprobarlo.</p>
     <form method="dialog"><button>Cerrar</button></form>

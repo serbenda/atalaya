@@ -1,0 +1,5 @@
+data/eventos.json
+data/alertas.json
+data/historial.json
+data/avisos.json
+__pycache__/
