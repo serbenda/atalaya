@@ -118,6 +118,9 @@ def probabilidades(p, escenario, vecinos_mal, pesos=None):
     if p.get("nivel") == "rojo":
         escala += 0.05
         factores.append("ya está en alerta")
+    if p.get("desescalada"):
+        escala -= 0.08
+        factores.append("hay señales de desescalada (alto el fuego o acceso humanitario)")
     # Unas protestas en un país estable no "escalan" como una guerra: tope más bajo
     tope = 0.40 if escenario and escenario.get("id") == "disturbios" and p.get("nivel") == "verde" else 0.75
     escala = max(0.05, min(tope, escala))
@@ -128,6 +131,8 @@ def probabilidades(p, escenario, vecinos_mal, pesos=None):
     if cronica:
         contiene -= 0.20
         factores.append("crisis prolongada: difícil que se resuelva en una semana")
+    if p.get("desescalada"):
+        contiene += 0.10
     contiene = max(0.05, min(0.50, contiene))
     igual = 1 - escala - contiene
     ps = {"escala": _redondeo5(escala), "igual": _redondeo5(igual), "contiene": _redondeo5(contiene)}

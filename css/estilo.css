@@ -234,10 +234,10 @@ button, input { font: inherit; color: inherit; }
 .asa { display: none; }
 .panel-cuerpo { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 
-.pestanas { display: flex; border-bottom: 1px solid var(--linea); padding: 0 6px; }
+.pestanas { display: flex; gap: 4px; border-bottom: 1px solid var(--linea); padding: 0 8px; }
 .pestanas button {
-  flex: 1;
-  padding: 13px 2px 11px;
+  flex: 1 1 auto;
+  padding: 13px 4px 11px;
   background: none;
   border: 0;
   border-bottom: 2px solid transparent;
@@ -497,3 +497,31 @@ i.nivel-simulado { background: repeating-linear-gradient(45deg, var(--ambar) 0 2
 .sim-escala { color: #F0897E; }
 .sim-igual { color: var(--tinta-suave); }
 .sim-contiene { color: #8CCB9F; }
+
+/* Seguir un país */
+.estrella {
+  margin-left: 8px; padding: 2px 10px; border: 1px solid var(--linea); border-radius: 999px;
+  background: transparent; font-size: 13px; font-weight: 500; vertical-align: middle; cursor: pointer;
+}
+.estrella[aria-pressed="true"] { border-color: var(--paso); color: var(--paso); }
+
+/* Análisis estructurado */
+.analisis p { margin: 0 0 6px; }
+.analisis .motivos { margin-bottom: 10px; }
+.motivos.contra li { background: rgba(94, 156, 118, 0.18); }
+
+/* Rendimiento del modelo */
+.rendimiento { margin-top: 8px; }
+.calibracion { width: 100%; border-collapse: collapse; font-size: 13px; margin: 4px 0 12px; }
+.calibracion th, .calibracion td { padding: 4px 6px; text-align: left; border-bottom: 1px solid var(--linea); }
+.calibracion th { color: var(--tinta-suave); font-weight: 500; }
+.nota { font-size: 13px; margin: 4px 0 12px; }
+
+/* Versión del modelo en "Cómo se calcula" */
+.modelo h3 { font-size: 15px; margin: 14px 0 4px; }
+.modelo ul { margin: 0 0 8px; padding-left: 18px; }
+
+/* Idioma: el diálogo "Cómo se calcula" tiene una versión por idioma */
+html[lang="en"] .solo-es, html:not([lang="en"]) .solo-en { display: none; }
+.cabecera .idioma { display: inline-flex; margin-left: 12px; vertical-align: 14px; }
+.idioma button { min-width: 36px; padding: 4px 8px; font-size: 12px; }

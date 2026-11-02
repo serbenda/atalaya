@@ -466,6 +466,7 @@ def eonet(paises):
 
 
 # Columnas del fichero de eventos de GDELT 2.0 (61 columnas separadas por tabuladores)
+G_A1_NOMBRE, G_A2_NOMBRE, G_CODIGO = 6, 16, 26
 G_A1_PAIS, G_A1_GRUPO, G_A1_TIPOS = 7, 8, (12, 13, 14)
 G_A2_PAIS, G_A2_GRUPO, G_A2_TIPOS = 17, 18, (22, 23, 24)
 G_RAIZ_EVENTO, G_BASE, G_RAIZ, G_FUENTES, G_ARTICULOS = 25, 27, 28, 32, 33
@@ -477,6 +478,36 @@ GDELT_PROTESTA = {"14"}
 # ejército, rebeldes, insurgentes, separatistas, fuerzas armadas no estatales, gobierno,
 # inteligencia y oposición. La policía (COP) no entra: en la prensa casi siempre es crónica de sucesos.
 ACTORES_POLITICOS = {"MIL", "REB", "INS", "SEP", "UAF", "GOV", "SPY", "OPP"}
+# Señales de desescalada (CAMEO): 086 permitir ayuda humanitaria, 087 desescalada militar
+# (incluye 0871, declarar un alto el fuego). "Negociar" (046) no entra: aparece a diario en todas partes.
+GDELT_DESESCALADA = {"086", "087"}
+# Medios de propiedad o control estatal en países sin prensa libre. Sus noticias cuentan la mitad:
+# no se descartan (a veces son la única fuente), pero no pueden encender un país por sí solas.
+MEDIOS_ESTATALES = ("rt.com", "sputniknews", "sputnikglobe", "tass.ru", "tass.com", "ria.ru", "xinhuanet",
+                    "news.cn", "globaltimes.cn", "cgtn.com", "chinadaily.com.cn", "presstv", "irna.ir",
+                    "tasnimnews", "farsnews", "mehrnews", "kcna", "rodong.rep.kp", "telesurtv", "granma.cu",
+                    "sana.sy", "belta.by", "almanar.com.lb")
+PESO_ESTATAL = 0.5
+
+
+def dominio(url):
+    try:
+        return urllib.parse.urlsplit(url).hostname or ""
+    except ValueError:
+        return ""
+
+
+def es_estatal(url):
+    d = dominio(url)
+    return any(m in d for m in MEDIOS_ESTATALES)
+
+
+def region_de(nombre_geo):
+    """Primera división administrativa: 'Al Fashir, Northern Darfur, Sudan' -> 'Northern Darfur';
+    'Darfur, Sudan' -> 'Darfur'. Las zonas genéricas ('Israel (general)') no cuentan."""
+    partes = [x.strip() for x in (nombre_geo or "").split(",") if x.strip()]
+    region = partes[1] if len(partes) >= 3 else partes[0] if len(partes) == 2 else None
+    return None if not region or "(general)" in region else region
 
 
 def es_politico(f):
@@ -522,6 +553,9 @@ def gdelt(paises, filas=None):
 
     lugares, por_pais = {}, {}
     pasos = {p["id"]: 0 for p in PASOS}
+    # La misma noticia genera a menudo varios "hechos": se cuenta una vez por noticia (URL)
+    vistas = set()
+    regiones, parejas = {}, {}
     # Aceleración: hechos de las últimas 12 h frente a las 12 h anteriores (tendencia desde el primer día)
     mas_reciente = max((f[G_FECHA] for f in filas if len(f) >= 61 and f[G_FECHA].isdigit()), default="")
     corte = (fecha(mas_reciente) - timedelta(hours=12)).strftime("%Y%m%d%H%M%S") if mas_reciente else ""
@@ -548,21 +582,40 @@ def gdelt(paises, filas=None):
                     pasos[p["id"]] += 1
         if not pais:
             continue
-        agg = por_pais.setdefault(pais, {"total": 0, "conflicto": 0, "protesta": 0,
-                                         "interestatal": 0, "militar": 0, "disturbios": 0})
-        agg["total"] += 1
+        agg = por_pais.setdefault(pais, {"total": 0, "conflicto": 0, "protesta": 0, "interestatal": 0,
+                                         "militar": 0, "disturbios": 0, "desescalada": 0, "estatal": 0})
+        url = f[G_URL]
+        if url:
+            clave_url = (pais, tipo or ("desescalada" if f[G_BASE] in GDELT_DESESCALADA else ""), url)
+            if clave_url in vistas:
+                continue
+            vistas.add(clave_url)
+        peso = PESO_ESTATAL if url and es_estatal(url) else 1
+        agg["total"] += peso
         if not tipo:
+            if f[G_RAIZ_EVENTO] == "1" and f[G_BASE] in GDELT_DESESCALADA and es_politico(f):
+                agg["desescalada"] += peso
             continue
-        agg[tipo] += 1
+        agg[tipo] += peso
+        if peso < 1:
+            agg["estatal"] += 1
         mitad = "_12h" if f[G_FECHA] >= corte else "_12h_antes"
-        agg[tipo + mitad] = agg.get(tipo + mitad, 0) + 1
+        agg[tipo + mitad] = agg.get(tipo + mitad, 0) + peso
         if tipo == "conflicto":
             if f[G_A1_PAIS] and f[G_A2_PAIS] and f[G_A1_PAIS] != f[G_A2_PAIS]:
-                agg["interestatal"] += 1
+                agg["interestatal"] += peso
             if {f[i] for i in G_A1_TIPOS + G_A2_TIPOS} & {"MIL", "REB", "INS", "UAF"}:
-                agg["militar"] += 1
+                agg["militar"] += peso
+            reg = region_de(f[G_GEO_NOMBRE]) if f[G_GEO_TIPO] != "1" else None
+            if reg:
+                r = regiones.setdefault(pais, {})
+                r[reg] = r.get(reg, 0) + peso
+            a1, a2 = f[G_A1_NOMBRE].strip(), f[G_A2_NOMBRE].strip()
+            if a1 and a2 and a1 != a2:
+                par = parejas.setdefault(pais, {})
+                par[(a1, a2)] = par.get((a1, a2), 0) + peso
         elif f[G_BASE] == "145":  # protesta violenta o disturbios
-            agg["disturbios"] += 1
+            agg["disturbios"] += peso
         # El tipo 1 es "solo el país": son puntos en el centro del país, poco útiles en el mapa
         if f[G_GEO_TIPO] == "1":
             continue
@@ -575,6 +628,19 @@ def gdelt(paises, filas=None):
         l["fecha"] = max(l["fecha"], f[G_FECHA])
         if f[G_URL] and f[G_URL] not in l["urls"] and len(l["urls"]) < 3:
             l["urls"].append(f[G_URL])
+
+    for pais, agg in por_pais.items():
+        for k, v in list(agg.items()):
+            if isinstance(v, float):
+                agg[k] = round(v, 1)
+        # Dónde se concentra la violencia y quién contra quién (con al menos 5 hechos)
+        if agg["conflicto"] >= 5:
+            total_reg = sum(regiones.get(pais, {}).values())
+            if total_reg:
+                agg["regiones"] = [[r, round(n / total_reg, 2)] for r, n in
+                                   sorted(regiones[pais].items(), key=lambda x: -x[1])[:3] if n / total_reg >= 0.1]
+            agg["actores"] = [[a, b, round(n, 1)] for (a, b), n in
+                              sorted(parejas.get(pais, {}).items(), key=lambda x: -x[1])[:3] if n >= 3]
 
     eventos = []
     # Solo los lugares con más cobertura, para que el mapa siga siendo legible
@@ -1091,8 +1157,10 @@ def reliefweb(paises):
 # Proporción de violencia a partir de la cual cuenta todo el volumen. Calibrado con datos
 # reales: en un país en guerra abierta ronda el 3-7 %; en uno en paz, por debajo del 1 %.
 CUOTA_PLENA = 0.05
-CLAVES_PUNTOS = ("conflicto", "protestas", "desastres", "internet", "censura", "avisos", "epidemias", "humanitaria")
-PARTE_DE = {"internet": "internet", "censura": "censura", "aviso": "avisos", "epidemia": "epidemias", "crisis": "humanitaria"}
+CLAVES_PUNTOS = ("conflicto", "protestas", "desastres", "internet", "censura", "avisos", "epidemias", "humanitaria",
+                 "economia")
+PARTE_DE = {"internet": "internet", "censura": "censura", "aviso": "avisos", "epidemia": "epidemias", "crisis": "humanitaria",
+            "economia": "economia"}
 
 
 def aceleracion(g):
@@ -1307,7 +1375,8 @@ def archivar(alertas, eventos, titulares):
     campos_pais = ("nivel", "escalada", "motivos", "confianza", "puntuacion", "media", "tendencia", "escenarios",
                    "pronostico", "region", "espana", "exteriores",
                    "dias_subiendo", "aviso_viaje", "conflicto", "protestas", "desastres", "epidemias",
-                   "internet", "avisos", "humanitaria", "cuota_violencia", "hechos_violentos", "protestas_n")
+                   "internet", "avisos", "humanitaria", "cuota_violencia", "hechos_violentos", "protestas_n",
+                   "censura", "economia", "analisis", "elecciones", "divisa_caida", "desescalada")
     campos_evento = ("id", "tipo", "titulo", "lugar", "pais", "lat", "lon", "fecha", "nivel", "peso",
                      "magnitud", "menciones", "hechos", "fuente", "url", "estado")
     del_dia = [e for e in eventos if reciente(e, VENTANA_PUNTUACION) or e["tipo"] in ("epidemia", "crisis")]
@@ -1325,14 +1394,135 @@ def archivar(alertas, eventos, titulares):
     (dir_archivo / "indice.json").write_text(json.dumps({"dias": dias}), "utf-8")
 
 
+# ---------------------------------------------------------- economía y calendario
+# Una moneda que se hunde en pocos días suele adelantarse a protestas, crisis de gobierno o
+# escasez. Se guarda una foto diaria de los tipos de cambio frente al dólar.
+DIVISAS_URL = "https://open.er-api.com/v6/latest/USD"
+CAIDA_DIVISA = 0.08        # depreciación en 7 días a partir de la cual se avisa
+CAIDA_DIVISA_GRAVE = 0.15
+# Monedas y países que las usan (sin el dólar, el euro y monedas fijadas a ellos sin margen)
+DIVISAS = {
+    "AFN": ["AFG"], "ALL": ["ALB"], "AMD": ["ARM"], "AOA": ["AGO"], "ARS": ["ARG"], "AZN": ["AZE"],
+    "BAM": ["BIH"], "BDT": ["BGD"], "BIF": ["BDI"], "BOB": ["BOL"], "BRL": ["BRA"], "BWP": ["BWA"],
+    "BYN": ["BLR"], "CDF": ["COD"], "CLP": ["CHL"], "CNY": ["CHN"], "COP": ["COL"], "CRC": ["CRI"],
+    "CUP": ["CUB"], "CZK": ["CZE"], "DOP": ["DOM"], "DZD": ["DZA"], "EGP": ["EGY"], "ETB": ["ETH"],
+    "GEL": ["GEO"], "GHS": ["GHA"], "GMD": ["GMB"], "GNF": ["GIN"], "GTQ": ["GTM"], "HNL": ["HND"],
+    "HTG": ["HTI"], "HUF": ["HUN"], "IDR": ["IDN"], "ILS": ["ISR", "PSE"], "INR": ["IND"], "IQD": ["IRQ"],
+    "IRR": ["IRN"], "JMD": ["JAM"], "KES": ["KEN"], "KGS": ["KGZ"], "KHR": ["KHM"], "KRW": ["KOR"],
+    "KZT": ["KAZ"], "LAK": ["LAO"], "LBP": ["LBN"], "LKR": ["LKA"], "LRD": ["LBR"], "LSL": ["LSO"],
+    "LYD": ["LBY"], "MAD": ["MAR"], "MDL": ["MDA"], "MGA": ["MDG"], "MKD": ["MKD"], "MMK": ["MMR"],
+    "MNT": ["MNG"], "MRU": ["MRT"], "MWK": ["MWI"], "MXN": ["MEX"], "MYR": ["MYS"], "MZN": ["MOZ"],
+    "NAD": ["NAM"], "NGN": ["NGA"], "NIO": ["NIC"], "NPR": ["NPL"], "PEN": ["PER"], "PGK": ["PNG"],
+    "PHP": ["PHL"], "PKR": ["PAK"], "PLN": ["POL"], "PYG": ["PRY"], "RON": ["ROU"], "RSD": ["SRB"],
+    "RUB": ["RUS"], "RWF": ["RWA"], "SDG": ["SDN"], "SLE": ["SLE"], "SOS": ["SOM"], "SRD": ["SUR"],
+    "SSP": ["SSD"], "SYP": ["SYR"], "SZL": ["SWZ"], "THB": ["THA"], "TJS": ["TJK"], "TMT": ["TKM"],
+    "TND": ["TUN"], "TRY": ["TUR"], "TZS": ["TZA"], "UAH": ["UKR"], "UGX": ["UGA"], "UYU": ["URY"],
+    "UZS": ["UZB"], "VES": ["VEN"], "VND": ["VNM"], "XAF": ["CMR", "CAF", "TCD", "COG", "GNQ", "GAB"],
+    "XOF": ["BEN", "BFA", "CIV", "GNB", "MLI", "NER", "SEN", "TGO"], "YER": ["YEM"], "ZAR": ["ZAF"],
+    "ZMW": ["ZMB"], "ZWG": ["ZWE"], "KPW": ["PRK"], "ERN": ["ERI"], "DJF": ["DJI"], "TWD": ["TWN"],
+}
+
+
+def divisas(paises):
+    """Monedas que se deprecian con fuerza frente al dólar en los últimos 7 días."""
+    datos = descargar(DIVISAS_URL)
+    if datos is None:
+        return None
+    exigir(datos.get("result") == "success" and isinstance(datos.get("rates"), dict), "respuesta sin tipos de cambio")
+    tipos = datos["rates"]
+    historial = leer("divisas_historial.json", {})
+    historial[HOY] = {m: tipos[m] for m in DIVISAS if m in tipos}
+    historial = {d: historial[d] for d in sorted(historial)[-30:]}
+    escribir("divisas_historial.json", historial)
+    hace7 = (AHORA - timedelta(days=7)).strftime("%Y-%m-%d")
+    previos = [d for d in sorted(historial) if d <= hace7]
+    eventos, caidas = [], {}
+    if not previos:
+        return {"eventos": [], "divisas": {}}
+    antes = historial[previos[-1]]
+    for moneda, usan in DIVISAS.items():
+        if moneda not in tipos or not antes.get(moneda):
+            continue
+        # Más unidades por dólar = la moneda vale menos
+        caida = 1 - antes[moneda] / tipos[moneda]
+        if caida < CAIDA_DIVISA:
+            continue
+        for a3 in usan:
+            caidas[a3] = round(caida, 3)
+            lon, lat = paises.centro(a3)
+            eventos.append({
+                "id": f"divisa-{moneda}-{a3}-{HOY}", "tipo": "economia",
+                "titulo": f"El {moneda} pierde un {round(caida * 100)} % frente al dólar en 7 días",
+                "lugar": "", "pais": a3,
+                "lat": round(lat, 3), "lon": round(lon, 3), "fecha": iso(AHORA),
+                # No es una alerta oficial: el nivel del evento se queda en verde y solo suma puntos
+                "peso": 3 if caida >= CAIDA_DIVISA_GRAVE else 1.5, "nivel": "verde",
+                "fuente": "Tipos de cambio", "familia": "tecnica", "url": "https://www.exchangerate-api.com/",
+            })
+    return {"eventos": eventos, "divisas": caidas}
+
+
+# Elecciones y referendos en los próximos 45 días (Wikidata). Son fechas de riesgo: protestas,
+# cortes de internet y crisis de gobierno se concentran alrededor de ellas.
+WIKIDATA_URL = "https://query.wikidata.org/sparql"
+DIAS_ELECCIONES = 45
+
+
+def elecciones(paises):
+    # Cambia poco: se consulta como mucho cada 12 horas
+    cache = leer("elecciones.json", {})
+    if cache.get("consultado", "") > iso(AHORA - timedelta(hours=12)) and cache.get("elecciones") is not None:
+        hoy = AHORA.strftime("%Y-%m-%d")
+        return {"elecciones": [x for x in cache["elecciones"] if x["fecha"] >= hoy]}
+    desde = AHORA.strftime("%Y-%m-%dT00:00:00Z")
+    hasta = (AHORA + timedelta(days=DIAS_ELECCIONES)).strftime("%Y-%m-%dT00:00:00Z")
+    # Consulta ligera: tipos de elección fijos (y sus subclases directas) y etiquetas sin el
+    # servicio de etiquetas, que es lo que más tarda
+    consulta = f"""SELECT ?e ?eLabel ?fecha ?iso WHERE {{
+      VALUES ?tipo {{ wd:Q40231 wd:Q152450 wd:Q858439 wd:Q1076105 wd:Q43109 }}
+      {{ ?e wdt:P31 ?tipo }} UNION {{ ?c wdt:P279 ?tipo . ?e wdt:P31 ?c }}
+      ?e wdt:P585 ?fecha .
+      FILTER(?fecha >= "{desde}"^^xsd:dateTime && ?fecha < "{hasta}"^^xsd:dateTime)
+      ?e wdt:P17 ?pais . ?pais wdt:P298 ?iso .
+      OPTIONAL {{ ?e rdfs:label ?es . FILTER(LANG(?es) = "es") }}
+      OPTIONAL {{ ?e rdfs:label ?en . FILTER(LANG(?en) = "en") }}
+      BIND(COALESCE(?es, ?en, "") AS ?eLabel)
+    }} LIMIT 400"""
+    datos = descargar(WIKIDATA_URL + "?format=json&query=" + urllib.parse.quote(consulta), intentos=1,
+                      cabeceras={"Accept": "application/sparql-results+json"})
+    if datos is None:
+        # Si no responde, no se reintenta hasta dentro de 12 horas (cada intento cuesta un minuto)
+        escribir("elecciones.json", {"consultado": iso(AHORA), "elecciones": cache.get("elecciones") or []})
+        return None
+    filas = (datos.get("results") or {}).get("bindings")
+    exigir(isinstance(filas, list), "respuesta SPARQL sin resultados")
+    validos = {p["a3"] for p in json.loads((FIJOS / "paises.json").read_text("utf-8"))}
+    lista, vistos = [], set()
+    for f in filas:
+        a3 = f.get("iso", {}).get("value")
+        nombre = f.get("eLabel", {}).get("value", "")
+        dia = f.get("fecha", {}).get("value", "")[:10]
+        if a3 not in validos or not dia or not nombre or re.fullmatch(r"Q\d+", nombre) or (a3, nombre) in vistos:
+            continue
+        vistos.add((a3, nombre))
+        lista.append({"pais": a3, "fecha": dia, "nombre": nombre, "url": f.get("e", {}).get("value")})
+    lista.sort(key=lambda x: x["fecha"])
+    # Como mucho 3 por país (en algunos hay muchas elecciones locales el mismo día)
+    por_pais = {}
+    lista = [x for x in lista if por_pais.setdefault(x["pais"], []).append(x) or len(por_pais[x["pais"]]) <= 3]
+    escribir("elecciones.json", {"consultado": iso(AHORA), "elecciones": lista})
+    return {"elecciones": lista}
+
+
 # --------------------------------------------------------------------- main
 
 FUENTES = [("USGS", usgs), ("EMSC", emsc), ("IGN", ign), ("GDACS", gdacs), ("Copernicus EMS", copernicus),
            ("NASA EONET", eonet), ("GDELT", gdelt), ("Titulares", titulares), ("Análisis", analisis),
            ("IODA", ioda), ("Cloudflare Radar", cloudflare), ("OONI", ooni), ("Exteriores (España)", exteriores),
-           ("Avisos de viaje EE. UU.", avisos_viaje), ("OMS", oms), ("ReliefWeb", reliefweb), ("UCDP", ucdp)]
+           ("Avisos de viaje EE. UU.", avisos_viaje), ("OMS", oms), ("ReliefWeb", reliefweb), ("UCDP", ucdp),
+           ("Tipos de cambio", divisas), ("Elecciones (Wikidata)", elecciones)]
 # Fuentes que no aportan eventos sino otros datos: si fallan, se conservan esos datos
-DATOS_DE_FUENTE = {"Titulares": "titulares", "Análisis": "analisis"}
+DATOS_DE_FUENTE = {"Titulares": "titulares", "Análisis": "analisis", "Elecciones (Wikidata)": "elecciones"}
 
 
 def sin_duplicados_sismicos(eventos):
@@ -1408,7 +1598,14 @@ def main():
            "vecinos": inteligencia.calcular_vecinos(paises),
            "golpe_en_prensa": {a for t in extra.get("titulares", []) if re.search(r"golpe de estado|golpista|asonada", normalizar(t["titulo"]))
                                for a in t.get("paises", [])},
+           "tregua_en_prensa": {a for t in extra.get("titulares", [])
+                                if re.search(r"alto el fuego|tregua|negociacion(es)? de paz|acuerdo de paz|cese de hostilidades|desescalada",
+                                             normalizar(t["titulo"]))
+                                for a in t.get("paises", [])},
            "ucdp": extra.get("ucdp") or anterior.get("ucdp") or {},
+           "divisas": extra.get("divisas", anterior.get("divisas") or {}),
+           "elecciones": {},
+           "reconstruidos": leer("retroceso.json", {}).get("dias", []),
            "exteriores": extra.get("exteriores") or leer("exteriores.json", {}).get("paises") and
            {a: {"nivel": f["nivel"], "texto": EXTERIORES_NIVELES[f["nivel"]], "actualizacion": f.get("actualizacion"),
                 "notas": f.get("notas", "")[:400], "url": f.get("url")} for a, f in leer("exteriores.json", {}).get("paises", {}).items()} or {}}
@@ -1431,12 +1628,15 @@ def main():
             if "academica" not in p.get("familias", []):
                 p["familias"] = p.get("familias", []) + ["academica"]
                 p["confianza"] = confianza(p["familias"])
+    for x in extra.get("elecciones", []):
+        ctx["elecciones"].setdefault(x["pais"], []).append(x)
     intereses = json.loads((FIJOS / "intereses_espana.json").read_text("utf-8"))
     inteligencia.enriquecer(alertas, ctx, intereses, leer("historico.json", {}))
 
     escribir("eventos.json", {"actualizado": iso(AHORA), "fuentes": estado, "eventos": eventos,
                               "titulares": extra.get("titulares", []), "analisis": extra.get("analisis", []),
-                              "ucdp": ctx["ucdp"],
+                              "ucdp": ctx["ucdp"], "divisas": ctx["divisas"],
+                              "elecciones": extra.get("elecciones", []),
                               "gdelt_paises": gdelt_paises, "gdelt_pasos": gdelt_pasos})
     escribir("alertas.json", alertas)
     escribir("historial.json", historial)

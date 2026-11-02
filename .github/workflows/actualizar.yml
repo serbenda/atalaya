@@ -16,6 +16,10 @@ on:
         description: "Publicar en la rama datos (desmarcar para probar cambios sin tocar la web)"
         type: boolean
         default: true
+      retroceso_dias:
+        description: "Reconstruir N días pasados con GDELT para medir el modelo (0 = no)"
+        type: string
+        default: "0"
 
 permissions:
   contents: write
@@ -28,7 +32,7 @@ concurrency:
 jobs:
   actualizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       ATALAYA_SALIDA: ${{ github.workspace }}/salida/data
       GH_TOKEN: ${{ github.token }}
@@ -67,8 +71,25 @@ jobs:
           fi
           ls -la salida/data
 
+      # Opcional: reconstruir días pasados con GDELT para medir el modelo (backtesting)
+      - name: Reconstruir el pasado
+        if: github.event_name == 'workflow_dispatch' && inputs.retroceso_dias != '' && inputs.retroceso_dias != '0'
+        env:
+          DIAS: ${{ inputs.retroceso_dias }}
+        run: python scripts/retroceso.py "$DIAS"
+
       - name: Descargar fuentes y calcular alertas
         run: python scripts/actualizar.py
+
+      # Avisos por Telegram y feed RSS (solo en ejecuciones que publican). Nunca rompe la actualización.
+      - name: Avisos por Telegram y RSS
+        if: env.PUBLICAR == 'true'
+        continue-on-error: true
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT: ${{ secrets.TELEGRAM_CHAT }}
+          ATALAYA_URL: ${{ vars.ATALAYA_URL }}
+        run: python scripts/telegram.py
 
       # En una ejecución de prueba los datos van a la rama `datos-prueba` y la web no cambia
       - name: Publicar los datos

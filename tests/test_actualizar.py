@@ -33,9 +33,15 @@ MS = int(AHORA.timestamp() * 1000)
 RFC822 = AHORA.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
 
-def fila_gdelt(raiz, nombre, lat, lon, articulos=5, tipo="4", url="https://medio/x", actor="MIL", principal="1",
-               paises=("", "")):
+_NUM_URL = iter(range(10 ** 6))
+
+
+def fila_gdelt(raiz, nombre, lat, lon, articulos=5, tipo="4", url=None, actor="MIL", principal="1",
+               paises=("", ""), base=None, actores=("", "")):
     f = [""] * 61
+    url = url or f"https://medio/{next(_NUM_URL)}"
+    f[act.G_BASE] = base or raiz + "0"
+    f[act.G_A1_NOMBRE], f[act.G_A2_NOMBRE] = actores
     f[act.G_A1_PAIS], f[act.G_A2_PAIS] = paises
     f[act.G_RAIZ] = raiz
     f[act.G_RAIZ_EVENTO] = principal
@@ -176,6 +182,10 @@ RESPUESTAS.update({
           <pubDate>{RFC822}</pubDate><source url="https://www.realinstitutoelcano.org">Real Instituto Elcano</source></item>
         <item><title>Informe anual - Real Instituto Elcano</title><link>https://elcano/2</link><pubDate>{RFC822}</pubDate>
           <source url="https://www.realinstitutoelcano.org">Real Instituto Elcano</source></item></channel></rss>""",
+    "open.er-api.com": {"result": "success", "rates": {"NGN": 1500, "EUR": 0.9}},
+    "query.wikidata.org": {"results": {"bindings": [
+        {"e": {"value": "http://www.wikidata.org/entity/Q1"}, "eLabel": {"value": "Elecciones generales de Filipinas"},
+         "fecha": {"value": (AHORA + timedelta(days=12)).strftime("%Y-%m-%dT00:00:00Z")}, "iso": {"value": "PHL"}}]}},
 })
 
 
@@ -286,6 +296,89 @@ class TestFuentes(Base):
 
     def test_reliefweb_desactivada_sin_appname(self):
         self.assertTrue(act.reliefweb(self.paises)["desactivada"])
+
+
+class TestRetroceso(Base):
+    def test_reconstruye_y_mide(self):
+        sys.path.insert(0, str(RAIZ / "scripts"))
+        import retroceso
+        import inteligencia
+        filas = FILAS_GDELT
+        with mock.patch.object(act, "gdelt_filas", return_value=filas):
+            hechos = retroceso.reconstruir(dias=3, muestras=4)
+        self.assertEqual(len(hechos), 3)
+        h = json.loads((Path(TMP) / "historico.json").read_text())
+        self.assertIn("UKR", h[hechos[0]])
+        self.assertEqual(act.HOY, act.AHORA.strftime("%Y-%m-%d"))  # se restauran las fechas
+        self.assertFalse((Path(TMP) / "historial.json").exists())  # la línea base real no se toca
+
+    def test_rendimiento(self):
+        import inteligencia
+        # 20 días, 3 países: el modelo dice "alto" en el que empeora y "bajo" en los demás
+        historico = {}
+        for i in range(20):
+            d = f"2026-10-{i + 1:02d}"
+            historico[d] = {"AAA": [10, i % 2, 0, 2], "BBB": [5, 0, 0, 0], "CCC": [5, 0, 0, 0]}
+        r = inteligencia.rendimiento(historico)
+        self.assertGreater(r["muestras"], 30)
+        self.assertGreater(r["mejora_media"], 0)
+        self.assertEqual(r["calibracion"][0]["riesgo"], "alto")
+
+
+class TestSenalesTempranas(Base):
+    def test_divisa_que_se_hunde(self):
+        hace8 = (act.AHORA - timedelta(days=8)).strftime("%Y-%m-%d")
+        act.escribir("divisas_historial.json", {hace8: {"NGN": 1000, "EUR": 0.9, "XOF": 600}})
+        with mock.patch.object(act, "descargar", return_value={"result": "success",
+                                                              "rates": {"NGN": 1250, "EUR": 0.9, "XOF": 610}}):
+            r = act.divisas(self.paises)
+        self.assertEqual(r["divisas"], {"NGA": 0.2})
+        self.assertEqual(r["eventos"][0]["tipo"], "economia")
+        self.assertEqual(r["eventos"][0]["nivel"], "verde")  # suma puntos, no es una alerta oficial
+
+    def test_elecciones_wikidata(self):
+        dia = (act.AHORA + timedelta(days=10)).strftime("%Y-%m-%dT00:00:00Z")
+        filas = [{"e": {"value": "http://www.wikidata.org/entity/Q1"}, "eLabel": {"value": "Elecciones generales de Bolivia"},
+                  "fecha": {"value": dia}, "iso": {"value": "BOL"}},
+                 {"e": {"value": "x"}, "eLabel": {"value": "Q999"}, "fecha": {"value": dia}, "iso": {"value": "BOL"}}]
+        with mock.patch.object(act, "descargar", return_value={"results": {"bindings": filas}}):
+            r = act.elecciones(self.paises)
+        self.assertEqual([x["pais"] for x in r["elecciones"]], ["BOL"])
+
+
+class TestGdeltRigor(Base):
+    def filas(self):
+        f = act.G_URL
+        filas = [fila_gdelt("19", "Al Fashir, Northern Darfur, Sudan", 13.6, 25.3, actores=("RSF", "SUDAN"))
+                 for _ in range(12)]
+        filas += [fila_gdelt("19", "Khartoum, Khartoum, Sudan", 15.5, 32.5, actores=("RSF", "SUDAN")) for _ in range(3)]
+        # La misma noticia repetida no cuenta dos veces
+        filas += [fila_gdelt("19", "Kassala, Kassala, Sudan", 15.4, 36.4, url="https://medio/repetida") for _ in range(10)]
+        # Medio estatal: cuenta la mitad
+        filas += [fila_gdelt("19", "Kassala, Kassala, Sudan", 15.4, 36.4, url=f"https://www.rt.com/a{i}") for i in range(4)]
+        # Desescalada: alto el fuego
+        filas += [fila_gdelt("08", "Jeddah, Makkah, Saudi Arabia", 21.5, 39.2, base="087", actor="GOV") for _ in range(2)]
+        filas += [fila_gdelt("08", "Khartoum, Khartoum, Sudan", 15.5, 32.5, base="087", actor="GOV") for _ in range(6)]
+        return filas
+
+    def test_deduplicado_estatales_regiones_actores(self):
+        g = act.gdelt(self.paises, self.filas())["paises"]["SDN"]
+        self.assertEqual(g["conflicto"], 12 + 3 + 1 + 2)  # repetida = 1, rt.com = 4 × 0,5
+        self.assertEqual(g["estatal"], 4)
+        self.assertEqual(g["desescalada"], 6)
+        self.assertEqual(g["regiones"][0][0], "Northern Darfur")
+        self.assertEqual(g["actores"][0][:2], ["RSF", "SUDAN"])
+
+    def test_analisis_y_desescalada(self):
+        import inteligencia
+        gd = act.gdelt(self.paises, self.filas())["paises"]
+        ctx = {"gdelt": gd, "tregua_en_prensa": set(), "paises": {}}
+        p = {"nivel": "ambar", "confianza": "baja"}
+        self.assertTrue(inteligencia.desescalando("SDN", ctx))
+        an = inteligencia.analisis("SDN", p, ctx, [{"id": "escalada", "nombre": "Escalada militar", "riesgo": "medio"}])
+        self.assertIn("contra", an)
+        self.assertTrue(any("prensa" in a for a in an["alternativas"]))
+        self.assertTrue(an["desmentiria"])
 
 
 class TestFuentesNuevas(Base):
@@ -504,6 +597,8 @@ class TestEjecucionCompleta(Base):
         self.assertIn("ETH", a["paises"])  # brote de Marburgo
         self.assertIn("informe", a)
         self.assertIn("pronostico", a["paises"]["PHL"])
+        self.assertEqual(a["informe"]["fechas"][0]["pais"], "PHL")
+        self.assertTrue(a["paises"]["PHL"]["elecciones"])
         ext = json.loads((Path(TMP) / "exteriores.json").read_text())
         self.assertEqual(ext["paises"]["SDN"]["nivel"], 4)
         self.assertIn("vigilar", a["informe"])

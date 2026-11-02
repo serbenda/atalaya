@@ -50,9 +50,11 @@ ESCENARIOS = [
     ("escalada", "Escalada militar", [("violencia_sube", 2), ("interestatal", 2), ("militar", 1),
                                       ("aviso_sube", 1), ("exteriores_alto", 1), ("contagio", 1), ("ruta_cercana", 1)]),
     ("golpe", "Golpe o crisis de gobierno", [("corte_internet", 2), ("censura", 2), ("militar", 1),
-                                             ("protestas_suben", 1), ("golpe_en_prensa", 2), ("aviso_sube", 1)]),
+                                             ("protestas_suben", 1), ("golpe_en_prensa", 2), ("aviso_sube", 1),
+                                             ("moneda_cae", 1), ("eleccion_cercana", 1)]),
     ("disturbios", "Disturbios graves", [("protestas_suben", 2), ("disturbios", 2), ("censura", 1),
-                                        ("corte_internet", 1), ("violencia_sube", 1)]),
+                                        ("corte_internet", 1), ("violencia_sube", 1), ("moneda_cae", 1),
+                                        ("eleccion_cercana", 1)]),
     ("humanitaria", "Emergencia humanitaria", [("desastre_grave", 2), ("epidemia_grave", 2), ("crisis_humanitaria", 2),
                                                ("violencia_alta", 1), ("muertes_verificadas", 1), ("exteriores_alto", 1)]),
 ]
@@ -74,7 +76,71 @@ TEXTO_INDICADOR = {
     "epidemia_grave": "Brote epidémico grave",
     "crisis_humanitaria": "Crisis humanitaria abierta",
     "muertes_verificadas": "Muertes en combate verificadas (UCDP)",
+    "moneda_cae": "La moneda se hunde frente al dólar",
+    "eleccion_cercana": "Elecciones o referéndum en las próximas semanas",
 }
+
+
+# Análisis estructurado: qué desmentiría cada escenario (abogado del diablo)
+DESMENTIRIA = {
+    "escalada": ["Que la violencia vuelva a su nivel habitual en 48-72 horas",
+                 "Un alto el fuego o negociaciones que se mantengan",
+                 "Que los hechos sean de un solo lugar y no se extiendan"],
+    "golpe": ["Que internet y las aplicaciones vuelvan a funcionar con normalidad",
+              "Que el gobierno siga funcionando y no haya movimientos del ejército en la capital",
+              "Que la prensa deje de hablar de golpe sin confirmarlo ninguna fuente oficial"],
+    "disturbios": ["Que las protestas bajen tras el fin de semana o una fecha señalada",
+                   "Que el gobierno negocie o retire la medida que las provocó",
+                   "Que no haya muertos ni toques de queda"],
+    "humanitaria": ["Que se retire la alerta oficial del desastre o del brote",
+                    "Que llegue ayuda humanitaria sin restricciones",
+                    "Que no haya desplazamientos masivos"],
+}
+NOMBRE_INDICADOR_CONTRA = {
+    "desescalada": "Señales de desescalada: alto el fuego o acceso humanitario",
+    "tregua_en_prensa": "La prensa habla de tregua o negociaciones de paz",
+}
+
+
+def analisis(a3, p, ctx, escs):
+    """Lo que haría un analista con los datos: señales en contra, hipótesis alternativas a la principal
+    y qué la desmentiría. Ayuda a no quedarse solo con la explicación más alarmante."""
+    g = ctx["gdelt"].get(a3, {})
+    conflicto = g.get("conflicto", 0)
+    contra = []
+    if g.get("desescalada", 0) >= max(3, 0.25 * conflicto):
+        contra.append(NOMBRE_INDICADOR_CONTRA["desescalada"])
+    if a3 in ctx.get("tregua_en_prensa", ()):
+        contra.append(NOMBRE_INDICADOR_CONTRA["tregua_en_prensa"])
+    alternativas = []
+    total = g.get("conflicto", 0) + g.get("protesta", 0)
+    if total and g.get("estatal", 0) / max(total, 1) >= 0.3:
+        alternativas.append("Una parte importante de la cobertura viene de medios estatales: puede ser propaganda")
+    if p.get("confianza") == "baja" and p.get("nivel") != "verde":
+        alternativas.append("Solo lo recoge la prensa: puede ser un pico mediático por un hecho aislado")
+    regiones = g.get("regiones") or []
+    entre_paises = conflicto and g.get("interestatal", 0) / conflicto >= 0.5
+    # Si la mayoría son ataques desde fuera, que se concentren en un sitio no lo hace "local"
+    if regiones and regiones[0][1] >= 0.7 and not entre_paises:
+        alternativas.append(f"Casi todo pasa en {regiones[0][0]}: puede ser un problema local y no de todo el país")
+    if entre_paises:
+        alternativas.append("La mayoría son hechos entre países: puede ser un conflicto exterior y no una crisis interna")
+    if p.get("crisis_abierta") and not p.get("escalada"):
+        alternativas.append("Es una crisis prolongada: el nivel alto refleja que dura, no que empeore")
+    principal = next((e for e in escs if e["riesgo"] != "bajo"), None)
+    resultado = {}
+    if contra:
+        resultado["contra"] = contra
+    if alternativas:
+        resultado["alternativas"] = alternativas
+    if principal:
+        resultado["desmentiria"] = DESMENTIRIA.get(principal["id"], [])
+        resultado["hipotesis"] = principal["nombre"]
+    if regiones:
+        resultado["donde"] = regiones
+    if g.get("actores"):
+        resultado["actores"] = g["actores"]
+    return resultado
 
 
 def calcular_vecinos(paises):
@@ -134,11 +200,21 @@ def indicadores(a3, p, ctx):
         "epidemia_grave": p.get("epidemias", 0) >= 8,
         "crisis_humanitaria": bool(p.get("crisis_abierta")),
         "muertes_verificadas": ctx["ucdp"].get(a3, 0) >= 25,
+        "moneda_cae": ctx.get("divisas", {}).get(a3, 0) >= 0.08,
+        "eleccion_cercana": bool(ctx.get("elecciones", {}).get(a3)),
     }, vecinos_mal
+
+
+def desescalando(a3, ctx):
+    """Desescalada medida en GDELT (alto el fuego, acceso humanitario). Que la prensa hable de tregua
+    se muestra como señal en contra, pero por sí solo no rebaja el escenario."""
+    g = ctx["gdelt"].get(a3, {})
+    return g.get("desescalada", 0) >= max(3, 0.25 * g.get("conflicto", 0))
 
 
 def escenarios(a3, p, ctx):
     encendidos, vecinos_mal = indicadores(a3, p, ctx)
+    contra = desescalando(a3, ctx)
     resultado = []
     for ide, nombre, lista in ESCENARIOS:
         total = sum(w for _, w in lista)
@@ -148,8 +224,11 @@ def escenarios(a3, p, ctx):
         # Alto: más de la mitad del peso; medio: al menos un indicador clave o dos indicadores
         fraccion = suma / total
         riesgo = 2 if fraccion > 0.5 else 1 if suma >= 2 else 0
+        if contra and ide == "escalada" and riesgo:
+            riesgo -= 1  # hay señales de desescalada: el analista rebaja un grado
         resultado.append({
             "id": ide, "nombre": nombre, "riesgo": RIESGO[riesgo], "estimativo": ESTIMATIVO[RIESGO[riesgo]],
+        **({"rebajado": True} if contra and ide == "escalada" else {}),
             "indicadores": [{"texto": TEXTO_INDICADOR[i], "activo": encendidos[i]} for i, _ in lista],
         })
     # Con el mismo riesgo, primero el escenario que encaja con lo que más pesa en el país
@@ -201,6 +280,59 @@ def fiabilidad(historico, dias=30):
             cuenta[riesgo][1] += 1
             cuenta[riesgo][0] += int(empeoro)
     return {r: {"aciertos": a, "total": t} for r, (a, t) in cuenta.items() if t}
+
+
+# Probabilidad de empeorar que el modelo asigna a cada grado de pronóstico (la misma que usa la
+# simulación sin calibrar). Se compara con lo que pasó para medir el rendimiento.
+PROB_PRONOSTICO = {2: 0.40, 1: 0.25, 0: 0.10}
+
+
+def rendimiento(historico, reconstruidos=(), dias=60):
+    """Puntuación de Brier de los pronósticos frente a dos referencias ingenuas:
+    - la frecuencia media (decir siempre la misma probabilidad para todos),
+    - la persistencia (la frecuencia observada según el nivel que tenía el país).
+    Mejora > 0 significa que el modelo acierta más que la referencia."""
+    fechas = sorted(historico)[-(dias + 7):]
+    pares = []
+    for i, d in enumerate(fechas):
+        siguientes = fechas[i + 1:i + 8]
+        if len(siguientes) < 7:
+            continue
+        # Un día reconstruido (solo GDELT) no se compara con días reales (todas las fuentes): el salto
+        # de fuentes parecería un empeoramiento
+        if len({x in reconstruidos for x in [d, *siguientes]}) > 1:
+            continue
+        for a3, v in historico[d].items():
+            if len(v) < 4:
+                continue
+            empeoro = any(historico[s].get(a3, [0, 0, 0])[1] > v[1] or historico[s].get(a3, [0, 0, 0])[2]
+                          for s in siguientes)
+            pares.append((PROB_PRONOSTICO[v[3]], int(empeoro), v[1], v[3], d in reconstruidos))
+    if len(pares) < 30:
+        return {"muestras": len(pares)}
+    n = len(pares)
+    brier = sum((p - y) ** 2 for p, y, *_ in pares) / n
+    media = sum(y for _, y, *_ in pares) / n
+    brier_media = sum((media - y) ** 2 for _, y, *_ in pares) / n
+    por_nivel = {}
+    for _, y, nivel, *_ in pares:
+        por_nivel.setdefault(nivel, []).append(y)
+    tasa_nivel = {k: sum(v) / len(v) for k, v in por_nivel.items()}
+    brier_nivel = sum((tasa_nivel[nivel] - y) ** 2 for _, y, nivel, *_ in pares) / n
+    calibracion = []
+    for grado, nombre in ((2, "alto"), (1, "medio"), (0, "bajo")):
+        ys = [y for _, y, _, g, _ in pares if g == grado]
+        if ys:
+            calibracion.append({"riesgo": nombre, "dicho": PROB_PRONOSTICO[grado],
+                                "observado": round(sum(ys) / len(ys), 3), "muestras": len(ys)})
+
+    def mejora(ref):
+        return round(1 - brier / ref, 3) if ref else None
+    return {"muestras": n, "dias": len({d for d in fechas[:-7]}), "brier": round(brier, 4),
+            "brier_media": round(brier_media, 4), "brier_persistencia": round(brier_nivel, 4),
+            "mejora_media": mejora(brier_media), "mejora_persistencia": mejora(brier_nivel),
+            "frecuencia": round(media, 3), "calibracion": calibracion,
+            "reconstruidas": sum(1 for *_, r in pares if r)}
 
 
 def informe(paises, pasos, intereses, calibrando):
@@ -281,6 +413,11 @@ def enriquecer(alertas, ctx, intereses, historico):
         escs, vecinos_mal = escenarios(a3, p, ctx)
         p["escenarios"] = escs
         p["pronostico"] = pronostico(p, escs)
+        an = analisis(a3, p, ctx, escs)
+        if an:
+            p["analisis"] = an
+        if desescalando(a3, ctx):
+            p["desescalada"] = True
         p["region"] = REGION_DE.get(a3)
         if vecinos_mal:
             p["vecinos_mal"] = vecinos_mal
@@ -291,9 +428,19 @@ def enriquecer(alertas, ctx, intereses, historico):
             p["muertes_ucdp"] = ctx["ucdp"][a3]
         if ctx["exteriores"].get(a3):
             p["exteriores"] = ctx["exteriores"][a3]
+        if ctx.get("elecciones", {}).get(a3):
+            p["elecciones"] = [{k: x[k] for k in ("fecha", "nombre", "url")} for x in ctx["elecciones"][a3]]
+        if ctx.get("divisas", {}).get(a3):
+            p["divisa_caida"] = ctx["divisas"][a3]
     pasos = alertas.get("pasos", [])
     alertas["informe"] = informe(alertas["paises"], pasos, intereses, alertas.get("calibrando"))
+    # Fechas clave: elecciones próximas, primero en los países que ya están en alerta o para vigilar
+    rango = {"rojo": 0, "ambar": 1, "verde": 2}
+    fechas = [{"pais": a3, **x} for a3, lista in ctx.get("elecciones", {}).items() for x in lista[:1]]
+    fechas.sort(key=lambda x: (rango.get(alertas["paises"].get(x["pais"], {}).get("nivel"), 3), x["fecha"]))
+    alertas["informe"]["fechas"] = sorted(fechas[:12], key=lambda x: x["fecha"])
     alertas["fiabilidad"] = fiabilidad(historico)
+    alertas["rendimiento"] = rendimiento(historico, set(ctx.get("reconstruidos", ())))
 
     # Simulación de escenarios (sin validez oficial: ver scripts/simulacion.py)
     import simulacion

@@ -4,17 +4,19 @@
 
   // ------------------------------------------------------------ constantes
 
+  // Idioma: ver js/i18n.js. t() traduce la interfaz y tb() los textos que genera el análisis
+  const { t, tb, locale: LOCALE, idioma: IDIOMA } = window.I18N;
   const NIVELES = {
-    rojo: { texto: "Alerta", orden: 0 },
-    ambar: { texto: "Vigilar", orden: 1 },
-    verde: { texto: "Actividad sin alerta", orden: 2 },
+    rojo: { texto: t("Alerta"), orden: 0 },
+    ambar: { texto: t("Vigilar"), orden: 1 },
+    verde: { texto: t("Actividad sin alerta"), orden: 2 },
   };
   const CONFIANZA = {
-    alta: "Coinciden varios tipos de fuente independientes",
-    media: "Lo confirma una fuente oficial, técnica o sanitaria",
-    baja: "Solo lo recoge la prensa",
+    alta: t("Coinciden varios tipos de fuente independientes"),
+    media: t("Lo confirma una fuente oficial, técnica o sanitaria"),
+    baja: t("Solo lo recoge la prensa"),
   };
-  const AVISOS = { 1: "precauciones normales", 2: "más precaución", 3: "reconsiderar el viaje", 4: "no viajar" };
+  const AVISOS = { 1: t("precauciones normales"), 2: t("más precaución"), 3: t("reconsiderar el viaje"), 4: t("no viajar") };
   // Capa del mapa en la que se pinta cada tipo de evento (los que no tienen capa solo salen en el panel)
   const CAPA = { conflicto: "conflicto", protesta: "protesta", terremoto: "terremoto", desastre: "desastre",
     epidemia: "epidemia", internet: "internet", censura: "internet" };
@@ -26,26 +28,37 @@
   const DATOS = local ? "data/" : document.querySelector('meta[name="atalaya-datos"]').content;
   const reducirMovimiento = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  const nombresRegion = new Intl.DisplayNames(["es"], { type: "region" });
-  const relativo = new Intl.RelativeTimeFormat("es", { numeric: "auto" });
-  const numero = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
-  const fechaCorta = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const nombresRegion = new Intl.DisplayNames([IDIOMA], { type: "region" });
+  const relativo = new Intl.RelativeTimeFormat(IDIOMA, { numeric: "auto" });
+  const numero = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 });
+  const diaMes = (d) => new Date(d + "T12:00:00Z").toLocaleDateString(LOCALE, { day: "numeric", month: "short" });
+  const fechaCorta = new Intl.DateTimeFormat(LOCALE, { weekday: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
   const estado = {
     eventos: [], titulares: [], alertas: {}, pasos: [], parte: {}, fuentes: {}, calibrando: true, actualizado: null,
     paises: new Map(), capas: new Set(["conflicto", "protesta", "terremoto", "desastre", "epidemia", "internet", "pasos"]),
     elegido: null, modo: "globo", ventanaHoras: 168, reproduciendo: null, instante: null,
     dia: null, dias: [], historico: null, informe: {}, fiabilidad: {}, analisis: [], simulacion: {},
+    rendimiento: {}, modelo: null, mios: leerMios(),
   };
-  const fechaLarga = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  // "Mis países": lista de seguimiento guardada solo en este navegador
+  function leerMios() {
+    try { return new Set(JSON.parse(localStorage.getItem("atalaya-mios") || "[]")); } catch { return new Set(); }
+  }
+  function guardarMios() {
+    try { localStorage.setItem("atalaya-mios", JSON.stringify([...estado.mios])); } catch { /* sin almacenamiento */ }
+  }
+  const fechaLarga = new Intl.DateTimeFormat(LOCALE, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const fechaDia = (d) => mayuscula(fechaLarga.format(new Date(`${d}T12:00:00Z`)));
   const hoy = () => new Date().toISOString().slice(0, 10);
 
   const $ = (sel) => document.querySelector(sel);
   const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const mayuscula = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
-  const plural = (n, s, p) => `${numero.format(n)} ${n === 1 ? s : p}`;
-  const lista = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} y ${xs.at(-1)}` : xs[0] || "");
+  const plural = (n, s, p) => `${numero.format(n)} ${n === 1 ? t(s) : t(p)}`;
+  const lista = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} ${t("y")} ${xs.at(-1)}` : xs[0] || "");
+  const pct = (x) => (IDIOMA === "en" ? `${x}%` : `${x} %`);
 
   function nombrePais(a3, respaldo) {
     const p = estado.paises.get(a3);
@@ -55,7 +68,7 @@
     return respaldo || p?.nombres?.[0] || a3;
   }
 
-  const fechaHora = new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const fechaHora = new Intl.DateTimeFormat(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   function haceCuanto(iso) {
     // Viendo un día pasado, "hace 14 horas" confunde: se da la fecha
     if (estado.dia) return fechaHora.format(new Date(iso));
@@ -218,9 +231,9 @@
       .on("click", (ev, f) => { ev.stopPropagation(); abrirPais(f.id, f.properties.name); })
       .on("mousemove", (ev, f) => {
         const a = estado.alertas[f.id];
-        let texto = a ? `${NIVELES[a.nivel].texto}${a.escalada ? ", empeora" : ""}${a.motivos?.length ? `<br>${esc(a.motivos.join(". "))}` : ""}` : "Sin eventos recientes";
+        let texto = a ? `${NIVELES[a.nivel].texto}${a.escalada ? t(", empeora") : ""}${a.motivos?.length ? `<br>${esc(a.motivos.map(tb).join(". "))}` : ""}` : t("Sin eventos recientes");
         const sim = estado.simulacion?.contagio?.[f.id];
-        if (sim && document.body.classList.contains("simulando")) texto += `<br>Simulación: ${sim} % de contagio en 7 días (sin validez oficial)`;
+        if (sim && document.body.classList.contains("simulando")) texto += `<br>${t("Simulación: {n} % de contagio en 7 días (sin validez oficial)", { n: sim })}`;
         mostrarInfo(ev, `<strong>${esc(nombrePais(f.id, f.properties.name))}</strong><span>${texto}</span>`);
       })
       .on("mouseleave", ocultarInfo);
@@ -293,24 +306,24 @@
       return n;
     });
     p.attr("class", (d) => `paso ${d.nivel}`)
-      .on("mousemove", (ev, d) => mostrarInfo(ev, `<strong>${esc(d.nombre)}</strong><span>${esc(d.porque)}<br>${plural(d.hechos, "hecho violento", "hechos violentos")} en la zona en 24 horas</span>`))
+      .on("mousemove", (ev, d) => mostrarInfo(ev, `<strong>${esc(tb(d.nombre))}</strong><span>${esc(tb(d.porque))}<br>${t("{n} en la zona en 24 horas", { n: plural(d.hechos, "hecho violento", "hechos violentos") })}</span>`))
       .on("mouseleave", ocultarInfo)
       .on("click", (ev, d) => { ev.stopPropagation(); abrirFichaPaso(ev, d); });
-    p.select("text").text((d) => d.nombre);
+    p.select("text").text((d) => tb(d.nombre));
     redibujar();
   }
 
   function tituloEvento(e) {
-    return e.tipo === "conflicto" || e.tipo === "protesta" ? e.lugar.split(",")[0] : e.titulo;
+    return e.tipo === "conflicto" || e.tipo === "protesta" ? e.lugar.split(",")[0] : tb(e.titulo);
   }
 
   function detalleEvento(e) {
     const partes = [];
     if (e.pais && !["aviso"].includes(e.tipo)) partes.push(nombrePais(e.pais));
-    if (e.tipo === "conflicto") partes.push(`${plural(e.menciones, "noticia", "noticias")} de ataques o enfrentamientos`);
-    else if (e.tipo === "protesta") partes.push(`${plural(e.menciones, "noticia", "noticias")} de protestas`);
+    if (e.tipo === "conflicto") partes.push(t("{n} de ataques o enfrentamientos", { n: plural(e.menciones, "noticia", "noticias") }));
+    else if (e.tipo === "protesta") partes.push(t("{n} de protestas", { n: plural(e.menciones, "noticia", "noticias") }));
     else if (e.lugar && !["internet", "aviso", "epidemia", "crisis"].includes(e.tipo)) partes.push(e.lugar);
-    partes.push(`${e.fuente}, ${haceCuanto(e.fecha)}`);
+    partes.push(`${tb(e.fuente)}, ${haceCuanto(e.fecha)}`);
     return partes.join(". ");
   }
 
@@ -340,21 +353,21 @@
   function abrirFicha(ev, e) {
     const enlaces = (e.enlaces?.length ? e.enlaces : e.url ? [e.url] : []).slice(0, 3);
     const dominio = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
-    ficha.innerHTML = `<button class="cerrar" aria-label="Cerrar">×</button>
+    ficha.innerHTML = `<button class="cerrar" aria-label="${t("Cerrar")}">×</button>
       <h3>${esc(tituloEvento(e))}</h3>
       <p class="meta">${esc(detalleEvento(e))}</p>
-      ${e.tipo === "conflicto" || e.tipo === "protesta" ? `<p class="meta">Lo recoge la prensa: es una señal, no un hecho verificado.</p>` : ""}
+      ${e.tipo === "conflicto" || e.tipo === "protesta" ? `<p class="meta">${t("Lo recoge la prensa: es una señal, no un hecho verificado.")}</p>` : ""}
       ${enlaces.length ? `<ul>${enlaces.map((u) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(dominio(u))}</a></li>`).join("")}</ul>` : ""}
-      ${e.pais ? `<div class="acciones"><button class="principal" data-pais="${e.pais}">Ver ${esc(nombrePais(e.pais))}</button></div>` : ""}`;
+      ${e.pais ? `<div class="acciones"><button class="principal" data-pais="${e.pais}">${esc(t("Ver {pais}", { pais: nombrePais(e.pais) }))}</button></div>` : ""}`;
     colocarFicha(ev);
   }
 
   function abrirFichaPaso(ev, p) {
-    ficha.innerHTML = `<button class="cerrar" aria-label="Cerrar">×</button>
-      <h3>${esc(p.nombre)}</h3>
-      <p class="meta">${esc(p.porque)}.</p>
-      <p>${p.hechos ? `${plural(p.hechos, "hecho violento", "hechos violentos")} en la zona en las últimas 24 horas.` : "Sin hechos violentos en la zona en las últimas 24 horas."}
-      ${p.nivel !== "verde" ? " Si sigue así, puede afectar al transporte marítimo y a los precios de la energía." : ""}</p>`;
+    ficha.innerHTML = `<button class="cerrar" aria-label="${t("Cerrar")}">×</button>
+      <h3>${esc(tb(p.nombre))}</h3>
+      <p class="meta">${esc(tb(p.porque))}.</p>
+      <p>${p.hechos ? t("{n} en la zona en las últimas 24 horas.", { n: plural(p.hechos, "hecho violento", "hechos violentos") }) : t("Sin hechos violentos en la zona en las últimas 24 horas.")}
+      ${p.nivel !== "verde" ? t(" Si sigue así, puede afectar al transporte marítimo y a los precios de la energía.") : ""}</p>`;
     colocarFicha(ev);
   }
 
@@ -434,7 +447,9 @@
     document.querySelectorAll(".pestanas button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.pestana === nombre)));
   }
 
-  const etiquetaConfianza = (c) => (c ? `<span class="etiqueta-conf conf-${c}" title="${esc(CONFIANZA[c])}">Confianza ${c}</span>` : "");
+  // Etiqueta corta y comprensible de cuánto está contrastado lo que se ve en el país
+  const CONF_CORTA = { alta: t("Muy contrastado"), media: t("Contrastado"), baja: t("Solo prensa") };
+  const etiquetaConfianza = (c) => (c ? `<span class="etiqueta-conf conf-${c}" title="${esc(CONFIANZA[c])}">${CONF_CORTA[c]}</span>` : "");
 
   function filaPais(a3, nota) {
     const p = estado.alertas[a3];
@@ -442,21 +457,21 @@
     return `<button class="fila" data-pais="${a3}">
       <span class="punto ${p.nivel}"></span>
       <span class="nombre">${esc(nombrePais(a3))}${etiquetaConfianza(p.confianza)}<span class="detalle">${esc(mayuscula(resumenPais(p, a3)))}</span></span>
-      <span class="cifra ${p.escalada ? "sube" : ""}">${esc(nota ?? (p.escalada ? "Empeora" : p.tendencia === "baja" ? "Mejora" : ""))}</span>
+      <span class="cifra ${p.escalada ? "sube" : ""}">${esc(nota ?? (p.escalada ? t("Empeora") : p.tendencia === "baja" ? t("Mejora") : ""))}</span>
     </button>`;
   }
 
   function resumenPais(p, a3) {
-    if (p.motivos?.length) return p.motivos.join(". ");
+    if (p.motivos?.length) return p.motivos.map(tb).join(". ");
     const partes = [];
     const ev = estado.eventos.filter((e) => e.pais === a3);
     if (p.hechos_violentos) partes.push(plural(p.hechos_violentos, "hecho violento", "hechos violentos"));
     if (p.protestas_n) partes.push(plural(p.protestas_n, "protesta", "protestas"));
     const terremotos = ev.filter((e) => e.tipo === "terremoto").length;
     if (terremotos) partes.push(plural(terremotos, "terremoto", "terremotos"));
-    if (ev.some((e) => e.tipo === "epidemia")) partes.push("brote epidémico");
-    if (p.internet) partes.push("corte de internet");
-    return partes.join(", ") || "Sin eventos en las últimas 48 horas";
+    if (ev.some((e) => e.tipo === "epidemia")) partes.push(t("brote epidémico"));
+    if (p.internet) partes.push(t("corte de internet"));
+    return partes.join(", ") || t("Sin eventos en las últimas 48 horas");
   }
 
   // Informe diario, con la estructura de un parte de inteligencia: primero la conclusión,
@@ -465,67 +480,98 @@
     const el = $("#vista-parte");
     const paises = Object.entries(estado.alertas);
     if (!paises.length) {
-      el.innerHTML = `<p class="vacio">Todavía no hay datos. La primera actualización automática los descargará en unos minutos.</p>`;
+      el.innerHTML = `<p class="vacio">${t("Todavía no hay datos. La primera actualización automática los descargará en unos minutos.")}</p>`;
       return;
     }
     const inf = estado.informe || {};
     const cuenta = (n) => paises.filter(([, p]) => p.nivel === n).length;
     const { suben = [], bajan = [] } = estado.parte;
     const c = inf.conclusion || {};
-    let html = `<p class="seccion-informe">Conclusión principal</p>
-      <h2 class="titular-parte">${c.pais ? `${esc(nombrePais(c.pais))}: ${esc((c.texto || "").toLowerCase())}` : esc(c.texto || "Sin crisis nuevas destacables")}</h2>
-      <p class="resumen"><strong>${cuenta("rojo")}</strong> ${cuenta("rojo") === 1 ? "país" : "países"} en alerta y <strong>${cuenta("ambar")}</strong> para vigilar.
-      ${suben.length || bajan.length ? ` Desde ayer, ${lista([suben.length && `${plural(suben.length, "sube", "suben")} de nivel`, bajan.length && `${plural(bajan.length, "baja", "bajan")}`].filter(Boolean))}.` : ""}
-      ${estado.calibrando ? " El histórico aún es corto: la comparación con lo habitual de cada país empieza a contar cuando hay una semana de datos." : ""}</p>`;
+    const cambiosAyer = lista([suben.length && t("{n} de nivel", { n: plural(suben.length, "sube", "suben") }), bajan.length && plural(bajan.length, "baja", "bajan")].filter(Boolean));
+    let html = `<p class="seccion-informe">${t("Conclusión principal")}</p>
+      <h2 class="titular-parte">${c.pais ? `${esc(nombrePais(c.pais))}: ${esc(tb(c.texto || "").toLowerCase())}` : esc(tb(c.texto || "Sin crisis nuevas destacables"))}</h2>
+      <p class="resumen">${t("{rojo} {paises} en alerta y {ambar} para vigilar.", { rojo: `<strong>${cuenta("rojo")}</strong>`, paises: cuenta("rojo") === 1 ? t("país") : t("países"), ambar: `<strong>${cuenta("ambar")}</strong>` })}
+      ${suben.length || bajan.length ? esc(t(" Desde ayer, {cambios}.", { cambios: cambiosAyer })) : ""}
+      ${estado.calibrando ? t(" El histórico aún es corto: la comparación con lo habitual de cada país empieza a contar cuando hay una semana de datos.") : ""}</p>`;
 
+    if (estado.mios.size) {
+      html += `<h3 class="grupo">${t("Mis países")}</h3>` + [...estado.mios].map((a3) => {
+        const p = estado.alertas[a3];
+        return `<button class="fila" data-pais="${a3}"><span class="punto ${p ? p.nivel : "neutro"}"></span>
+          <span class="nombre">${esc(nombrePais(a3))}${p?.escalada ? `<span class="empeora">${t("Empeora")}</span>` : ""}
+          <span class="detalle">${p ? esc(mayuscula(resumenPais(p, a3))) : t("Sin eventos recientes")}${p?.pronostico && p.pronostico.riesgo !== "bajo" ? `. ${esc(tb(p.pronostico.texto))}` : ""}</span></span>
+          <span class="cifra"></span></button>`;
+      }).join("");
+    }
     if (inf.juicios?.length) {
-      html += `<h3 class="grupo">Juicios clave</h3>` + inf.juicios.map((j) => `<button class="fila juicio" data-pais="${j.pais}">
+      html += `<h3 class="grupo">${t("Juicios clave")}</h3>` + inf.juicios.map((j) => `<button class="fila juicio" data-pais="${j.pais}">
         <span class="punto ${j.nivel}"></span>
         <span class="nombre">${esc(nombrePais(j.pais))}${etiquetaConfianza(j.confianza)}
-          <span class="detalle"><strong>${esc(j.escenario || j.pronostico || "")}</strong>${j.porque?.length ? `. ${esc(j.porque.join(". "))}.` : ""}</span>
-          ${j.escenario && j.pronostico ? `<span class="detalle">${esc(j.pronostico)}.</span>` : ""}</span>
+          <span class="detalle"><strong>${esc(tb(j.escenario || j.pronostico || ""))}</strong>${j.porque?.length ? `. ${esc(j.porque.map(tb).join(". "))}.` : ""}</span>
+          ${j.escenario && j.pronostico ? `<span class="detalle">${esc(tb(j.pronostico))}.</span>` : ""}</span>
         <span class="cifra"></span></button>`).join("");
     }
     if (inf.vigilar?.length) {
-      html += `<h3 class="grupo">Qué vigilar en las próximas 72 horas</h3>` + inf.vigilar.map((v) => `<button class="fila sin-punto" data-pais="${v.pais}">
-        <span class="nombre">${esc(nombrePais(v.pais))}: ${esc(v.escenario.toLowerCase())}
-          <span class="detalle">${v.si_aparece?.length ? `Subiría si aparece: ${esc(v.si_aparece.join(" o ").toLowerCase())}.` : ""}</span></span>
+      html += `<h3 class="grupo">${t("Qué vigilar en las próximas 72 horas")}</h3>` + inf.vigilar.map((v) => `<button class="fila sin-punto" data-pais="${v.pais}">
+        <span class="nombre">${esc(nombrePais(v.pais))}: ${esc(tb(v.escenario).toLowerCase())}
+          <span class="detalle">${v.si_aparece?.length ? esc(t("Subiría si aparece: {x}.", { x: v.si_aparece.map(tb).join(` ${t("o")} `).toLowerCase() })) : ""}</span></span>
         <span class="cifra"></span></button>`).join("");
     }
     if (inf.espana?.length) {
-      html += `<h3 class="grupo">Interés para España</h3>` + inf.espana.map((e) => e.pais ? `<button class="fila" data-pais="${e.pais}">
+      html += `<h3 class="grupo">${t("Interés para España")}</h3>` + inf.espana.map((e) => e.pais ? `<button class="fila" data-pais="${e.pais}">
         <span class="punto ${e.nivel}"></span>
-        <span class="nombre">${esc(nombrePais(e.pais))}<span class="detalle">${esc(e.por.join(". "))}</span></span>
+        <span class="nombre">${esc(nombrePais(e.pais))}<span class="detalle">${esc(e.por.map(tb).join(". "))}</span></span>
         <span class="cifra"></span></button>` : `<div class="fila"><span class="punto ${e.nivel}"></span>
-        <span class="nombre">${esc(e.nombre)}<span class="detalle">${esc(e.por.join(". "))}</span></span><span class="cifra"></span></div>`).join("");
+        <span class="nombre">${esc(tb(e.nombre))}<span class="detalle">${esc(e.por.map(tb).join(". "))}</span></span><span class="cifra"></span></div>`).join("");
     }
     if (inf.regiones?.length) {
-      html += `<h3 class="grupo">Regiones con más tensión</h3>` + inf.regiones.map((r) => `<div class="fila">
+      html += `<h3 class="grupo">${t("Regiones con más tensión")}</h3>` + inf.regiones.map((r) => `<div class="fila">
         <span class="punto ${r.nivel === "verde" ? "neutro" : r.nivel}"></span>
-        <span class="nombre">${esc(r.region)}<span class="detalle">${esc(lista([
-          r.rojo.length && `en alerta: ${lista(r.rojo.map((a) => nombrePais(a)))}`,
-          r.ambar.length && `para vigilar: ${lista(r.ambar.map((a) => nombrePais(a)))}`,
-          r.empeoran.length && `empeoran: ${lista(r.empeoran.map((a) => nombrePais(a)))}`].filter(Boolean)))}</span></span>
+        <span class="nombre">${esc(tb(r.region))}<span class="detalle">${esc(lista([
+          r.rojo.length && t("en alerta: {x}", { x: lista(r.rojo.map((a) => nombrePais(a))) }),
+          r.ambar.length && t("para vigilar: {x}", { x: lista(r.ambar.map((a) => nombrePais(a))) }),
+          r.empeoran.length && t("empeoran: {x}", { x: lista(r.empeoran.map((a) => nombrePais(a))) })].filter(Boolean)))}</span></span>
         <span class="cifra"></span></div>`).join("");
+    }
+
+    if (inf.fechas?.length) {
+      html += `<h3 class="grupo">${t("Fechas clave")}</h3>` + inf.fechas.map((x) => {
+        const p = estado.alertas[x.pais];
+        return `<button class="fila" data-pais="${x.pais}"><span class="punto ${p ? p.nivel : "neutro"}"></span>
+          <span class="nombre">${esc(nombrePais(x.pais))}<span class="detalle">${esc(x.nombre)}</span></span>
+          <span class="cifra">${esc(diaMes(x.fecha))}</span></button>`;
+      }).join("") + `<p class="detalle-gris nota">${t("Elecciones y referendos en las próximas semanas, según Wikidata. Son fechas con más riesgo de protestas, cortes de internet o crisis de gobierno.")}</p>`;
     }
 
     const pasos = [...estado.pasos].sort((a, b) => b.hechos - a.hechos);
     if (pasos.length) {
-      html += `<h3 class="grupo">Rutas marítimas estratégicas</h3>` + pasos.map((p) => `<div class="fila">
+      html += `<h3 class="grupo">${t("Rutas marítimas estratégicas")}</h3>` + pasos.map((p) => `<div class="fila">
         <span class="punto ${p.nivel === "verde" ? "neutro" : p.nivel}"></span>
-        <span class="nombre">${esc(p.nombre)}<span class="detalle">${esc(p.porque)}</span></span>
-        <span class="cifra ${p.nivel !== "verde" ? "sube" : ""}">${p.hechos ? plural(p.hechos, "hecho", "hechos") : "Sin hechos"}</span></div>`).join("");
+        <span class="nombre">${esc(tb(p.nombre))}<span class="detalle">${esc(tb(p.porque))}</span></span>
+        <span class="cifra ${p.nivel !== "verde" ? "sube" : ""}">${p.hechos ? plural(p.hechos, "hecho", "hechos") : t("Sin hechos")}</span></div>`).join("");
     }
 
     const f = estado.fiabilidad || {};
-    html += `<h3 class="grupo">Acierto de los pronósticos</h3><p class="resumen">${f.alto?.total
-      ? `De ${plural(f.alto.total, "pronóstico", "pronósticos")} de empeoramiento probable en los últimos 30 días, se cumplieron ${f.alto.aciertos} (${Math.round(100 * f.alto.aciertos / f.alto.total)} %).${f.bajo?.total ? ` De los poco probables, empeoró el ${Math.round(100 * f.bajo.aciertos / f.bajo.total)} %.` : ""}`
-      : "Se medirá cuando haya más de una semana de histórico: cada pronóstico se compara con lo que pasó en los 7 días siguientes."}</p>`;
+    html += `<h3 class="grupo">${t("Acierto de los pronósticos")}</h3><p class="resumen">${f.alto?.total
+      ? t("De {n} de empeoramiento probable en los últimos 30 días, se cumplieron {a} ({p} %).", { n: plural(f.alto.total, "pronóstico", "pronósticos"), a: f.alto.aciertos, p: Math.round(100 * f.alto.aciertos / f.alto.total) })
+        + (f.bajo?.total ? t(" De los poco probables, empeoró el {p} %.", { p: Math.round(100 * f.bajo.aciertos / f.bajo.total) }) : "")
+      : t("Se medirá cuando haya más de una semana de histórico: cada pronóstico se compara con lo que pasó en los 7 días siguientes.")}</p>`;
+    const r = estado.rendimiento || {};
+    if (r.brier != null) {
+      const porc = (x) => pct(Math.round(x * 100));
+      const mejor = (m) => (m > 0.02 ? t("acierta un {p} más", { p: porc(m) }) : m < -0.02 ? t("acierta un {p} menos", { p: porc(-m) }) : t("acierta lo mismo"));
+      html += `<div class="rendimiento"><p class="resumen"><strong>${t("Rendimiento del modelo")}</strong> ${esc(t("({n} en {d}{r}).", { n: plural(r.muestras, "pronóstico", "pronósticos"), d: plural(r.dias, "día", "días"), r: r.reconstruidas ? t(", {n} de días reconstruidos con GDELT", { n: numero.format(r.reconstruidas) }) : "" }))}
+        ${esc(t("Comparado con decir siempre la misma probabilidad, {a}; comparado con fiarse solo del nivel actual de cada país, {b}.", { a: mejor(r.mejora_media), b: mejor(r.mejora_persistencia) }))}
+        <span class="detalle-gris">${t("Puntuación de Brier {n} (0 es perfecto).", { n: r.brier.toLocaleString(LOCALE, { minimumFractionDigits: 3, maximumFractionDigits: 3 }) })}</span></p>
+        <table class="calibracion"><thead><tr><th>${t("Pronóstico")}</th><th>${t("Probabilidad que da")}</th><th>${t("Empeoró de verdad")}</th><th>${t("Casos")}</th></tr></thead><tbody>
+        ${(r.calibracion || []).map((c) => `<tr><td>${t({ alto: "Probable", medio: "Posible", bajo: "Poco probable" }[c.riesgo])}</td><td>${porc(c.dicho)}</td><td>${porc(c.observado)}</td><td>${numero.format(c.muestras)}</td></tr>`).join("")}
+        </tbody></table></div>`;
+    }
 
     const fuentes = Object.entries(estado.fuentes);
     if (fuentes.length) {
-      html += `<h3 class="grupo">Estado de las fuentes</h3><ul class="fuentes">` + fuentes.map(([n, fu]) =>
-        `<li class="${fu.ok ? "" : "caida"}">${esc(n)}: ${fu.ok ? "al día" : `sin respuesta${fu.ultimo_ok ? `, datos de ${haceCuanto(fu.ultimo_ok)}` : ""}`}</li>`).join("") + "</ul>";
+      html += `<h3 class="grupo">${t("Estado de las fuentes")}</h3><ul class="fuentes">` + fuentes.map(([n, fu]) =>
+        `<li class="${fu.ok ? "" : "caida"}">${esc(tb(n))}: ${fu.ok ? t("al día") : `${t("sin respuesta")}${fu.ultimo_ok ? t(", datos de {t}", { t: haceCuanto(fu.ultimo_ok) }) : ""}`}</li>`).join("") + "</ul>";
     }
     el.innerHTML = html;
   }
@@ -534,62 +580,65 @@
   function pintarSimulacion() {
     const el = $("#vista-simulacion");
     const sim = estado.simulacion || {};
-    let html = `<div class="aviso-simulacion" role="note"><strong>Esto es una simulación.</strong> ${esc(sim.aviso || "Simulación automática basada en noticias y datos públicos. No tiene ninguna validez oficial.")}</div>`;
+    let html = `<div class="aviso-simulacion" role="note"><strong>${t("Esto es una simulación.")}</strong> ${esc(sim.aviso ? tb(sim.aviso) : t("Simulación automática basada en noticias y datos públicos. No tiene ninguna validez oficial."))}</div>`;
     if (!sim.casos?.length) {
-      el.innerHTML = html + `<p class="vacio">No hay crisis con datos suficientes para simular ahora mismo.</p>`;
+      el.innerHTML = html + `<p class="vacio">${t("No hay crisis con datos suficientes para simular ahora mismo.")}</p>`;
       return;
     }
     const nombres = (xs) => lista((xs || []).map((a) => nombrePais(a)));
     const r = sim.resumen || {};
-    html += `<p class="resumen">Qué podría pasar en los próximos ${sim.horizonte_dias || 7} días en ${plural(sim.casos.length, "crisis abierta", "crisis abiertas")}. En el mapa, los países rayados son los que podrían contagiarse.</p>
+    html += `<p class="resumen">${esc(t("Qué podría pasar en los próximos {d} días en {n}. En el mapa, los países rayados son los que podrían contagiarse.", { d: sim.horizonte_dias || 7, n: plural(sim.casos.length, "crisis abierta", "crisis abiertas") }))}</p>
       <div class="sim-resumen">
-        <p><span>Más riesgo de escalada</span><strong>${esc(nombres(r.mas_escala))}</strong></p>
-        <p><span>Más margen para contenerse</span><strong>${esc(nombres(r.mas_contiene))}</strong></p>
+        <p><span>${t("Más riesgo de escalada")}</span><strong>${esc(nombres(r.mas_escala))}</strong></p>
+        <p><span>${t("Más margen para contenerse")}</span><strong>${esc(nombres(r.mas_contiene))}</strong></p>
       </div>`;
 
     if (sim.regiones?.length) {
-      html += `<h3 class="grupo">Por regiones: que al menos una crisis escale</h3>` + sim.regiones.map((g) => `<div class="fila">
+      html += `<h3 class="grupo">${t("Por regiones: que al menos una crisis escale")}</h3>` + sim.regiones.map((g) => `<div class="fila">
         <span class="punto ${g.probabilidad >= 60 ? "rojo" : g.probabilidad >= 35 ? "ambar" : "neutro"}"></span>
-        <span class="nombre">${esc(g.region)}<span class="detalle">${esc(nombres(g.paises.slice(0, 4)))}${g.paises.length > 4 ? ` y ${g.paises.length - 4} más` : ""}</span></span>
-        <span class="cifra">≈ ${g.probabilidad} %</span></div>`).join("");
+        <span class="nombre">${esc(tb(g.region))}<span class="detalle">${esc(nombres(g.paises.slice(0, 4)))}${g.paises.length > 4 ? t(" y {n} más", { n: g.paises.length - 4 }) : ""}</span></span>
+        <span class="cifra">≈ ${pct(g.probabilidad)}</span></div>`).join("");
     }
 
-    const ramaTitulo = { escala: "Escala", igual: "Sigue igual", contiene: "Se contiene" };
+    const ramaTitulo = { escala: t("Escala"), igual: t("Sigue igual"), contiene: t("Se contiene") };
     const detallados = sim.casos.slice(0, sim.detallados || 8);
     const resto = sim.casos.slice(sim.detallados || 8);
-    html += `<h3 class="grupo">Las crisis más graves, en detalle</h3>`;
+    html += `<h3 class="grupo">${t("Las crisis más graves, en detalle")}</h3>`;
     for (const c of detallados) {
       html += `<article class="caso-sim">
         <header><button class="enlace-pais" data-pais="${c.pais}"><span class="punto ${c.nivel}"></span>${esc(nombrePais(c.pais))}</button>
-          <span class="etiqueta-sim">Simulado</span>${etiquetaConfianza(c.confianza)}</header>
-        ${c.escenario ? `<p class="detalle-gris">Escenario principal: ${esc(c.escenario.toLowerCase())}.</p>` : ""}
+          <span class="etiqueta-sim">${t("Simulado")}</span>${etiquetaConfianza(c.confianza)}</header>
+        ${c.escenario ? `<p class="detalle-gris">${esc(t("Escenario principal: {x}.", { x: tb(c.escenario).toLowerCase() }))}</p>` : ""}
         <ul class="ramas">${c.ramas.map((rm) => `<li class="rama rama-${rm.id}">
           <span class="barra" style="--p:${rm.probabilidad}%"></span>
-          <span class="rama-cab"><strong>${ramaTitulo[rm.id]}</strong><span>≈ ${rm.probabilidad} % <small>(${rm.intervalo[0]}–${rm.intervalo[1]} %)</small>, ${esc(rm.palabras)}</span></span>
-          <span class="rama-texto">${esc(rm.texto)}</span></li>`).join("")}</ul>
-        ${c.factores?.length ? `<p class="sim-linea"><strong>Por qué:</strong> ${esc(lista(c.factores))}.</p>` : ""}
-        ${c.contagio?.length ? `<p class="sim-linea"><strong>Si escala, podría extenderse a:</strong> ${esc(lista(c.contagio.map((v) => `${nombrePais(v.pais)} (≈ ${v.probabilidad} %)`)))}.</p>` : ""}
-        ${c.espana?.length ? `<p class="sim-linea"><strong>Para España:</strong> ${esc(c.espana.join(" "))}</p>` : ""}
-        ${c.confirman?.length ? `<p class="sim-linea"><strong>Señales de que escala:</strong> ${esc(lista(c.confirman).toLowerCase())}.</p>` : ""}
-        <p class="sim-linea"><strong>Señales de que se contiene:</strong> ${esc(lista(c.desmienten).toLowerCase())}.</p>
+          <span class="rama-cab"><strong>${ramaTitulo[rm.id]}</strong><span>≈ ${pct(rm.probabilidad)} <small>(${rm.intervalo[0]}–${pct(rm.intervalo[1])})</small>, ${esc(tb(rm.palabras))}</span></span>
+          <span class="rama-texto">${esc(tb(rm.texto))}</span></li>`).join("")}</ul>
+        ${c.factores?.length ? `<p class="sim-linea"><strong>${t("Por qué:")}</strong> ${esc(lista(c.factores.map(tb)))}.</p>` : ""}
+        ${c.contagio?.length ? `<p class="sim-linea"><strong>${t("Si escala, podría extenderse a:")}</strong> ${esc(lista(c.contagio.map((v) => `${nombrePais(v.pais)} (≈ ${pct(v.probabilidad)})`)))}.</p>` : ""}
+        ${c.espana?.length ? `<p class="sim-linea"><strong>${t("Para España:")}</strong> ${esc(c.espana.map(tb).join(" "))}</p>` : ""}
+        ${c.confirman?.length ? `<p class="sim-linea"><strong>${t("Señales de que escala:")}</strong> ${esc(lista(c.confirman.map(tb)).toLowerCase())}.</p>` : ""}
+        <p class="sim-linea"><strong>${t("Señales de que se contiene:")}</strong> ${esc(lista(c.desmienten.map(tb)).toLowerCase())}.</p>
       </article>`;
     }
     if (resto.length) {
-      html += `<h3 class="grupo">El resto de crisis abiertas</h3>
-        <div class="sim-tabla-cab"><span></span><span>Escala</span><span>Igual</span><span>Se contiene</span></div>` +
+      html += `<h3 class="grupo">${t("El resto de crisis abiertas")}</h3>
+        <div class="sim-tabla-cab"><span></span><span>${t("Escala")}</span><span>${t("Igual")}</span><span>${t("Se contiene")}</span></div>` +
         resto.map((c) => `<button class="fila sim-fila" data-pais="${c.pais}">
           <span class="punto ${c.nivel}"></span>
-          <span class="nombre">${esc(nombrePais(c.pais))}<span class="detalle">${esc(c.escenario || (c.nivel !== "verde" ? "Crisis prolongada, sin señales nuevas" : "Sin escenario dominante"))}</span></span>
-          ${c.ramas.map((rm) => `<span class="sim-pct sim-${rm.id}" title="${esc(ramaTitulo[rm.id])}: ${rm.intervalo[0]}–${rm.intervalo[1]} %">${rm.probabilidad} %</span>`).join("")}
+          <span class="nombre">${esc(nombrePais(c.pais))}<span class="detalle">${esc(c.escenario ? tb(c.escenario) : t(c.nivel !== "verde" ? "Crisis prolongada, sin señales nuevas" : "Sin escenario dominante"))}</span></span>
+          ${c.ramas.map((rm) => `<span class="sim-pct sim-${rm.id}" title="${esc(ramaTitulo[rm.id])}: ${rm.intervalo[0]}–${pct(rm.intervalo[1])}">${pct(rm.probabilidad)}</span>`).join("")}
         </button>`).join("");
     }
 
-    html += `<h3 class="grupo">Cómo se simula</h3><p class="resumen">
-      La probabilidad de que una crisis escale parte del ${sim.pesos?.alto ?? 40} % si el pronóstico es que probablemente empeore, del ${sim.pesos?.medio ?? 25} % si es posible y del ${sim.pesos?.bajo ?? 10} % si es poco probable.
+    const pesos = { alto: sim.pesos?.alto ?? 40, medio: sim.pesos?.medio ?? 25, bajo: sim.pesos?.bajo ?? 10 };
+    const metodo = IDIOMA === "en" ? t("SIM_METODO", pesos)
+      : `La probabilidad de que una crisis escale parte del ${pesos.alto} % si el pronóstico es que probablemente empeore, del ${pesos.medio} % si es posible y del ${pesos.bajo} % si es poco probable.
       Sube con cada indicador encendido, si la situación empeora en la última semana o se acelera en las últimas 12 horas, si hay vecinos en crisis y si el país ya está en alerta; baja si se frena.
-      El rango entre paréntesis es el margen de incertidumbre: más estrecho cuantas más fuentes independientes coinciden.
-      ${sim.calibrado ? "Estas probabilidades ya están ajustadas con el acierto real de los pronósticos anteriores." : "Cuando haya suficientes pronósticos comprobados, las probabilidades se ajustarán solas con su acierto real."}
-      En una semana, lo más frecuente es que una crisis siga como está: por eso «sigue igual» suele ser la rama más probable.</p>`;
+      El rango entre paréntesis es el margen de incertidumbre: más estrecho cuantas más fuentes independientes coinciden.`;
+    html += `<h3 class="grupo">${t("Cómo se simula")}</h3><p class="resumen">
+      ${metodo}
+      ${sim.calibrado ? t("Estas probabilidades ya están ajustadas con el acierto real de los pronósticos anteriores.") : t("Cuando haya suficientes pronósticos comprobados, las probabilidades se ajustarán solas con su acierto real.")}
+      ${t("En una semana, lo más frecuente es que una crisis siga como está: por eso «sigue igual» suele ser la rama más probable.")}</p>`;
     el.innerHTML = html;
   }
 
@@ -597,7 +646,7 @@
     const el = $("#vista-paises");
     const orden = Object.entries(estado.alertas).map(([a3, a]) => ({ a3, ...a }))
       .sort((a, b) => NIVELES[a.nivel].orden - NIVELES[b.nivel].orden || b.escalada - a.escalada || b.puntuacion - a.puntuacion);
-    if (!orden.length) { el.innerHTML = `<p class="vacio">Todavía no hay datos.</p>`; return; }
+    if (!orden.length) { el.innerHTML = `<p class="vacio">${t("Todavía no hay datos.")}</p>`; return; }
     let html = "", grupo = null;
     for (const p of orden) {
       if (p.nivel !== grupo) { grupo = p.nivel; html += `<h3 class="grupo">${NIVELES[grupo].texto}</h3>`; }
@@ -610,7 +659,7 @@
     const deGdelt = e.tipo === "conflicto" || e.tipo === "protesta";
     const partes = [];
     if (conPais && e.pais) partes.push(nombrePais(e.pais));
-    if (deGdelt) partes.push(`${plural(e.menciones, "noticia", "noticias")} de ${e.tipo === "conflicto" ? "ataques o enfrentamientos" : "protestas"}`);
+    if (deGdelt) partes.push(t(e.tipo === "conflicto" ? "{n} de ataques o enfrentamientos" : "{n} de protestas", { n: plural(e.menciones, "noticia", "noticias") }));
     else if (e.lugar && !["internet", "aviso", "epidemia", "crisis"].includes(e.tipo)) partes.push(e.lugar);
     return `<a class="fila" href="${esc(e.url || "#")}" target="_blank" rel="noopener">
       <span class="punto ${deGdelt ? "neutro" : e.nivel}"></span>
@@ -623,26 +672,27 @@
     const de = (tipo) => estado.eventos.filter((e) => e.tipo === tipo);
     const top = (tipo) => (estado.capas.has(tipo) ? de(tipo).sort((a, b) => b.menciones - a.menciones).slice(0, 15) : []);
     const secciones = [
-      ["Cambios en avisos de viaje esta semana", de("aviso")],
-      ["Brotes epidémicos (OMS, 30 días)", estado.capas.has("epidemia") ? de("epidemia") : []],
-      ["Crisis humanitarias abiertas", de("crisis").filter((e) => e.estado === "alert")],
-      ["Cortes de internet grandes en 24 horas", estado.capas.has("internet") ? de("internet").sort((a, b) => b.peso - a.peso) : []],
-      ["Más noticias de ataques o enfrentamientos", top("conflicto")],
-      ["Más noticias de protestas", top("protesta")],
-      ["Terremotos y desastres de los últimos 7 días", estado.eventos.filter((e) => ["terremoto", "desastre"].includes(e.tipo) && estado.capas.has(e.tipo)).slice(0, 100)],
+      [t("Cambios en avisos de viaje esta semana"), de("aviso")],
+      [t("Brotes epidémicos (OMS, 30 días)"), estado.capas.has("epidemia") ? de("epidemia") : []],
+      [t("Crisis humanitarias abiertas"), de("crisis").filter((e) => e.estado === "alert")],
+      [t("Monedas que se hunden frente al dólar (7 días)"), de("economia")],
+      [t("Cortes de internet grandes en 24 horas"), estado.capas.has("internet") ? de("internet").sort((a, b) => b.peso - a.peso) : []],
+      [t("Más noticias de ataques o enfrentamientos"), top("conflicto")],
+      [t("Más noticias de protestas"), top("protesta")],
+      [t("Terremotos y desastres de los últimos 7 días"), estado.eventos.filter((e) => ["terremoto", "desastre"].includes(e.tipo) && estado.capas.has(e.tipo)).slice(0, 100)],
     ];
     const html = secciones.filter(([, xs]) => xs.length).map(([t, xs]) => `<h3 class="grupo">${t}</h3>` + xs.map((e) => filaEvento(e)).join("")).join("");
-    $("#vista-eventos").innerHTML = html || `<p class="vacio">No hay eventos en las capas activas.</p>`;
+    $("#vista-eventos").innerHTML = html || `<p class="vacio">${t("No hay eventos en las capas activas.")}</p>`;
   }
 
   function pintarTitulares() {
-    const t = estado.titulares;
-    $("#vista-titulares").innerHTML = t.length
-      ? `<p class="resumen">Noticias en español de las últimas 24 horas sobre ataques, ofensivas, evacuaciones y terremotos.</p>` +
-        t.map((n) => `<a class="fila sin-punto" href="${esc(n.url)}" target="_blank" rel="noopener">
+    const tit = estado.titulares;
+    $("#vista-titulares").innerHTML = tit.length
+      ? `<p class="resumen">${t("Noticias en español de las últimas 24 horas sobre ataques, ofensivas, evacuaciones y terremotos.")}</p>` +
+        tit.map((n) => `<a class="fila sin-punto" lang="es" href="${esc(n.url)}" target="_blank" rel="noopener">
           <span class="nombre">${esc(n.titulo)}<span class="detalle">${esc(n.medio)}</span></span>
           <span class="cifra">${haceCuanto(n.fecha)}</span></a>`).join("")
-      : `<p class="vacio">No hay titulares disponibles ahora mismo.</p>`;
+      : `<p class="vacio">${t("No hay titulares disponibles ahora mismo.")}</p>`;
   }
 
   function grafica(serie) {
@@ -653,12 +703,12 @@
     const puntos = serie.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
     const u = serie.length - 1;
     return `<figure class="grafica">
-      <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Puntuación de los últimos ${serie.length} días">
+      <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="${t("Puntuación de los últimos {n} días", { n: serie.length })}">
         <path class="area" d="M${x(0)},${h - 6}L${puntos.join("L")}L${x(u)},${h - 6}Z" />
         <path class="linea" d="M${puntos.join("L")}" />
         <circle cx="${x(u)}" cy="${y(serie[u])}" r="3.5" />
       </svg>
-      <figcaption>Puntuación de los últimos ${serie.length} días</figcaption>
+      <figcaption>${t("Puntuación de los últimos {n} días", { n: serie.length })}</figcaption>
     </figure>`;
   }
 
@@ -676,85 +726,106 @@
     const color = ["var(--frontera)", "var(--ambar)", "var(--rojo)"];
     const marcado = estado.dia || dias.at(-1);
     return `<figure class="grafica evolucion">
-      <svg viewBox="0 0 ${w} ${hgt}" role="img" aria-label="Evolución desde ${fechaDia(dias[0])}">
+      <svg viewBox="0 0 ${w} ${hgt}" role="img" aria-label="${esc(t("Evolución desde {d}", { d: fechaDia(dias[0]) }))}">
         <path class="area" d="M${x(0)},${hgt - 8}L${puntos.join("L")}L${x(serie.length - 1)},${hgt - 8}Z" />
         <path class="linea" d="M${puntos.join("L")}" />
-        ${serie.map((p, i) => `<circle class="dia${p.d === marcado ? " marcado" : ""}" data-dia="${p.d}" cx="${x(i)}" cy="${y(p.v)}" r="${p.d === marcado ? 4.5 : 3}" fill="${color[p.n]}"><title>${esc(fechaDia(p.d))}: ${numero.format(p.v)} puntos</title></circle>`).join("")}
+        ${serie.map((p, i) => `<circle class="dia${p.d === marcado ? " marcado" : ""}" data-dia="${p.d}" cx="${x(i)}" cy="${y(p.v)}" r="${p.d === marcado ? 4.5 : 3}" fill="${color[p.n]}"><title>${esc(t("{d}: {n} puntos", { d: fechaDia(p.d), n: numero.format(p.v) }))}</title></circle>`).join("")}
       </svg>
-      <figcaption>Evolución desde el ${esc(fechaLarga.format(new Date(`${dias[0]}T12:00:00Z`)))}. Pincha un día para ver el mundo ese día.</figcaption>
+      <figcaption>${esc(t("Evolución desde el {d}. Pincha un día para ver el mundo ese día.", { d: fechaLarga.format(new Date(`${dias[0]}T12:00:00Z`)) }))}</figcaption>
     </figure>`;
   }
 
   function explicar(a) {
     const partes = [];
-    if (a.conflicto) partes.push(`${numero.format(a.conflicto)} por hechos violentos${a.cuota_violencia ? ` (el ${Math.round(a.cuota_violencia * 100)} % de lo que se cuenta del país)` : ""}`);
-    if (a.protestas) partes.push(`${numero.format(a.protestas)} por protestas`);
-    if (a.desastres) partes.push(`${numero.format(a.desastres)} por terremotos y desastres`);
-    if (a.epidemias) partes.push(`${numero.format(a.epidemias)} por brotes epidémicos`);
-    if (a.internet) partes.push(`${numero.format(a.internet)} por cortes de internet`);
-    if (a.avisos) partes.push(`${numero.format(a.avisos)} por subir el aviso de viaje`);
-    if (a.humanitaria) partes.push(`${numero.format(a.humanitaria)} por crisis humanitaria`);
-    let t = partes.length ? `La puntuación ${estado.dia ? "de ese día" : "de hoy"} suma ${lista(partes)}.` : "";
-    if (a.tendencia === "sube") t += " Está por encima de lo habitual para este país.";
-    else if (a.tendencia === "baja") t += " Está por debajo de lo habitual para este país.";
-    else if (a.tendencia === "estable") t += " Es parecida a lo habitual para este país.";
-    if (a.aviso_viaje) t += ` EE. UU. tiene su aviso de viaje en nivel ${a.aviso_viaje} de 4 (${AVISOS[a.aviso_viaje]}).`;
-    if (a.confianza) t += ` Confianza ${a.confianza}: ${CONFIANZA[a.confianza].toLowerCase()}.`;
-    return t.trim();
+    const n = (x) => numero.format(x);
+    if (a.conflicto) partes.push(t("{n} por hechos violentos", { n: n(a.conflicto) }) + (a.cuota_violencia ? t(" (el {p} % de lo que se cuenta del país)", { p: Math.round(a.cuota_violencia * 100) }) : ""));
+    if (a.protestas) partes.push(t("{n} por protestas", { n: n(a.protestas) }));
+    if (a.desastres) partes.push(t("{n} por terremotos y desastres", { n: n(a.desastres) }));
+    if (a.epidemias) partes.push(t("{n} por brotes epidémicos", { n: n(a.epidemias) }));
+    if (a.internet) partes.push(t("{n} por cortes de internet", { n: n(a.internet) }));
+    if (a.avisos) partes.push(t("{n} por subir el aviso de viaje", { n: n(a.avisos) }));
+    if (a.humanitaria) partes.push(t("{n} por crisis humanitaria", { n: n(a.humanitaria) }));
+    if (a.economia) partes.push(t("{n} por la caída de su moneda", { n: n(a.economia) }));
+    let texto = partes.length ? t(estado.dia ? "La puntuación de ese día suma {x}." : "La puntuación de hoy suma {x}.", { x: lista(partes) }) : "";
+    if (a.tendencia === "sube") texto += t(" Está por encima de lo habitual para este país.");
+    else if (a.tendencia === "baja") texto += t(" Está por debajo de lo habitual para este país.");
+    else if (a.tendencia === "estable") texto += t(" Es parecida a lo habitual para este país.");
+    if (a.aviso_viaje) texto += t(" EE. UU. tiene su aviso de viaje en nivel {n} de 4 ({t}).", { n: a.aviso_viaje, t: AVISOS[a.aviso_viaje] });
+    if (a.confianza) texto += ` ${CONF_CORTA[a.confianza]}: ${CONFIANZA[a.confianza].toLowerCase()}.`;
+    return texto.trim();
   }
+
+  const titulo = (t) => String(t).toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase());
 
   function abrirPais(a3, respaldo, centrar = true) {
     estado.elegido = a3;
     const a = estado.alertas[a3];
     const ev = estado.eventos.filter((e) => e.pais === a3);
-    let html = `<button class="volver" data-volver>Volver</button><div class="ficha">
-      <h2>${esc(nombrePais(a3, respaldo))}</h2>
-      <p class="estado"><span class="punto ${a ? a.nivel : "neutro"}"></span>${a ? NIVELES[a.nivel].texto : "Sin eventos recientes"}
-        ${a?.escalada ? `<span class="empeora">Empeora</span>` : ""}${etiquetaConfianza(a?.confianza)}</p>`;
+    let html = `<button class="volver" data-volver>${t("Volver")}</button><div class="ficha">
+      <h2>${esc(nombrePais(a3, respaldo))} <button class="estrella" data-mio="${a3}" aria-pressed="${estado.mios.has(a3)}"
+        title="${estado.mios.has(a3) ? t("Quitar de mis países") : t("Seguir este país")}">${estado.mios.has(a3) ? t("★ Siguiendo") : t("☆ Seguir")}</button></h2>
+      <p class="estado"><span class="punto ${a ? a.nivel : "neutro"}"></span>${a ? NIVELES[a.nivel].texto : t("Sin eventos recientes")}
+        ${a?.escalada ? `<span class="empeora">${t("Empeora")}</span>` : ""}${etiquetaConfianza(a?.confianza)}</p>`;
     if (a) {
-      if (a.motivos?.length) html += `<ul class="motivos">${a.motivos.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>`;
+      if (a.motivos?.length) html += `<ul class="motivos">${a.motivos.map((m) => `<li>${esc(tb(m))}</li>`).join("")}</ul>`;
       html += `<dl class="cifras">
-        <div><dt>${estado.dia ? "Ese día" : "Hoy"}</dt><dd>${numero.format(a.puntuacion)}</dd></div>
-        <div><dt>Media 30 días</dt><dd>${a.tendencia === "sin datos" ? "–" : numero.format(a.media)}</dd></div>
-        <div><dt>Tendencia</dt><dd>${{ sube: "Sube", baja: "Baja", estable: "Estable" }[a.tendencia] || "–"}</dd></div>
+        <div><dt>${estado.dia ? t("Ese día") : t("Hoy")}</dt><dd>${numero.format(a.puntuacion)}</dd></div>
+        <div><dt>${t("Media 30 días")}</dt><dd>${a.tendencia === "sin datos" ? "–" : numero.format(a.media)}</dd></div>
+        <div><dt>${t("Tendencia")}</dt><dd>${t({ sube: "Sube", baja: "Baja", estable: "Estable" }[a.tendencia] || "–")}</dd></div>
       </dl>${evolucion(a3) ?? grafica(a.serie)}<p class="explicacion">${esc(explicar(a))}</p>`;
     }
     html += `</div>`;
     if (a?.pronostico || a?.escenarios?.length) {
-      html += `<h3 class="grupo">Pronóstico y escenarios</h3><div class="ficha">`;
-      if (a.pronostico) html += `<p class="pronostico riesgo-${a.pronostico.riesgo}"><strong>${esc(a.pronostico.texto)}.</strong> <span class="detalle-gris">Estimación automática, sin validez oficial.</span>${a.pronostico.pendiente ? ` Tendencia de la última semana: ${a.pronostico.pendiente > 0 ? "+" : ""}${numero.format(a.pronostico.pendiente)} puntos al día.` : ""}</p>`;
+      html += `<h3 class="grupo">${t("Pronóstico y escenarios")}</h3><div class="ficha">`;
+      if (a.pronostico) html += `<p class="pronostico riesgo-${a.pronostico.riesgo}"><strong>${esc(tb(a.pronostico.texto))}.</strong> <span class="detalle-gris">${t("Estimación automática, sin validez oficial.")}</span>${a.pronostico.pendiente ? t(" Tendencia de la última semana: {n} puntos al día.", { n: (a.pronostico.pendiente > 0 ? "+" : "") + numero.format(a.pronostico.pendiente) }) : ""}</p>`;
       const relevantes = (a.escenarios || []).filter((e) => e.riesgo !== "bajo");
-      if (!relevantes.length) html += `<p class="explicacion">Ningún escenario de crisis tiene indicadores suficientes ahora mismo.</p>`;
+      if (!relevantes.length) html += `<p class="explicacion">${t("Ningún escenario de crisis tiene indicadores suficientes ahora mismo.")}</p>`;
       for (const e of relevantes) {
-        html += `<div class="escenario riesgo-${e.riesgo}"><p><strong>${esc(e.estimativo)} ${esc(e.nombre.toLowerCase())}</strong></p><ul>${e.indicadores.map((i) =>
-          `<li class="${i.activo ? "activo" : ""}"><span aria-hidden="true">${i.activo ? "●" : "○"}</span> ${esc(i.texto)}${i.activo ? "" : `<span class="oculto"> (no se observa)</span>`}</li>`).join("")}</ul></div>`;
+        html += `<div class="escenario riesgo-${e.riesgo}"><p><strong>${esc(tb(e.estimativo))} ${esc(tb(e.nombre).toLowerCase())}</strong>${e.rebajado ? ` <span class="detalle-gris">${t("(rebajado un grado por señales de desescalada)")}</span>` : ""}</p><ul>${e.indicadores.map((i) =>
+          `<li class="${i.activo ? "activo" : ""}"><span aria-hidden="true">${i.activo ? "●" : "○"}</span> ${esc(tb(i.texto))}${i.activo ? "" : `<span class="oculto">${t(" (no se observa)")}</span>`}</li>`).join("")}</ul></div>`;
       }
-      if (a.vecinos_mal?.length) html += `<p class="explicacion">Vecinos en alerta o empeorando: ${esc(lista(a.vecinos_mal.map((v) => nombrePais(v))))}.</p>`;
+      if (a.vecinos_mal?.length) html += `<p class="explicacion">${esc(t("Vecinos en alerta o empeorando: {x}.", { x: lista(a.vecinos_mal.map((v) => nombrePais(v))) }))}</p>`;
+      html += `</div>`;
+    }
+    if (a?.elecciones?.length || a?.divisa_caida) {
+      html += `<h3 class="grupo">${t("Señales tempranas")}</h3><div class="ficha">`;
+      if (a.divisa_caida) html += `<p><strong>${t("Su moneda ha perdido un {p} % frente al dólar en 7 días.", { p: Math.round(a.divisa_caida * 100) })}</strong>${t(" Las caídas bruscas suelen adelantarse a protestas o crisis de gobierno.")}</p>`;
+      if (a.elecciones?.length) html += `<p><strong>${t("Próximas citas electorales:")}</strong></p><ul class="motivos">${a.elecciones.map((x) => `<li>${esc(diaMes(x.fecha))}: ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.nombre)}</a>` : esc(x.nombre)}</li>`).join("")}</ul>`;
+      html += `</div>`;
+    }
+    const an = a?.analisis;
+    if (an && (an.donde || an.actores || an.contra || an.alternativas || an.desmentiria)) {
+      html += `<h3 class="grupo">${t("Análisis")}</h3><div class="ficha analisis">`;
+      if (an.donde?.length) html += `<p><strong>${t("Dónde se concentra la violencia:")}</strong> ${esc(an.donde.map(([r, c]) => `${r} (${pct(Math.round(c * 100))})`).join(", "))}.</p>`;
+      if (an.actores?.length) html += `<p><strong>${t("Quién contra quién")}</strong> <span class="detalle-gris">${t("(nombres tal como los codifica GDELT, en inglés)")}</span>:</p><ul class="motivos">${an.actores.map(([x, y]) => `<li>${esc(t("{a} contra {b}", { a: titulo(x), b: titulo(y) }))}</li>`).join("")}</ul>`;
+      if (an.contra?.length) html += `<p><strong>${t("Señales en contra:")}</strong></p><ul class="motivos contra">${an.contra.map((m) => `<li>${esc(tb(m))}</li>`).join("")}</ul>`;
+      if (an.alternativas?.length) html += `<p><strong>${t("Otras explicaciones posibles:")}</strong></p><ul class="motivos">${an.alternativas.map((m) => `<li>${esc(tb(m))}</li>`).join("")}</ul>`;
+      if (an.desmentiria?.length) html += `<p><strong>${esc(t("Qué desmentiría «{x}»:", { x: tb(an.hipotesis).toLowerCase() }))}</strong></p><ul class="motivos">${an.desmentiria.map((m) => `<li>${esc(tb(m))}</li>`).join("")}</ul>`;
       html += `</div>`;
     }
     if (a?.exteriores || a?.espana?.length || a?.muertes_ucdp) {
-      html += `<h3 class="grupo">España</h3><div class="ficha">`;
+      html += `<h3 class="grupo">${t("España")}</h3><div class="ficha">`;
       if (a.exteriores) {
-        html += `<p class="exteriores nivel-ext-${a.exteriores.nivel}"><strong>Exteriores: ${esc(a.exteriores.texto)}.</strong>
-          ${a.exteriores.notas ? ` ${esc(a.exteriores.notas.slice(0, 280))}${a.exteriores.notas.length > 280 ? "…" : ""}` : ""}
-          ${a.exteriores.actualizacion ? `<span class="detalle-gris"> Actualizado el ${esc(new Date(a.exteriores.actualizacion + "T12:00:00Z").toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" }))}.</span>` : ""}
-          ${a.exteriores.url ? ` <a href="${esc(a.exteriores.url)}" target="_blank" rel="noopener">Ver la ficha</a>` : ""}</p>`;
+        html += `<p class="exteriores nivel-ext-${a.exteriores.nivel}"><strong>${esc(t("Exteriores: {x}.", { x: tb(a.exteriores.texto) }))}</strong>
+          ${a.exteriores.notas ? `${IDIOMA === "en" ? ` <span class="detalle-gris">(original in Spanish)</span>` : ""} <span lang="es">${esc(a.exteriores.notas.slice(0, 280))}${a.exteriores.notas.length > 280 ? "…" : ""}</span>` : ""}
+          ${a.exteriores.actualizacion ? `<span class="detalle-gris">${esc(t(" Actualizado el {d}.", { d: new Date(a.exteriores.actualizacion + "T12:00:00Z").toLocaleDateString(LOCALE, { day: "numeric", month: "long", year: "numeric" }) }))}</span>` : ""}
+          ${a.exteriores.url ? ` <a href="${esc(a.exteriores.url)}" target="_blank" rel="noopener">${t("Ver la ficha")}</a>` : ""}</p>`;
       }
-      if (a.espana?.length) html += `<ul class="motivos">${a.espana.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>`;
-      if (a.muertes_ucdp) html += `<p class="explicacion">${plural(a.muertes_ucdp, "muerte verificada", "muertes verificadas")} en conflictos en los últimos 90 días (UCDP).</p>`;
+      if (a.espana?.length) html += `<ul class="motivos">${a.espana.map((m) => `<li>${esc(tb(m))}</li>`).join("")}</ul>`;
+      if (a.muertes_ucdp) html += `<p class="explicacion">${t("{n} en conflictos en los últimos 90 días (UCDP).", { n: plural(a.muertes_ucdp, "muerte verificada", "muertes verificadas") })}</p>`;
       html += `</div>`;
     }
     const analisis = (estado.analisis || []).filter((x) => x.paises?.includes(a3)).slice(0, 5);
     if (analisis.length) {
-      html += `<h3 class="grupo">Análisis de expertos</h3>` + analisis.map((x) => `<a class="fila sin-punto" href="${esc(x.url)}" target="_blank" rel="noopener">
+      html += `<h3 class="grupo">${t("Análisis de expertos")}</h3>` + analisis.map((x) => `<a class="fila sin-punto" lang="es" href="${esc(x.url)}" target="_blank" rel="noopener">
         <span class="nombre">${esc(x.titulo)}<span class="detalle">${esc(x.centro)}</span></span><span class="cifra">${haceCuanto(x.fecha)}</span></a>`).join("");
     }
     const prensa = (estado.titulares || []).filter((t) => t.paises?.includes(a3)).slice(0, 5);
     if (prensa.length) {
-      html += `<h3 class="grupo">En la prensa española</h3>` + prensa.map((t) => `<a class="fila sin-punto" href="${esc(t.url)}" target="_blank" rel="noopener">
-        <span class="nombre">${esc(t.titulo)}<span class="detalle">${esc(t.medio)}</span></span><span class="cifra">${haceCuanto(t.fecha)}</span></a>`).join("");
+      html += `<h3 class="grupo">${t("En la prensa española")}</h3>` + prensa.map((x) => `<a class="fila sin-punto" lang="es" href="${esc(x.url)}" target="_blank" rel="noopener">
+        <span class="nombre">${esc(x.titulo)}<span class="detalle">${esc(x.medio)}</span></span><span class="cifra">${haceCuanto(x.fecha)}</span></a>`).join("");
     }
-    html += ev.length ? `<h3 class="grupo">Eventos</h3>` + ev.map((e) => filaEvento(e, false)).join("") : `<p class="vacio">No hay eventos registrados en este país en los últimos 7 días.</p>`;
+    html += ev.length ? `<h3 class="grupo">${t("Eventos")}</h3>` + ev.map((e) => filaEvento(e, false)).join("") : `<p class="vacio">${t("No hay eventos registrados en este país en los últimos 7 días.")}</p>`;
     $("#vista-pais").innerHTML = html;
     mostrarVista("pais");
     plegar(false);
@@ -790,7 +861,7 @@
     $("#panel").classList.toggle("plegado", cerrado);
     const asa = $("#asa");
     asa.setAttribute("aria-expanded", String(!cerrado));
-    asa.textContent = cerrado ? "Mostrar panel" : "Ocultar panel";
+    asa.textContent = cerrado ? t("Mostrar panel") : t("Ocultar panel");
   }
 
   // ------------------------------------------------------------ el tiempo
@@ -807,15 +878,15 @@
     ocultarFicha();
     const boton = $("#reproducir");
     const fin = Date.now();
-    let t = fin - 6 * 24 * HORA;
+    let momento = fin - 6 * 24 * HORA;
     boton.setAttribute("aria-pressed", "true");
-    boton.textContent = "Parar";
+    boton.textContent = t("Parar");
     estado.reproduciendo = setInterval(() => {
-      estado.instante = t;
-      $("#reloj").textContent = mayuscula(fechaCorta.format(new Date(t)));
+      estado.instante = momento;
+      $("#reloj").textContent = mayuscula(fechaCorta.format(new Date(momento)));
       dibujarEventos();
-      t += 2 * HORA;
-      if (t > fin) pararReproduccion();
+      momento += 2 * HORA;
+      if (momento > fin) pararReproduccion();
     }, 140);
   }
 
@@ -825,7 +896,7 @@
     estado.instante = null;
     const boton = $("#reproducir");
     boton.setAttribute("aria-pressed", "false");
-    boton.textContent = "Reproducir la semana";
+    boton.textContent = t("Reproducir la semana");
     $("#reloj").textContent = "";
     dibujarEventos();
   }
@@ -835,6 +906,15 @@
   document.addEventListener("click", (ev) => {
     const pestana = ev.target.closest("[data-pestana]");
     if (pestana) { mostrarVista(pestana.dataset.pestana); return; }
+    const mio = ev.target.closest("[data-mio]");
+    if (mio) {
+      const a3 = mio.dataset.mio;
+      if (estado.mios.has(a3)) estado.mios.delete(a3); else estado.mios.add(a3);
+      guardarMios();
+      abrirPais(a3, null, false);
+      pintarParte();
+      return;
+    }
     const fila = ev.target.closest("[data-pais]");
     if (fila) { abrirPais(fila.dataset.pais); return; }
     if (ev.target.closest("[data-volver]")) { cerrarPais(); return; }
@@ -910,16 +990,17 @@
       estado.informe = alertas.informe || {};
       estado.simulacion = alertas.simulacion || {};
       estado.fiabilidad = alertas.fiabilidad || {};
+      estado.rendimiento = alertas.rendimiento || {};
       estado.analisis = eventos.analisis || [];
       estado.calibrando = alertas.calibrando;
       estado.actualizado = eventos.actualizado;
       const caidas = Object.entries(estado.fuentes).filter(([, f]) => !f.ok).map(([n]) => n);
       $("#actualizado").textContent = estado.actualizado
-        ? `Actualizado ${haceCuanto(estado.actualizado)}${caidas.length ? `. Sin respuesta de ${lista(caidas)}: se muestran sus últimos datos` : ""}`
-        : "Esperando la primera actualización";
+        ? t("Actualizado {t}", { t: haceCuanto(estado.actualizado) }) + (caidas.length ? t(". Sin respuesta de {x}: se muestran sus últimos datos", { x: lista(caidas.map(tb)) }) : "")
+        : t("Esperando la primera actualización");
     } catch (e) {
       console.error(e);
-      $("#actualizado").textContent = "No se han podido cargar los datos. Vuelve a cargar la página en unos minutos.";
+      $("#actualizado").textContent = t("No se han podido cargar los datos. Vuelve a cargar la página en unos minutos.");
     }
     dibujarPaises();
     dibujarEventos();
@@ -971,12 +1052,12 @@
       estado.instante = new Date(foto.actualizado).getTime();
       selector.value = dia;
       document.body.classList.add("pasado");
-      $("#actualizado").innerHTML = `${esc(fechaDia(dia))}, foto de las ${new Date(foto.actualizado).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}. <button class="volver-hoy" data-hoy>Volver a hoy</button>`;
+      $("#actualizado").innerHTML = `${esc(t("{d}, foto de las {h}.", { d: fechaDia(dia), h: new Date(foto.actualizado).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }) }))} <button class="volver-hoy" data-hoy>${t("Volver a hoy")}</button>`;
       pintarTodo();
       actualizarEnlace();
     } catch (e) {
       console.error(e);
-      $("#actualizado").textContent = `No hay foto guardada del ${fechaDia(dia).toLowerCase()}.`;
+      $("#actualizado").textContent = t("No hay foto guardada del {d}.", { d: IDIOMA === "en" ? fechaDia(dia) : fechaDia(dia).toLowerCase() });
     }
   }
 
@@ -993,13 +1074,31 @@
     }
   }
 
+  // Versión del modelo, cambios y errores reconocidos (en el diálogo "Cómo se calcula")
+  async function cargarModelo() {
+    try {
+      const m = await json("data/modelo.json");
+      $("#modelo").innerHTML = `<h3>${esc(t("Versión del modelo: {v}", { v: m.version }))}</h3><ul>${m.cambios.slice(0, 3).map((c) =>
+        `<li><strong>${esc(c.version)}</strong>: ${esc(c.cambios.map(tb).join(". "))}.</li>`).join("")}</ul>
+        <h3>${t("Errores reconocidos y corregidos")}</h3><ul>${m.errores.map((e) => `<li>${esc(tb(e.texto))}</li>`).join("")}</ul>`;
+    } catch { /* opcional */ }
+    document.querySelectorAll(".enlace-rss").forEach((x) => { x.href = DATOS + "avisos.xml"; });
+  }
+
+  // Selector de idioma
+  window.I18N.traducirHTML();
+  document.querySelectorAll("[data-idioma]").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.idioma === IDIOMA));
+    b.addEventListener("click", () => window.I18N.cambiar(b.dataset.idioma));
+  });
+
   (async () => {
     const [geo, paises] = await Promise.all([json("data/mundo.geojson"), json("data/paises.json")]);
     mundo = geo;
     for (const p of paises) estado.paises.set(p.a3, p);
     $("#lista-paises").innerHTML = mundo.features.map((f) => `<option value="${esc(nombrePais(f.id, f.properties.name))}">`).join("");
     configurarProyeccion();
-    await Promise.all([cargarDatos(), cargarIndice()]);
+    await Promise.all([cargarDatos(), cargarIndice(), cargarModelo()]);
     const d = location.hash.match(/dia=(\d{4}-\d{2}-\d{2})/);
     if (d) await verDia(d[1]);
     const m = location.hash.match(/pais=([A-Z]{3})/);
