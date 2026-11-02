@@ -12,6 +12,7 @@ import os
 import sys
 import tempfile
 import unittest
+import urllib.parse
 import zipfile
 from datetime import timedelta
 from pathlib import Path
@@ -130,13 +131,62 @@ RESPUESTAS = {
 }
 
 
+def _ooni(url):
+    # Bloqueo nuevo de WhatsApp en Etiopía: alto ahora, normal antes. Irán: bloqueo habitual.
+    ahora = "since=" + (AHORA - timedelta(days=2)).strftime("%Y-%m-%d") in url
+    filas = []
+    if "whatsapp" in url:
+        filas.append({"probe_cc": "ET", "measurement_count": 40, "anomaly_count": 30 if ahora else 1})
+        filas.append({"probe_cc": "IR", "measurement_count": 50, "anomaly_count": 45})
+    filas.append({"probe_cc": "ES", "measurement_count": 100, "anomaly_count": 1})
+    return {"result": filas}
+
+
+NOMBRES_ES = [n for p in json.loads((RAIZ / "data" / "paises.json").read_text()) for n in p.get("nombres_es", [])[:1]]
+EXTERIORES_INDICE = "".join(f'<a href="/es/ServiciosAlCiudadano/Paginas/Detalle-recomendaciones-de-viaje.aspx?trc={urllib.parse.quote_plus(n)}">x</a>'
+                            for n in NOMBRES_ES)
+FICHA = ("<html><body><p>Recomendaciones vigentes a 2 de noviembre de 2026 Última actualización el {fecha} "
+         "Notas importantes {notas} Documentación y visados Pasaporte en vigor.</p></body></html>")
+
+RESPUESTAS.update({
+    "seismicportal.eu": {"features": [
+        # El mismo terremoto que USGS no debe duplicarse; este otro, en Grecia, sí entra
+        {"id": "x", "properties": {"unid": "E1", "lat": 38.0, "lon": 23.7, "mag": 4.2, "flynn_region": "GREECE",
+                                   "time": act.iso(AHORA)}}]},
+    "ign.es": f"""<?xml version="1.0"?><rss xmlns:geo="http://www.w3.org/2003/01/geo/wgs84_pos#"><channel>
+        <item><title>-Info.terremoto</title><link>https://ign/1</link><pubDate>{RFC822}</pubDate>
+          <description>Se ha producido un terremoto de magnitud 3.1 en GOLFO DE CÁDIZ en la fecha ...</description>
+          <geo:lat>36.3</geo:lat><geo:long>-7.9</geo:long></item>
+        <item><title>-Info.terremoto</title><link>https://ign/2</link><pubDate>{RFC822}</pubDate>
+          <description>Se ha producido un terremoto de magnitud 1.2 en GRANADA en la fecha ...</description>
+          <geo:lat>37.1</geo:lat><geo:long>-3.6</geo:long></item></channel></rss>""",
+    "mapping.emergency.copernicus.eu": {"results": [
+        {"code": "EMSR999", "countries": [{"short_name": "Spain"}], "category": {"slug": "flood", "name": "Flood"},
+         "name": "Flood in Valencia, Spain", "centroid": "POINT (-0.4 39.4)", "activationTime": act.iso(AHORA)},
+        {"code": "EMSR100", "countries": [{"short_name": "Italy"}], "category": {"slug": "fire"},
+         "name": "Viejo", "centroid": "POINT (12 42)", "activationTime": "2024-01-01T00:00:00"}]},
+    "api.ooni.io": _ooni,
+    "Recomendaciones-de-viaje.aspx": EXTERIORES_INDICE,
+    "Detalle-recomendaciones-de-viaje.aspx?trc=Sud%C3%A1n": FICHA.format(fecha="28 de febrero de 2025", notas="SE DESACONSEJA EL VIAJE A SUDÁN BAJO CUALQUIER CIRCUNSTANCIA, SI LO HACE SERÁ POR SU CUENTA Y RIESGO."),
+    "Detalle-recomendaciones-de-viaje.aspx": FICHA.format(fecha="1 de enero de 2026", notas="Se recomienda viajar con normalidad."),
+    "realinstitutoelcano": f"""<?xml version="1.0"?><rss><channel>
+        <item><title>La guerra en Sudán y el Sahel - Real Instituto Elcano</title><link>https://elcano/1</link>
+          <pubDate>{RFC822}</pubDate><source url="https://www.realinstitutoelcano.org">Real Instituto Elcano</source></item>
+        <item><title>Informe anual - Real Instituto Elcano</title><link>https://elcano/2</link><pubDate>{RFC822}</pubDate>
+          <source url="https://www.realinstitutoelcano.org">Real Instituto Elcano</source></item></channel></rss>""",
+})
+
+
 def falsa_descarga(url, como="json", **_):
-    for clave, valor in RESPUESTAS.items():
-        if clave in url:
-            if isinstance(valor, (dict, list)):
-                return json.loads(json.dumps(valor))
-            return valor
-    return None
+    claves = [c for c in RESPUESTAS if c in url]
+    if not claves:
+        return None
+    valor = RESPUESTAS[max(claves, key=len)]  # la clave más específica
+    if callable(valor):
+        valor = valor(url)
+    if isinstance(valor, (dict, list)):
+        return json.loads(json.dumps(valor))
+    return valor
 
 
 class Base(unittest.TestCase):
@@ -236,6 +286,81 @@ class TestFuentes(Base):
         self.assertTrue(act.reliefweb(self.paises)["desactivada"])
 
 
+class TestFuentesNuevas(Base):
+    def test_exteriores(self):
+        r = act.exteriores(self.paises)
+        self.assertEqual(r["exteriores"]["SDN"]["nivel"], 4)
+        self.assertEqual(r["exteriores"]["SDN"]["actualizacion"], "2025-02-28")
+        self.assertEqual(r["exteriores"]["FRA"]["nivel"], 1)
+        # Una segunda consulta antes de 12 h reutiliza lo guardado
+        with mock.patch.dict(RESPUESTAS, {"Recomendaciones-de-viaje.aspx": None}):
+            self.assertEqual(act.exteriores(self.paises)["exteriores"]["SDN"]["nivel"], 4)
+
+    def test_exteriores_niveles(self):
+        self.assertEqual(act.exteriores_nivel("Se desaconseja el viaje salvo por razones de extrema necesidad."), 3)
+        self.assertEqual(act.exteriores_nivel("Se recomienda extremar la precaución en la frontera."), 2)
+        self.assertEqual(act.exteriores_nivel("Se recomienda a los españoles que abandonen el país."), 4)
+
+    def test_ooni_bloqueo_nuevo_y_habitual(self):
+        ev = {e["pais"]: e for e in act.ooni(self.paises)["eventos"]}
+        self.assertEqual(ev["ETH"]["titulo"], "Nuevo bloqueo de WhatsApp")
+        self.assertEqual((ev["ETH"]["nivel"], ev["IRN"]["peso"]), ("ambar", 0))
+        self.assertNotIn("ESP", ev)
+
+    def test_copernicus_solo_recientes(self):
+        ev = act.copernicus(self.paises)["eventos"]
+        self.assertEqual([(e["pais"], e["titulo"]) for e in ev], [("ESP", "La UE activa Copernicus: inundación")])
+
+    def test_ign_y_duplicados_sismicos(self):
+        ign = act.ign(self.paises)["eventos"]
+        self.assertEqual(len(ign), 1)  # el de magnitud 1.2 no entra
+        usgs = act.usgs(self.paises)["eventos"]
+        copia = dict(usgs[0], id="emsc-copia", fuente="EMSC")
+        sin = act.sin_duplicados_sismicos(usgs + [copia] + ign)
+        self.assertEqual(sorted(e["fuente"] for e in sin), ["IGN", "USGS", "USGS"])
+
+    def test_analisis_por_pais(self):
+        a = act.analisis(self.paises)["analisis"]
+        self.assertEqual(len(a), 1)
+        self.assertEqual(a[0]["paises"], ["SDN"])
+        self.assertEqual(a[0]["titulo"], "La guerra en Sudán y el Sahel")
+
+    def test_paises_en_texto(self):
+        self.assertEqual(self.paises.en_texto("Ataques en Malí y Burkina Faso; Estados Unidos responde"),
+                         ["MLI", "BFA", "USA"])
+
+
+class TestInteligencia(Base):
+    def test_vecinos(self):
+        v = act.inteligencia.calcular_vecinos(self.paises)
+        self.assertIn("FRA", v["ESP"])
+        self.assertIn("PRT", v["ESP"])
+        self.assertNotIn("ITA", v["ESP"])
+
+    def test_escenario_golpe(self):
+        ctx = {"gdelt": {"NER": {"militar": 8}}, "pasos": {}, "vecinos": {}, "golpe_en_prensa": {"NER"},
+               "ucdp": {}, "paises": {}}
+        p = {"internet": 5, "censura": 6, "puntuacion": 15}
+        escs, _ = act.inteligencia.escenarios("NER", p, ctx)
+        golpe = next(e for e in escs if e["id"] == "golpe")
+        self.assertEqual((golpe["riesgo"], golpe["estimativo"]), ("alto", "Probable"))
+        self.assertEqual(act.inteligencia.pronostico(p, escs)["riesgo"], "alto")
+
+    def test_pronostico_por_tendencia(self):
+        p = {"serie": [2, 4, 6, 8, 10, 12, 14], "puntuacion": 14}
+        pr = act.inteligencia.pronostico(p, [])
+        self.assertEqual(pr["riesgo"], "alto")
+        self.assertAlmostEqual(pr["pendiente"], 2.0)
+        self.assertEqual(act.inteligencia.pronostico({"serie": [5, 5, 5], "puntuacion": 5}, [])["riesgo"], "bajo")
+
+    def test_fiabilidad(self):
+        h = {f"2026-10-{d:02d}": {"MLI": [5, 0, 0, 2 if d == 1 else 0], "CHL": [1, 0, 0, 2 if d == 1 else 0]}
+             for d in range(1, 10)}
+        h["2026-10-04"]["MLI"] = [20, 2, 1, 0]
+        f = act.inteligencia.fiabilidad(h)
+        self.assertEqual(f["alto"], {"aciertos": 1, "total": 2})
+
+
 class TestAlertas(Base):
     def test_gdacs_sequia_no_se_atribuye(self):
         rss = GDACS_RSS.replace("<gdacs:eventtype>TC</gdacs:eventtype><gdacs:eventid>1</gdacs:eventid><gdacs:eventname>",
@@ -309,6 +434,11 @@ class TestEjecucionCompleta(Base):
         self.assertEqual(a["paises"]["PHL"]["nivel"], "rojo")
         self.assertEqual(len(a["pasos"]), len(act.PASOS))
         self.assertIn("ETH", a["paises"])  # brote de Marburgo
+        self.assertIn("informe", a)
+        self.assertIn("pronostico", a["paises"]["PHL"])
+        ext = json.loads((Path(TMP) / "exteriores.json").read_text())
+        self.assertEqual(ext["paises"]["SDN"]["nivel"], 4)
+        self.assertIn("vigilar", a["informe"])
 
         # Histórico: foto del día, índice y serie por país
         foto = json.loads((Path(TMP) / "archivo" / f"{act.HOY}.json").read_text())
