@@ -1,0 +1,43 @@
+name: Actualizar datos
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"   # cada 30 minutos
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: actualizar-datos
+  cancel-in-progress: false
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Descargar fuentes y calcular alertas
+        run: python scripts/actualizar.py
+
+      - name: Guardar los datos nuevos
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/eventos.json data/alertas.json data/historial.json
+          if git diff --cached --quiet; then
+            echo "Sin cambios"
+            exit 0
+          fi
+          git commit -m "Datos actualizados $(date -u +'%Y-%m-%d %H:%M') UTC"
+          for intento in 1 2 3; do
+            git pull --rebase && git push && exit 0
+            sleep 5
+          done
+          exit 1

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>atalaya</title>
+  <meta name="description" content="Mapa en tiempo real con conflictos, noticias y catástrofes naturales, y un nivel de alerta por país que detecta cuándo algo se está calentando.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%231F3A4A'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23D9483B'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/estilo.css">
+</head>
+<body>
+  <main class="visor">
+    <div id="mapa" class="mapa" aria-label="Mapa del mundo con el nivel de alerta de cada país"></div>
+
+    <header class="cabecera">
+      <h1 class="marca">atalaya</h1>
+      <p class="actualizado" id="actualizado">Cargando datos…</p>
+      <fieldset class="capas" aria-label="Capas del mapa">
+        <label><input type="checkbox" data-capa="conflicto" checked><span class="forma forma-conflicto" aria-hidden="true"></span>Conflictos</label>
+        <label><input type="checkbox" data-capa="terremoto" checked><span class="forma forma-terremoto" aria-hidden="true"></span>Terremotos</label>
+        <label><input type="checkbox" data-capa="desastre" checked><span class="forma forma-desastre" aria-hidden="true"></span>Desastres</label>
+      </fieldset>
+    </header>
+
+    <aside class="panel" id="panel">
+      <button class="asa" id="asa" aria-expanded="true" aria-controls="panel-cuerpo">Ocultar panel</button>
+      <div class="panel-cuerpo" id="panel-cuerpo">
+        <nav class="pestanas" role="tablist">
+          <button role="tab" aria-selected="true" data-pestana="paises">Países</button>
+          <button role="tab" aria-selected="false" data-pestana="eventos">Eventos</button>
+          <button role="tab" aria-selected="false" data-pestana="titulares">Titulares</button>
+        </nav>
+        <section class="vista" id="vista-paises" role="tabpanel"></section>
+        <section class="vista" id="vista-eventos" role="tabpanel" hidden></section>
+        <section class="vista" id="vista-titulares" role="tabpanel" hidden></section>
+        <section class="vista" id="vista-pais" hidden></section>
+      </div>
+    </aside>
+
+    <div class="leyenda" aria-label="Leyenda">
+      <p class="niveles">
+        <span><i class="nivel-rojo"></i>Alerta</span>
+        <span><i class="nivel-ambar"></i>Vigilar</span>
+        <span><i class="nivel-verde"></i>Actividad normal</span>
+      </p>
+      <p class="aviso">Señales tempranas a partir de fuentes públicas, no predicciones. <a href="#metodo" id="ver-metodo">Cómo se calcula</a></p>
+    </div>
+
+    <div class="globo" id="globo" role="tooltip" hidden></div>
+  </main>
+
+  <dialog class="metodo" id="metodo">
+    <h2>Cómo se calcula el nivel de alerta</h2>
+    <p>Cada 30 minutos se descargan los datos de las últimas horas y se suma una puntuación por país:</p>
+    <ul>
+      <li><strong>Terremotos</strong> de magnitud 4,5 o más (USGS). Pesan más cuanto mayor es la magnitud y si USGS emite alerta de impacto.</li>
+      <li><strong>Desastres</strong>: ciclones, inundaciones, volcanes, sequías e incendios (GDACS y NASA EONET), según su nivel de alerta oficial.</li>
+      <li><strong>Conflictos</strong>: noticias de todo el mundo que hablan de ataques, bombardeos o enfrentamientos en ese lugar (GDELT).</li>
+    </ul>
+    <p>Esa puntuación se compara con la media del país en los últimos 30 días. Un país pasa a <em>vigilar</em> o <em>alerta</em> cuando la actividad sube claramente sobre lo que es normal para él, o cuando un organismo oficial emite una alerta naranja o roja.</p>
+    <p>Durante la primera semana el histórico aún es corto y solo cuentan los valores absolutos.</p>
+    <p>Las noticias no son hechos verificados: un pico puede ser solo ruido mediático. Cada evento enlaza a su fuente para comprobarlo.</p>
+    <form method="dialog"><button>Cerrar</button></form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
