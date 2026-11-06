@@ -1539,7 +1539,6 @@ def incendios(paises):
         focos = [f for f in filas if f.get("confidence", "n") != "l"
                  and paises.punto(float(f["longitude"]), float(f["latitude"])) == a3]
         n = len(focos)
-        log(f"  {a3}: {len(filas)} focos en la zona, {n} en el país")
         serie = historial.setdefault(a3, {})
         previos = [v for d, v in sorted(serie.items()) if d < HOY][-30:]
         serie[HOY] = n
@@ -1561,6 +1560,7 @@ def incendios(paises):
         })
     if fallos == len(vigilados):
         return None
+    log("  focos por país: " + ", ".join(f"{a}={historial[a][HOY]}" for a in vigilados if HOY in historial.get(a, {})))
     corte = (AHORA - timedelta(days=45)).strftime("%Y-%m-%d")
     escribir("incendios_historial.json", {a: {d: v for d, v in s.items() if d >= corte} for a, s in historial.items()})
     return {"eventos": eventos, "incendios": anomalias}
