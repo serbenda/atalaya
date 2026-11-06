@@ -96,7 +96,10 @@ CLOUDFLARE_URL = "https://api.cloudflare.com/client/v4/radar/annotations/outages
 UCDP_TOKEN = os.environ.get("UCDP_TOKEN", "").strip()
 # NASA FIRMS (incendios por satélite): clave gratuita en firms.modaps.eosdis.nasa.gov/api/map_key/
 FIRMS_KEY = os.environ.get("FIRMS_KEY", "").strip()
-FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/country/csv/{clave}/VIIRS_SNPP_NRT/{pais}/1"
+# API de áreas (oeste,sur,este,norte); la de países ya no está documentada
+FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/{clave}/{sensor}/{caja}/1"
+# VIIRS en los satélites NOAA-20 y NOAA-21 (el más antiguo, Suomi NPP, puede dejar de emitir)
+FIRMS_SENSORES = ("VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT", "VIIRS_SNPP_NRT")
 # Países que se vigilan aunque la última ejecución no los marque (guerras abiertas)
 FIRMS_FIJOS = ("UKR", "RUS", "SDN", "PSE", "ISR", "MMR", "COD", "SYR", "YEM", "LBN", "SSD", "ETH")
 FIRMS_MAX = 18          # consultas por ejecución (el límite de la API es 5000 cada 10 minutos)
@@ -1473,6 +1476,34 @@ def divisas(paises):
     return {"eventos": eventos, "divisas": caidas}
 
 
+def caja_pais(paises, a3):
+    """Caja (oeste, sur, este, norte) del polígono más grande del país. Así un país con islas
+    lejanas o que cruza el antimeridiano (Rusia, Fiyi) no pide medio mundo."""
+    mejor, area = None, -1
+    for codigo, (x0, y0, x1, y1), _ in paises.formas:
+        if codigo == a3 and (x1 - x0) * (y1 - y0) > area:
+            mejor, area = (x0, y0, x1, y1), (x1 - x0) * (y1 - y0)
+    return mejor
+
+
+def firms_pedir(url):
+    """Como descargar(), pero si FIRMS rechaza la petición enseña su motivo (sin la clave)."""
+    for intento in range(2):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "atalaya/1.0"})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return r.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            motivo = e.read()[:200].decode("utf-8", "replace").strip()
+            log(f"  FIRMS ha rechazado la petición: HTTP {e.code} {motivo}".replace(FIRMS_KEY, "***"))
+            if e.code < 500:
+                return None
+        except (urllib.error.URLError, TimeoutError) as e:
+            log(f"  FIRMS no responde: {e}")
+        time.sleep(3)
+    return None
+
+
 def incendios(paises):
     """Focos de calor detectados por satélite (NASA FIRMS, VIIRS) en países en guerra o en alerta.
     En una zona de combates, muchos más incendios de lo habitual delatan bombardeos y frentes
@@ -1489,14 +1520,24 @@ def incendios(paises):
     historial = leer("incendios_historial.json", {})
     eventos, anomalias, fallos = [], {}, 0
     for a3 in vigilados:
-        texto = descargar(FIRMS_URL.format(clave=FIRMS_KEY, pais=a3), como="texto", intentos=2, espera=3)
+        caja = caja_pais(paises, a3)
+        if not caja:
+            continue
+        filas, texto = [], None
+        for sensor in FIRMS_SENSORES:
+            texto = firms_pedir(FIRMS_URL.format(clave=FIRMS_KEY, sensor=sensor, caja=",".join(f"{x:.2f}" for x in caja)))
+            if texto is None:
+                continue
+            exigir(texto.startswith("latitude") or not texto.strip(), f"respuesta inesperada de FIRMS: {texto[:80]!r}")
+            filas = list(csv.DictReader(io.StringIO(texto)))
+            if filas:
+                break  # basta con un satélite: cada uno cubre el planeta al menos dos veces al día
         if texto is None:
             fallos += 1
             continue
-        exigir(texto.startswith(("country_id", "latitude")) or not texto.strip(),
-               f"respuesta inesperada de FIRMS: {texto[:80]!r}")
-        filas = list(csv.DictReader(io.StringIO(texto)))
-        focos = [f for f in filas if f.get("confidence", "n") != "l"]
+        # La caja incluye trozos de los vecinos: solo cuentan los focos dentro del país
+        focos = [f for f in filas if f.get("confidence", "n") != "l"
+                 and paises.punto(float(f["longitude"]), float(f["latitude"])) == a3]
         n = len(focos)
         serie = historial.setdefault(a3, {})
         previos = [v for d, v in sorted(serie.items()) if d < HOY][-30:]
@@ -1519,6 +1560,7 @@ def incendios(paises):
         })
     if fallos == len(vigilados):
         return None
+    log("  focos por país: " + ", ".join(f"{a}={historial[a][HOY]}" for a in vigilados if HOY in historial.get(a, {})))
     corte = (AHORA - timedelta(days=45)).strftime("%Y-%m-%d")
     escribir("incendios_historial.json", {a: {d: v for d, v in s.items() if d >= corte} for a, s in historial.items()})
     return {"eventos": eventos, "incendios": anomalias}

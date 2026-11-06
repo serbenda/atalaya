@@ -328,16 +328,17 @@ class TestRetroceso(Base):
 
 class TestIncendios(Base):
     def csv(self, n, lat=48.0, lon=37.8):
-        filas = ["country_id,latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight"]
-        filas += [f"UKR,{lat + i * 0.001},{lon},330,0.4,0.4,2026-11-06,0100,N,VIIRS,n,2.0NRT,290,5,N" for i in range(n)]
-        filas += [f"UKR,{lat},{lon},300,0.4,0.4,2026-11-06,0100,N,VIIRS,l,2.0NRT,290,1,N" for _ in range(50)]  # baja confianza
+        filas = ["latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight"]
+        filas += [f"{lat + i * 0.001},{lon},330,0.4,0.4,2026-11-06,0100,N,VIIRS,n,2.0NRT,290,5,N" for i in range(n)]
+        filas += [f"{lat},{lon},300,0.4,0.4,2026-11-06,0100,N,VIIRS,l,2.0NRT,290,1,N" for _ in range(50)]  # baja confianza
+        filas += [f"52.2,21.0,330,0.4,0.4,2026-11-06,0100,N,VIIRS,n,2.0NRT,290,5,N" for _ in range(40)]  # Polonia: fuera
         return "\n".join(filas) + "\n"
 
     def test_incendios_anomalos(self):
         previos = {(act.AHORA - timedelta(days=i)).strftime("%Y-%m-%d"): 20 for i in range(1, 11)}
         act.escribir("incendios_historial.json", {"UKR": previos})
         with mock.patch.object(act, "FIRMS_KEY", "clave"), mock.patch.object(act, "FIRMS_FIJOS", ("UKR",)), \
-             mock.patch.object(act, "descargar", return_value=self.csv(80)):
+             mock.patch.object(act, "firms_pedir", return_value=self.csv(80)):
             r = act.incendios(self.paises)
         self.assertEqual(r["incendios"], {"UKR": 4.0})
         self.assertEqual(r["eventos"][0]["tipo"], "incendios")
@@ -345,7 +346,7 @@ class TestIncendios(Base):
 
     def test_sin_linea_base_no_avisa(self):
         with mock.patch.object(act, "FIRMS_KEY", "clave"), mock.patch.object(act, "FIRMS_FIJOS", ("UKR",)), \
-             mock.patch.object(act, "descargar", return_value=self.csv(500)):
+             mock.patch.object(act, "firms_pedir", return_value=self.csv(500)):
             r = act.incendios(self.paises)
         self.assertEqual(r["eventos"], [])
 
