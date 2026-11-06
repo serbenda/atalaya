@@ -40,6 +40,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import aprendizaje  # noqa: E402
 import inteligencia  # noqa: E402
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -93,6 +94,14 @@ ANALISIS_URLS = {"Real Instituto Elcano": google_noticias("site:realinstitutoelc
 CLOUDFLARE_TOKEN = os.environ.get("CLOUDFLARE_TOKEN", "").strip()
 CLOUDFLARE_URL = "https://api.cloudflare.com/client/v4/radar/annotations/outages?dateRange=1d&format=json&limit=100"
 UCDP_TOKEN = os.environ.get("UCDP_TOKEN", "").strip()
+# NASA FIRMS (incendios por satélite): clave gratuita en firms.modaps.eosdis.nasa.gov/api/map_key/
+FIRMS_KEY = os.environ.get("FIRMS_KEY", "").strip()
+FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/country/csv/{clave}/VIIRS_SNPP_NRT/{pais}/1"
+# Países que se vigilan aunque la última ejecución no los marque (guerras abiertas)
+FIRMS_FIJOS = ("UKR", "RUS", "SDN", "PSE", "ISR", "MMR", "COD", "SYR", "YEM", "LBN", "SSD", "ETH")
+FIRMS_MAX = 18          # consultas por ejecución (el límite de la API es 5000 cada 10 minutos)
+FIRMS_MIN = 30          # focos mínimos para avisar
+FIRMS_VECES = 2.5       # cuántas veces lo habitual
 UCDP_VERSION = os.environ.get("UCDP_VERSION", "").strip() or "26.0.9"
 UCDP_URL = f"https://ucdpapi.pcr.uu.se/api/gedevents/{UCDP_VERSION}?pagesize=1000&StartDate=" + \
     (AHORA - timedelta(days=90)).strftime("%Y-%m-%d")
@@ -1158,9 +1167,9 @@ def reliefweb(paises):
 # reales: en un país en guerra abierta ronda el 3-7 %; en uno en paz, por debajo del 1 %.
 CUOTA_PLENA = 0.05
 CLAVES_PUNTOS = ("conflicto", "protestas", "desastres", "internet", "censura", "avisos", "epidemias", "humanitaria",
-                 "economia")
+                 "economia", "incendios")
 PARTE_DE = {"internet": "internet", "censura": "censura", "aviso": "avisos", "epidemia": "epidemias", "crisis": "humanitaria",
-            "economia": "economia"}
+            "economia": "economia", "incendios": "incendios"}
 
 
 def aceleracion(g):
@@ -1367,8 +1376,10 @@ def archivar(alertas, eventos, titulares):
 
     historico = leer("historico.json", {})
     riesgo = {"bajo": 0, "medio": 1, "alto": 2}
+    # [puntuación, nivel, empeora, grado del pronóstico, probabilidad (si hay modelo), señales del modelo]
     historico[HOY] = {a3: [p["puntuacion"], RANGO[p["nivel"]], int(p["escalada"]),
-                           riesgo.get(p.get("pronostico", {}).get("riesgo"), 0)]
+                           riesgo.get(p.get("pronostico", {}).get("riesgo"), 0),
+                           p.get("pronostico", {}).get("probabilidad"), p.get("rasgos")]
                       for a3, p in alertas["paises"].items()}
     escribir("historico.json", dict(sorted(historico.items())))
 
@@ -1376,7 +1387,7 @@ def archivar(alertas, eventos, titulares):
                    "pronostico", "region", "espana", "exteriores",
                    "dias_subiendo", "aviso_viaje", "conflicto", "protestas", "desastres", "epidemias",
                    "internet", "avisos", "humanitaria", "cuota_violencia", "hechos_violentos", "protestas_n",
-                   "censura", "economia", "analisis", "elecciones", "divisa_caida", "desescalada")
+                   "censura", "economia", "incendios", "analisis", "elecciones", "divisa_caida", "desescalada")
     campos_evento = ("id", "tipo", "titulo", "lugar", "pais", "lat", "lon", "fecha", "nivel", "peso",
                      "magnitud", "menciones", "hechos", "fuente", "url", "estado")
     del_dia = [e for e in eventos if reciente(e, VENTANA_PUNTUACION) or e["tipo"] in ("epidemia", "crisis")]
@@ -1462,6 +1473,57 @@ def divisas(paises):
     return {"eventos": eventos, "divisas": caidas}
 
 
+def incendios(paises):
+    """Focos de calor detectados por satélite (NASA FIRMS, VIIRS) en países en guerra o en alerta.
+    En una zona de combates, muchos más incendios de lo habitual delatan bombardeos y frentes
+    activos, a menudo antes que la prensa. Se compara con la línea base de cada país, porque las
+    quemas agrícolas varían mucho según la época."""
+    if not FIRMS_KEY:
+        return {"eventos": [], "desactivada": True}
+    anteriores = leer("alertas.json", {}).get("paises", {})
+    vigilados = sorted(anteriores, key=lambda a: -(anteriores[a].get("conflicto") or 0))
+    vigilados = [a for a in vigilados if (anteriores[a].get("conflicto") or 0) > 0][:FIRMS_MAX]
+    for a3 in FIRMS_FIJOS:
+        if a3 not in vigilados and len(vigilados) < FIRMS_MAX + len(FIRMS_FIJOS):
+            vigilados.append(a3)
+    historial = leer("incendios_historial.json", {})
+    eventos, anomalias, fallos = [], {}, 0
+    for a3 in vigilados:
+        texto = descargar(FIRMS_URL.format(clave=FIRMS_KEY, pais=a3), como="texto", intentos=2, espera=3)
+        if texto is None:
+            fallos += 1
+            continue
+        exigir(texto.startswith(("country_id", "latitude")) or not texto.strip(),
+               f"respuesta inesperada de FIRMS: {texto[:80]!r}")
+        filas = list(csv.DictReader(io.StringIO(texto)))
+        focos = [f for f in filas if f.get("confidence", "n") != "l"]
+        n = len(focos)
+        serie = historial.setdefault(a3, {})
+        previos = [v for d, v in sorted(serie.items()) if d < HOY][-30:]
+        serie[HOY] = n
+        if len(previos) < 7 or n < FIRMS_MIN:
+            continue
+        habitual = max(statistics.median(previos), 5)
+        veces = n / habitual
+        if veces < FIRMS_VECES:
+            continue
+        anomalias[a3] = round(veces, 1)
+        lat = statistics.fmean(float(f["latitude"]) for f in focos)
+        lon = statistics.fmean(float(f["longitude"]) for f in focos)
+        eventos.append({
+            "id": f"incendios-{a3}-{HOY}", "tipo": "incendios",
+            "titulo": f"{n} focos de calor detectados por satélite, {veces:.1f} veces lo habitual",
+            "lugar": "", "pais": a3, "lat": round(lat, 3), "lon": round(lon, 3), "fecha": iso(AHORA),
+            "peso": 3 if veces >= 4 else 2, "nivel": "verde", "fuente": "NASA FIRMS", "familia": "tecnica",
+            "url": "https://firms.modaps.eosdis.nasa.gov/map/",
+        })
+    if fallos == len(vigilados):
+        return None
+    corte = (AHORA - timedelta(days=45)).strftime("%Y-%m-%d")
+    escribir("incendios_historial.json", {a: {d: v for d, v in s.items() if d >= corte} for a, s in historial.items()})
+    return {"eventos": eventos, "incendios": anomalias}
+
+
 # Elecciones y referendos en los próximos 45 días (Wikidata). Son fechas de riesgo: protestas,
 # cortes de internet y crisis de gobierno se concentran alrededor de ellas.
 WIKIDATA_URL = "https://query.wikidata.org/sparql"
@@ -1520,7 +1582,7 @@ FUENTES = [("USGS", usgs), ("EMSC", emsc), ("IGN", ign), ("GDACS", gdacs), ("Cop
            ("NASA EONET", eonet), ("GDELT", gdelt), ("Titulares", titulares), ("Análisis", analisis),
            ("IODA", ioda), ("Cloudflare Radar", cloudflare), ("OONI", ooni), ("Exteriores (España)", exteriores),
            ("Avisos de viaje EE. UU.", avisos_viaje), ("OMS", oms), ("ReliefWeb", reliefweb), ("UCDP", ucdp),
-           ("Tipos de cambio", divisas), ("Elecciones (Wikidata)", elecciones)]
+           ("Tipos de cambio", divisas), ("Elecciones (Wikidata)", elecciones), ("Incendios (NASA FIRMS)", incendios)]
 # Fuentes que no aportan eventos sino otros datos: si fallan, se conservan esos datos
 DATOS_DE_FUENTE = {"Titulares": "titulares", "Análisis": "analisis", "Elecciones (Wikidata)": "elecciones"}
 
@@ -1604,6 +1666,7 @@ def main():
                                 for a in t.get("paises", [])},
            "ucdp": extra.get("ucdp") or anterior.get("ucdp") or {},
            "divisas": extra.get("divisas", anterior.get("divisas") or {}),
+           "incendios": extra.get("incendios", anterior.get("incendios") or {}),
            "elecciones": {},
            "reconstruidos": leer("retroceso.json", {}).get("dias", []),
            "exteriores": extra.get("exteriores") or leer("exteriores.json", {}).get("paises") and
@@ -1631,11 +1694,23 @@ def main():
     for x in extra.get("elecciones", []):
         ctx["elecciones"].setdefault(x["pais"], []).append(x)
     intereses = json.loads((FIJOS / "intereses_espana.json").read_text("utf-8"))
-    inteligencia.enriquecer(alertas, ctx, intereses, leer("historico.json", {}))
+    historico = leer("historico.json", {})
+    # Pronóstico aprendido: se reentrena una vez al día con el histórico (real y reconstruido)
+    modelo = leer("modelo_aprendido.json", {})
+    if modelo.get("entrenado") != HOY:
+        modelo = aprendizaje.entrenar(historico, ctx["reconstruidos"], HOY)
+        escribir("modelo_aprendido.json", modelo)
+        log(f"Modelo aprendido: {'activo' if modelo['activo'] else 'no se usa'} "
+            f"({modelo.get('motivo') or 'mejora ' + str(modelo['validacion']['mejora'])}, {modelo['muestras']} muestras)")
+    ctx["modelo"] = modelo
+    inteligencia.enriquecer(alertas, ctx, intereses, historico)
+    alertas["modelo"] = {k: modelo.get(k) for k in ("activo", "motivo", "muestras", "dias", "validacion", "entrenado")}
+    if modelo.get("activo"):
+        alertas["modelo"]["importancia"] = modelo["importancia"][:6]
 
     escribir("eventos.json", {"actualizado": iso(AHORA), "fuentes": estado, "eventos": eventos,
                               "titulares": extra.get("titulares", []), "analisis": extra.get("analisis", []),
-                              "ucdp": ctx["ucdp"], "divisas": ctx["divisas"],
+                              "ucdp": ctx["ucdp"], "divisas": ctx["divisas"], "incendios": ctx["incendios"],
                               "elecciones": extra.get("elecciones", []),
                               "gdelt_paises": gdelt_paises, "gdelt_pasos": gdelt_pasos})
     escribir("alertas.json", alertas)

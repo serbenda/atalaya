@@ -314,15 +314,44 @@ class TestRetroceso(Base):
 
     def test_rendimiento(self):
         import inteligencia
-        # 20 días, 3 países: el modelo dice "alto" en el que empeora y "bajo" en los demás
+        # 20 días, 3 países: el modelo dice "alto" en el que empeora (dos días de cada cuatro en alerta)
+        # y "bajo" en los que no cambian
         historico = {}
         for i in range(20):
             d = f"2026-10-{i + 1:02d}"
-            historico[d] = {"AAA": [10, i % 2, 0, 2], "BBB": [5, 0, 0, 0], "CCC": [5, 0, 0, 0]}
+            historico[d] = {"AAA": [10, 1 if i % 4 >= 2 else 0, 0, 2], "BBB": [5, 0, 0, 0], "CCC": [5, 0, 0, 0]}
         r = inteligencia.rendimiento(historico)
         self.assertGreater(r["muestras"], 30)
         self.assertGreater(r["mejora_media"], 0)
         self.assertEqual(r["calibracion"][0]["riesgo"], "alto")
+
+
+class TestIncendios(Base):
+    def csv(self, n, lat=48.0, lon=37.8):
+        filas = ["country_id,latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight"]
+        filas += [f"UKR,{lat + i * 0.001},{lon},330,0.4,0.4,2026-11-06,0100,N,VIIRS,n,2.0NRT,290,5,N" for i in range(n)]
+        filas += [f"UKR,{lat},{lon},300,0.4,0.4,2026-11-06,0100,N,VIIRS,l,2.0NRT,290,1,N" for _ in range(50)]  # baja confianza
+        return "\n".join(filas) + "\n"
+
+    def test_incendios_anomalos(self):
+        previos = {(act.AHORA - timedelta(days=i)).strftime("%Y-%m-%d"): 20 for i in range(1, 11)}
+        act.escribir("incendios_historial.json", {"UKR": previos})
+        with mock.patch.object(act, "FIRMS_KEY", "clave"), mock.patch.object(act, "FIRMS_FIJOS", ("UKR",)), \
+             mock.patch.object(act, "descargar", return_value=self.csv(80)):
+            r = act.incendios(self.paises)
+        self.assertEqual(r["incendios"], {"UKR": 4.0})
+        self.assertEqual(r["eventos"][0]["tipo"], "incendios")
+        self.assertEqual(r["eventos"][0]["peso"], 3)
+
+    def test_sin_linea_base_no_avisa(self):
+        with mock.patch.object(act, "FIRMS_KEY", "clave"), mock.patch.object(act, "FIRMS_FIJOS", ("UKR",)), \
+             mock.patch.object(act, "descargar", return_value=self.csv(500)):
+            r = act.incendios(self.paises)
+        self.assertEqual(r["eventos"], [])
+
+    def test_sin_clave(self):
+        with mock.patch.object(act, "FIRMS_KEY", ""):
+            self.assertTrue(act.incendios(self.paises)["desactivada"])
 
 
 class TestSenalesTempranas(Base):
@@ -461,6 +490,7 @@ class TestInteligencia(Base):
         h = {f"2026-10-{d:02d}": {"MLI": [5, 0, 0, 2 if d == 1 else 0], "CHL": [1, 0, 0, 2 if d == 1 else 0]}
              for d in range(1, 10)}
         h["2026-10-04"]["MLI"] = [20, 2, 1, 0]
+        h["2026-10-05"]["MLI"] = [20, 2, 1, 0]  # empeora de forma sostenida (dos días seguidos)
         f = act.inteligencia.fiabilidad(h)
         self.assertEqual(f["alto"], {"aciertos": 1, "total": 2})
 

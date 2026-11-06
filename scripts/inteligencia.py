@@ -13,6 +13,8 @@ Todo es transparente: cada juicio dice qué indicadores lo sostienen.
 
 import statistics
 
+import aprendizaje
+
 RANGO = {"verde": 0, "ambar": 1, "rojo": 2}
 RIESGO = {0: "bajo", 1: "medio", 2: "alto"}
 # Lenguaje estimativo (inspirado en la norma ICD 203 de la comunidad de inteligencia de EE. UU.)
@@ -48,7 +50,8 @@ PASOS_PAISES = {"ormuz": ["IRN", "OMN", "ARE"], "bab": ["YEM", "DJI", "ERI"], "s
 # Escenarios: (id, nombre, [(indicador, peso)]). Un indicador clave pesa 2.
 ESCENARIOS = [
     ("escalada", "Escalada militar", [("violencia_sube", 2), ("interestatal", 2), ("militar", 1),
-                                      ("aviso_sube", 1), ("exteriores_alto", 1), ("contagio", 1), ("ruta_cercana", 1)]),
+                                      ("aviso_sube", 1), ("exteriores_alto", 1), ("contagio", 1), ("ruta_cercana", 1),
+                                      ("incendios", 1)]),
     ("golpe", "Golpe o crisis de gobierno", [("corte_internet", 2), ("censura", 2), ("militar", 1),
                                              ("protestas_suben", 1), ("golpe_en_prensa", 2), ("aviso_sube", 1),
                                              ("moneda_cae", 1), ("eleccion_cercana", 1)]),
@@ -77,6 +80,7 @@ TEXTO_INDICADOR = {
     "crisis_humanitaria": "Crisis humanitaria abierta",
     "muertes_verificadas": "Muertes en combate verificadas (UCDP)",
     "moneda_cae": "La moneda se hunde frente al dólar",
+    "incendios": "Incendios por satélite muy por encima de lo habitual",
     "eleccion_cercana": "Elecciones o referéndum en las próximas semanas",
 }
 
@@ -201,6 +205,7 @@ def indicadores(a3, p, ctx):
         "crisis_humanitaria": bool(p.get("crisis_abierta")),
         "muertes_verificadas": ctx["ucdp"].get(a3, 0) >= 25,
         "moneda_cae": ctx.get("divisas", {}).get(a3, 0) >= 0.08,
+        "incendios": bool(ctx.get("incendios", {}).get(a3)),
         "eleccion_cercana": bool(ctx.get("elecciones", {}).get(a3)),
     }, vecinos_mal
 
@@ -240,8 +245,13 @@ def escenarios(a3, p, ctx):
     return resultado, vecinos_mal
 
 
-def pronostico(p, escs):
-    """Riesgo de que el país empeore en los próximos 7 días, con lenguaje estimativo."""
+# Con el modelo aprendido, la probabilidad decide el grado
+UMBRAL_ALTO, UMBRAL_MEDIO = 0.40, 0.20
+
+
+def pronostico(p, escs, probabilidad=None):
+    """Riesgo de que el país empeore en los próximos 7 días, con lenguaje estimativo. Si hay modelo
+    aprendido y validado, usa su probabilidad; si no, reglas fijas."""
     serie = p.get("serie") or [p.get("puntuacion", 0)]
     m = pendiente(serie)
     actual = p.get("puntuacion", 0)
@@ -249,7 +259,9 @@ def pronostico(p, escs):
     # Aceleración de las últimas 12 h: da tendencia aunque aún no haya histórico de días
     acel = p.get("aceleracion") or 1
     acelera = acel >= 1.8 and actual >= 6
-    if (m >= 1.5 and actual >= 8) or peor_escenario == 2 or (p.get("escalada") and m > 0.5) or (acelera and peor_escenario):
+    if probabilidad is not None:
+        riesgo = "alto" if probabilidad >= UMBRAL_ALTO else "medio" if probabilidad >= UMBRAL_MEDIO else "bajo"
+    elif (m >= 1.5 and actual >= 8) or peor_escenario == 2 or (p.get("escalada") and m > 0.5) or (acelera and peor_escenario):
         riesgo = "alto"
     elif m >= 0.5 or peor_escenario == 1 or p.get("escalada") or acelera:
         riesgo = "medio"
@@ -258,8 +270,12 @@ def pronostico(p, escs):
     textos = {"alto": "Probable que empeore en los próximos 7 días",
               "medio": "Posible que empeore en los próximos 7 días",
               "bajo": "Poco probable que empeore en los próximos 7 días"}
-    return {"riesgo": riesgo, "texto": textos[riesgo], "pendiente": round(m, 2),
-            "proyeccion": round(max(0.0, actual + 7 * m), 1), "aceleracion": p.get("aceleracion")}
+    resultado = {"riesgo": riesgo, "texto": textos[riesgo], "pendiente": round(m, 2),
+                 "proyeccion": round(max(0.0, actual + 7 * m), 1), "aceleracion": p.get("aceleracion"),
+                 "metodo": "aprendido" if probabilidad is not None else "reglas"}
+    if probabilidad is not None:
+        resultado["probabilidad"] = round(probabilidad, 3)
+    return resultado
 
 
 def fiabilidad(historico, dias=30):
@@ -275,8 +291,7 @@ def fiabilidad(historico, dias=30):
             if len(v) < 4:
                 continue
             riesgo = {2: "alto", 1: "medio", 0: "bajo"}[v[3]]
-            empeoro = any(historico[s].get(a3, [0, 0, 0])[1] > v[1] or historico[s].get(a3, [0, 0, 0])[2]
-                          for s in siguientes)
+            empeoro = aprendizaje.empeoro(historico, a3, v, siguientes)
             cuenta[riesgo][1] += 1
             cuenta[riesgo][0] += int(empeoro)
     return {r: {"aciertos": a, "total": t} for r, (a, t) in cuenta.items() if t}
@@ -305,9 +320,9 @@ def rendimiento(historico, reconstruidos=(), dias=60):
         for a3, v in historico[d].items():
             if len(v) < 4:
                 continue
-            empeoro = any(historico[s].get(a3, [0, 0, 0])[1] > v[1] or historico[s].get(a3, [0, 0, 0])[2]
-                          for s in siguientes)
-            pares.append((PROB_PRONOSTICO[v[3]], int(empeoro), v[1], v[3], d in reconstruidos))
+            empeoro = aprendizaje.empeoro(historico, a3, v, siguientes)
+            prob = v[4] if len(v) > 4 and v[4] is not None else PROB_PRONOSTICO[v[3]]
+            pares.append((prob, int(empeoro), v[1], v[3], d in reconstruidos))
     if len(pares) < 30:
         return {"muestras": len(pares)}
     n = len(pares)
@@ -321,10 +336,10 @@ def rendimiento(historico, reconstruidos=(), dias=60):
     brier_nivel = sum((tasa_nivel[nivel] - y) ** 2 for _, y, nivel, *_ in pares) / n
     calibracion = []
     for grado, nombre in ((2, "alto"), (1, "medio"), (0, "bajo")):
-        ys = [y for _, y, _, g, _ in pares if g == grado]
-        if ys:
-            calibracion.append({"riesgo": nombre, "dicho": PROB_PRONOSTICO[grado],
-                                "observado": round(sum(ys) / len(ys), 3), "muestras": len(ys)})
+        sel = [(p, y) for p, y, _, g, _ in pares if g == grado]
+        if sel:
+            calibracion.append({"riesgo": nombre, "dicho": round(sum(p for p, _ in sel) / len(sel), 3),
+                                "observado": round(sum(y for _, y in sel) / len(sel), 3), "muestras": len(sel)})
 
     def mejora(ref):
         return round(1 - brier / ref, 3) if ref else None
@@ -409,10 +424,14 @@ def informe(paises, pasos, intereses, calibrando):
 def enriquecer(alertas, ctx, intereses, historico):
     """Añade escenarios, pronóstico, región e interés para España a cada país, y el informe."""
     ctx = {**ctx, "paises": alertas["paises"]}
+    aprendido = ctx.get("modelo") or {}
     for a3, p in alertas["paises"].items():
         escs, vecinos_mal = escenarios(a3, p, ctx)
         p["escenarios"] = escs
-        p["pronostico"] = pronostico(p, escs)
+        x = aprendizaje.rasgos(p, ctx["gdelt"].get(a3, {}), len(vecinos_mal))
+        p["rasgos"] = x
+        prob = aprendizaje.predecir(aprendido["modelo"], x) if aprendido.get("activo") else None
+        p["pronostico"] = pronostico(p, escs, prob)
         an = analisis(a3, p, ctx, escs)
         if an:
             p["analisis"] = an
@@ -432,6 +451,8 @@ def enriquecer(alertas, ctx, intereses, historico):
             p["elecciones"] = [{k: x[k] for k in ("fecha", "nombre", "url")} for x in ctx["elecciones"][a3]]
         if ctx.get("divisas", {}).get(a3):
             p["divisa_caida"] = ctx["divisas"][a3]
+        if ctx.get("incendios", {}).get(a3):
+            p["incendios_veces"] = ctx["incendios"][a3]
     pasos = alertas.get("pasos", [])
     alertas["informe"] = informe(alertas["paises"], pasos, intereses, alertas.get("calibrando"))
     # Fechas clave: elecciones próximas, primero en los países que ya están en alerta o para vigilar

@@ -591,6 +591,18 @@
         ${(r.calibracion || []).map((c) => `<tr><td>${t({ alto: "Probable", medio: "Posible", bajo: "Poco probable" }[c.riesgo])}</td><td>${porc(c.dicho)}</td><td>${porc(c.observado)}</td><td>${numero.format(c.muestras)}</td></tr>`).join("")}
         </tbody></table></div>`;
     }
+    const mo = estado.modeloAprendido;
+    if (mo && mo.muestras) {
+      const v = mo.validacion;
+      html += `<div class="rendimiento"><p class="resumen"><strong>${t("Pronóstico aprendido")}</strong> `;
+      if (mo.activo) {
+        html += esc(t("En uso. Se entrena cada día con {n} casos y se valida con los días más recientes, que no ha visto: ahí acierta un {p} más que decir siempre la frecuencia media.", { n: numero.format(mo.muestras), p: pct(Math.round(v.mejora * 100)) })) + `</p>`;
+        if (mo.importancia?.length) html += `<p class="detalle-gris">${t("Lo que más pesa:")} ${esc(mo.importancia.slice(0, 4).map((x) => `${tb(x.nombre).toLowerCase()} (${x.peso > 0 ? "↑" : "↓"})`).join(", "))}.</p>`;
+      } else {
+        html += esc(t("Todavía no se usa: {m}. Mientras, el pronóstico sigue reglas fijas.", { m: tb(mo.motivo || "").toLowerCase() })) + `</p>`;
+      }
+      html += `</div>`;
+    }
 
     const fuentes = Object.entries(estado.fuentes);
     if (fuentes.length) {
@@ -700,6 +712,7 @@
       [t("Brotes epidémicos (OMS, 30 días)"), estado.capas.has("epidemia") ? de("epidemia") : []],
       [t("Crisis humanitarias abiertas"), de("crisis").filter((e) => e.estado === "alert")],
       [t("Monedas que se hunden frente al dólar (7 días)"), de("economia")],
+      [t("Incendios por satélite muy por encima de lo habitual"), de("incendios")],
       [t("Cortes de internet grandes en 24 horas"), estado.capas.has("internet") ? de("internet").sort((a, b) => b.peso - a.peso) : []],
       [t("Más noticias de ataques o enfrentamientos"), top("conflicto")],
       [t("Más noticias de protestas"), top("protesta")],
@@ -770,6 +783,7 @@
     if (a.avisos) partes.push(t("{n} por subir el aviso de viaje", { n: n(a.avisos) }));
     if (a.humanitaria) partes.push(t("{n} por crisis humanitaria", { n: n(a.humanitaria) }));
     if (a.economia) partes.push(t("{n} por la caída de su moneda", { n: n(a.economia) }));
+    if (a.incendios) partes.push(t("{n} por incendios detectados por satélite", { n: n(a.incendios) }));
     let texto = partes.length ? t(estado.dia ? "La puntuación de ese día suma {x}." : "La puntuación de hoy suma {x}.", { x: lista(partes) }) : "";
     if (a.tendencia === "sube") texto += t(" Está por encima de lo habitual para este país.");
     else if (a.tendencia === "baja") texto += t(" Está por debajo de lo habitual para este país.");
@@ -801,7 +815,7 @@
     html += `</div>`;
     if (a?.pronostico || a?.escenarios?.length) {
       html += `<h3 class="grupo">${t("Pronóstico y escenarios")}</h3><div class="ficha">`;
-      if (a.pronostico) html += `<p class="pronostico riesgo-${a.pronostico.riesgo}"><strong>${esc(tb(a.pronostico.texto))}.</strong> <span class="detalle-gris">${t("Estimación automática, sin validez oficial.")}</span>${a.pronostico.pendiente ? t(" Tendencia de la última semana: {n} puntos al día.", { n: (a.pronostico.pendiente > 0 ? "+" : "") + numero.format(a.pronostico.pendiente) }) : ""}</p>`;
+      if (a.pronostico) html += `<p class="pronostico riesgo-${a.pronostico.riesgo}"><strong>${esc(tb(a.pronostico.texto))}${a.pronostico.probabilidad != null ? ` (${pct(Math.round(a.pronostico.probabilidad * 100))})` : ""}.</strong>${a.pronostico.probabilidad != null ? ` <span class="detalle-gris">${t("Probabilidad del modelo aprendido de los datos.")}</span>` : ""} <span class="detalle-gris">${t("Estimación automática, sin validez oficial.")}</span>${a.pronostico.pendiente ? t(" Tendencia de la última semana: {n} puntos al día.", { n: (a.pronostico.pendiente > 0 ? "+" : "") + numero.format(a.pronostico.pendiente) }) : ""}</p>`;
       const relevantes = (a.escenarios || []).filter((e) => e.riesgo !== "bajo");
       if (!relevantes.length) html += `<p class="explicacion">${t("Ningún escenario de crisis tiene indicadores suficientes ahora mismo.")}</p>`;
       for (const e of relevantes) {
@@ -811,9 +825,10 @@
       if (a.vecinos_mal?.length) html += `<p class="explicacion">${esc(t("Vecinos en alerta o empeorando: {x}.", { x: lista(a.vecinos_mal.map((v) => nombrePais(v))) }))}</p>`;
       html += `</div>`;
     }
-    if (a?.elecciones?.length || a?.divisa_caida) {
+    if (a?.elecciones?.length || a?.divisa_caida || a?.incendios_veces) {
       html += `<h3 class="grupo">${t("Señales tempranas")}</h3><div class="ficha">`;
       if (a.divisa_caida) html += `<p><strong>${t("Su moneda ha perdido un {p} % frente al dólar en 7 días.", { p: Math.round(a.divisa_caida * 100) })}</strong>${t(" Las caídas bruscas suelen adelantarse a protestas o crisis de gobierno.")}</p>`;
+      if (a.incendios_veces) html += `<p><strong>${t("El satélite detecta {v} veces más incendios de lo habitual.", { v: numero.format(a.incendios_veces) })}</strong>${t(" En zonas de combate suelen delatar bombardeos o frentes activos; también pueden ser quemas agrícolas.")}</p>`;
       if (a.elecciones?.length) html += `<p><strong>${t("Próximas citas electorales:")}</strong></p><ul class="motivos">${a.elecciones.map((x) => `<li>${esc(diaMes(x.fecha))}: ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.nombre)}</a>` : esc(x.nombre)}</li>`).join("")}</ul>`;
       html += `</div>`;
     }
@@ -1019,6 +1034,7 @@
       estado.simulacion = alertas.simulacion || {};
       estado.fiabilidad = alertas.fiabilidad || {};
       estado.rendimiento = alertas.rendimiento || {};
+      estado.modeloAprendido = alertas.modelo || null;
       estado.analisis = eventos.analisis || [];
       estado.calibrando = alertas.calibrando;
       estado.actualizado = eventos.actualizado;
