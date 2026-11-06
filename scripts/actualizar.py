@@ -1531,6 +1531,7 @@ def incendios(paises):
         focos = [f for f in filas if f.get("confidence", "n") != "l"
                  and paises.punto(float(f["longitude"]), float(f["latitude"])) == a3]
         n = len(focos)
+        log(f"  {a3}: {len(filas)} focos en la zona, {n} en el país")
         serie = historial.setdefault(a3, {})
         previos = [v for d, v in sorted(serie.items()) if d < HOY][-30:]
         serie[HOY] = n
