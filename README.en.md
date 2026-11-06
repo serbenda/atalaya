@@ -34,6 +34,7 @@ with an alert level for each country, a daily report and scenario simulation.
 - [Security, privacy and ethics](#security-privacy-and-ethics)
 - [Sources](#sources)
 - [Roadmap](#roadmap)
+- [Developers](#developers)
 - [Support the project](#support-the-project)
 
 ---
@@ -553,6 +554,12 @@ Each case shows **why** it has those probabilities, the **spillover** to its nei
 - [ ] Food and displacement (WFP, IPC, UNHCR, IOM DTM) as early signals of humanitarian crises.
 - [ ] Satellite fire detection (NASA FIRMS) in conflict zones.
 - [ ] Accessible table view as an alternative to the map.
+
+---
+
+## Developers
+
+**Jesus Aguado** and **Sergio Bendaña** are the developers of atalaya.
 
 ---
 

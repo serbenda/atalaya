@@ -34,6 +34,7 @@ con un nivel de alerta por país, un informe diario y simulación de escenarios.
 - [Seguridad, privacidad y ética](#seguridad-privacidad-y-ética)
 - [Fuentes](#fuentes)
 - [Hoja de ruta](#hoja-de-ruta)
+- [Desarrolladores](#desarrolladores)
 - [Apoya el proyecto](#apoya-el-proyecto)
 
 ---
@@ -543,6 +544,12 @@ Cada caso muestra **por qué** tiene esas probabilidades, el **contagio** a sus 
 - [ ] Alimentos y desplazamientos (WFP, IPC, ACNUR, OIM DTM) como señales tempranas de crisis humanitarias.
 - [ ] Incendios por satélite (NASA FIRMS) en zonas de conflicto.
 - [ ] Vista de tabla accesible como alternativa al mapa.
+
+---
+
+## Desarrolladores
+
+**Jesus Aguado** y **Sergio Bendaña** son los desarrolladores de atalaya.
 
 ---
 
