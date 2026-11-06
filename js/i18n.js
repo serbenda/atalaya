@@ -208,6 +208,15 @@
     "Brotes epidémicos (OMS, 30 días)": "Disease outbreaks (WHO, 30 days)",
     "Crisis humanitarias abiertas": "Open humanitarian crises",
     "Monedas que se hunden frente al dólar (7 días)": "Currencies plunging against the dollar (7 days)",
+    "Incendios por satélite muy por encima de lo habitual": "Satellite-detected fires far above normal",
+    "{n} por incendios detectados por satélite": "{n} for satellite-detected fires",
+    "El satélite detecta {v} veces más incendios de lo habitual.": "Satellites detect {v} times more fires than usual.",
+    " En zonas de combate suelen delatar bombardeos o frentes activos; también pueden ser quemas agrícolas.": " In combat zones they often reveal shelling or active front lines; they can also be agricultural burning.",
+    "Probabilidad del modelo aprendido de los datos.": "Probability from the model learned from the data.",
+    "Pronóstico aprendido": "Learned forecast",
+    "En uso. Se entrena cada día con {n} casos y se valida con los días más recientes, que no ha visto: ahí acierta un {p} más que decir siempre la frecuencia media.": "In use. It is trained every day on {n} cases and validated on the most recent days, which it has not seen: there it does {p} better than always giving the average rate.",
+    "Lo que más pesa:": "What weighs most:",
+    "Todavía no se usa: {m}. Mientras, el pronóstico sigue reglas fijas.": "Not in use yet: {m}. Meanwhile the forecast follows fixed rules.",
     "Cortes de internet grandes en 24 horas": "Major internet outages in 24 hours",
     "Más noticias de ataques o enfrentamientos": "Most reported attacks or clashes",
     "Más noticias de protestas": "Most reported protests",
@@ -332,6 +341,17 @@
     "Crisis humanitaria abierta.": "Open humanitarian crisis.",
     "Muertes en combate verificadas (UCDP)": "Verified battle deaths (UCDP)",
     "La moneda se hunde frente al dólar": "The currency is plunging against the dollar",
+    "Incendios por satélite muy por encima de lo habitual": "Satellite-detected fires far above normal",
+    "Incendios (NASA FIRMS)": "Fires (NASA FIRMS)",
+    "Pocos días con 7 días de futuro": "Too few days with 7 days of outcome",
+    "Pocas muestras para entrenar y validar": "Too few samples to train and validate",
+    "En los días de validación no acierta más que la frecuencia media": "On the validation days it does no better than the average rate",
+    "Puntuación actual": "Current score", "Nivel actual": "Current level", "Ya está empeorando": "Already worsening",
+    "Distancia a lo habitual": "Distance from normal", "Tendencia de la semana": "Weekly trend",
+    "Días seguidos subiendo": "Days in a row rising", "Aceleración en 12 horas": "12-hour acceleration",
+    "Parte de la cobertura que es violencia": "Share of coverage that is violence", "Hechos entre países": "Events between countries",
+    "Peso de las protestas": "Weight of protests", "Hechos con ejércitos o grupos armados": "Events involving armies or armed groups",
+    "Señales de desescalada": "De-escalation signals", "Vecinos en alerta": "Neighbours on alert", "Nivel habitual del país": "Country's usual level",
     "Elecciones o referéndum en las próximas semanas": "Elections or a referendum in the coming weeks",
 
     // Pronóstico e informe
@@ -544,6 +564,8 @@
     [/^La UE activa Copernicus: (.+)$/, (m) => `EU activates Copernicus: ${tb(m[1])}`],
     [/^Exteriores eleva su recomendación: (.+)$/, (m) => `Spain's Foreign Ministry raises its advice: ${tb(m[1])}`],
     [/^El ([A-Z]{3}) pierde un (\d+) % frente al dólar en 7 días$/, (m) => `The ${m[1]} loses ${m[2]}% against the dollar in 7 days`],
+    [/^(\d+) focos de calor detectados por satélite, ([\d.]+) veces lo habitual$/, (m) => `${m[1]} heat spots detected by satellite, ${m[2]} times the usual`],
+    [/^pronóstico: (probable|posible|poco probable) que empeore \((\d+) % según el modelo aprendido\)$/, (m) => `forecast: ${tb(m[1])} to worsen (${m[2]}% according to the learned model)`.replace("possible to worsen", "could worsen")],
   ];
 
   function mayus(t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : t; }

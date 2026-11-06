@@ -40,6 +40,7 @@ jobs:
       RELIEFWEB_APPNAME: ${{ vars.RELIEFWEB_APPNAME }}
       UCDP_VERSION: ${{ vars.UCDP_VERSION }}
       UCDP_TOKEN: ${{ secrets.UCDP_TOKEN }}
+      FIRMS_KEY: ${{ secrets.FIRMS_KEY }}
       CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
       PUBLICAR: ${{ github.event_name != 'workflow_dispatch' || inputs.publicar }}
     steps:

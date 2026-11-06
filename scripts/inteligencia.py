@@ -50,7 +50,8 @@ PASOS_PAISES = {"ormuz": ["IRN", "OMN", "ARE"], "bab": ["YEM", "DJI", "ERI"], "s
 # Escenarios: (id, nombre, [(indicador, peso)]). Un indicador clave pesa 2.
 ESCENARIOS = [
     ("escalada", "Escalada militar", [("violencia_sube", 2), ("interestatal", 2), ("militar", 1),
-                                      ("aviso_sube", 1), ("exteriores_alto", 1), ("contagio", 1), ("ruta_cercana", 1)]),
+                                      ("aviso_sube", 1), ("exteriores_alto", 1), ("contagio", 1), ("ruta_cercana", 1),
+                                      ("incendios", 1)]),
     ("golpe", "Golpe o crisis de gobierno", [("corte_internet", 2), ("censura", 2), ("militar", 1),
                                              ("protestas_suben", 1), ("golpe_en_prensa", 2), ("aviso_sube", 1),
                                              ("moneda_cae", 1), ("eleccion_cercana", 1)]),
@@ -79,6 +80,7 @@ TEXTO_INDICADOR = {
     "crisis_humanitaria": "Crisis humanitaria abierta",
     "muertes_verificadas": "Muertes en combate verificadas (UCDP)",
     "moneda_cae": "La moneda se hunde frente al dólar",
+    "incendios": "Incendios por satélite muy por encima de lo habitual",
     "eleccion_cercana": "Elecciones o referéndum en las próximas semanas",
 }
 
@@ -203,6 +205,7 @@ def indicadores(a3, p, ctx):
         "crisis_humanitaria": bool(p.get("crisis_abierta")),
         "muertes_verificadas": ctx["ucdp"].get(a3, 0) >= 25,
         "moneda_cae": ctx.get("divisas", {}).get(a3, 0) >= 0.08,
+        "incendios": bool(ctx.get("incendios", {}).get(a3)),
         "eleccion_cercana": bool(ctx.get("elecciones", {}).get(a3)),
     }, vecinos_mal
 
@@ -448,6 +451,8 @@ def enriquecer(alertas, ctx, intereses, historico):
             p["elecciones"] = [{k: x[k] for k in ("fecha", "nombre", "url")} for x in ctx["elecciones"][a3]]
         if ctx.get("divisas", {}).get(a3):
             p["divisa_caida"] = ctx["divisas"][a3]
+        if ctx.get("incendios", {}).get(a3):
+            p["incendios_veces"] = ctx["incendios"][a3]
     pasos = alertas.get("pasos", [])
     alertas["informe"] = informe(alertas["paises"], pasos, intereses, alertas.get("calibrando"))
     # Fechas clave: elecciones próximas, primero en los países que ya están en alerta o para vigilar

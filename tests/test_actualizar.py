@@ -325,6 +325,34 @@ class TestRetroceso(Base):
         self.assertEqual(r["calibracion"][0]["riesgo"], "alto")
 
 
+class TestIncendios(Base):
+    def csv(self, n, lat=48.0, lon=37.8):
+        filas = ["country_id,latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight"]
+        filas += [f"UKR,{lat + i * 0.001},{lon},330,0.4,0.4,2026-11-06,0100,N,VIIRS,n,2.0NRT,290,5,N" for i in range(n)]
+        filas += [f"UKR,{lat},{lon},300,0.4,0.4,2026-11-06,0100,N,VIIRS,l,2.0NRT,290,1,N" for _ in range(50)]  # baja confianza
+        return "\n".join(filas) + "\n"
+
+    def test_incendios_anomalos(self):
+        previos = {(act.AHORA - timedelta(days=i)).strftime("%Y-%m-%d"): 20 for i in range(1, 11)}
+        act.escribir("incendios_historial.json", {"UKR": previos})
+        with mock.patch.object(act, "FIRMS_KEY", "clave"), mock.patch.object(act, "FIRMS_FIJOS", ("UKR",)), \
+             mock.patch.object(act, "descargar", return_value=self.csv(80)):
+            r = act.incendios(self.paises)
+        self.assertEqual(r["incendios"], {"UKR": 4.0})
+        self.assertEqual(r["eventos"][0]["tipo"], "incendios")
+        self.assertEqual(r["eventos"][0]["peso"], 3)
+
+    def test_sin_linea_base_no_avisa(self):
+        with mock.patch.object(act, "FIRMS_KEY", "clave"), mock.patch.object(act, "FIRMS_FIJOS", ("UKR",)), \
+             mock.patch.object(act, "descargar", return_value=self.csv(500)):
+            r = act.incendios(self.paises)
+        self.assertEqual(r["eventos"], [])
+
+    def test_sin_clave(self):
+        with mock.patch.object(act, "FIRMS_KEY", ""):
+            self.assertTrue(act.incendios(self.paises)["desactivada"])
+
+
 class TestSenalesTempranas(Base):
     def test_divisa_que_se_hunde(self):
         hace8 = (act.AHORA - timedelta(days=8)).strftime("%Y-%m-%d")
