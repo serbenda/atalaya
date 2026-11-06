@@ -1,4 +1,4 @@
-<div align="center">
+<div align="center"> 
 
 <img src="docs/img/atalaya-marca.png" alt="atalaya: visor de la situación mundial con alerta temprana" width="640">
 
