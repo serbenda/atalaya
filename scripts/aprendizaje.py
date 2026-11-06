@@ -55,8 +55,16 @@ def rasgos(p, g, vecinos_mal=0):
     conflicto = g.get("conflicto", 0)
     total = max(g.get("conflicto", 0) + g.get("protesta", 0), 1)
     acel = p.get("aceleracion") or 1
+    # El modelo aprende de días reconstruidos solo con GDELT: en los días reales se usa también solo la
+    # parte de GDELT (conflictos y protestas), para no comparar peras con manzanas. El nivel habitual
+    # se reescala con la misma proporción.
+    total_hoy = max(p.get("puntuacion", 0), 0)
+    gdelt_hoy = (p.get("conflicto") or 0) + (p.get("protestas") or 0)
+    if "conflicto" not in p and "protestas" not in p:
+        gdelt_hoy = total_hoy
+    proporcion = gdelt_hoy / total_hoy if total_hoy else 1.0
     valores = {
-        "puntuacion": math.log1p(max(p.get("puntuacion", 0), 0)),
+        "puntuacion": math.log1p(gdelt_hoy),
         "nivel": rango / 2,
         "escalada": float(bool(p.get("escalada"))),
         "z": acotar(p.get("z", 0), -3, 5) / 5,
@@ -69,7 +77,7 @@ def rasgos(p, g, vecinos_mal=0):
         "militar": g.get("militar", 0) / conflicto if conflicto else 0.0,
         "desescalada": acotar(g.get("desescalada", 0) / max(conflicto, 1), 0, 1),
         "vecinos_mal": min(vecinos_mal, 3) / 3,
-        "media": math.log1p(max(p.get("media", 0), 0)),
+        "media": math.log1p(max(p.get("media", 0), 0) * proporcion),
     }
     return [round(valores[r], 4) for r in RASGOS]
 

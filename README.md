@@ -235,6 +235,7 @@ Settings → Secrets and variables → Actions. Todos son opcionales: sin ellos,
 | Nombre | Tipo | Activa | Cómo conseguirlo |
 |---|---|---|---|
 | `UCDP_TOKEN` | Secreto | Muertes en conflictos verificadas (Universidad de Uppsala) | Email al responsable de la API ([ucdp.uu.se/apidocs](https://ucdp.uu.se/apidocs/)) |
+| `FIRMS_KEY` | Secreto | Incendios por satélite (NASA FIRMS) | Gratis e inmediata: [firms.modaps.eosdis.nasa.gov/api/map_key](https://firms.modaps.eosdis.nasa.gov/api/map_key/) |
 | `UCDP_VERSION` | Variable | Versión mensual de UCDP (por defecto `26.0.9`) | La última versión candidata de la misma página |
 | `CLOUDFLARE_TOKEN` | Secreto | Cortes de internet de Cloudflare Radar, con su causa | Token de API con permiso de lectura de Radar |
 | `RELIEFWEB_APPNAME` | Variable | Crisis humanitarias de ReliefWeb (OCHA) | Nombre de aplicación aprobado en [apidoc.reliefweb.int](https://apidoc.reliefweb.int/) |
@@ -281,6 +282,7 @@ atalaya/
 │   ├── actualizar.py          Fuentes, normalización, puntuación, alertas e histórico
 │   ├── inteligencia.py        Escenarios, pronóstico, regiones, España e informe
 │   ├── simulacion.py          Ramas, contagio e impacto para España
+│   ├── aprendizaje.py         Pronóstico aprendido (regresión logística validada)
 │   ├── telegram.py            Avisos por Telegram y feed RSS
 │   ├── retroceso.py           Reconstrucción del pasado con GDELT (backtesting)
 │   └── salud.py               Comprueba el estado de las fuentes
@@ -366,6 +368,8 @@ Todo vive en la rama `datos`, carpeta `data/`:
 | `archivo/indice.json` | Los días disponibles | Para siempre |
 | `avisos.json` y `exteriores.json` | Último nivel de los avisos de viaje y sus cambios | Se reemplaza |
 | `divisas_historial.json` | Tipo de cambio diario frente al dólar | Ventana de 30 días |
+| `incendios_historial.json` | Focos de calor diarios por país (FIRMS) | Ventana de 45 días |
+| `modelo_aprendido.json` | Pesos del pronóstico aprendido y su validación | Se reemplaza cada día |
 | `retroceso.json` | Días reconstruidos con GDELT | Para siempre |
 | `telegram.json`, `rss.json` y `avisos.xml` | Lo ya avisado (para no repetir) y el feed RSS | Se reemplaza |
 
@@ -393,6 +397,7 @@ Cada país suma puntos con lo ocurrido en las últimas 48 horas (30 días para e
 | EE. UU. sube su aviso de viaje | 4 por cada nivel |
 | Crisis humanitaria en alerta (ReliefWeb) | 6 |
 | La moneda pierde ≥ 8 % frente al dólar en 7 días | 1,5, o 3 si pierde ≥ 15 % |
+| Incendios por satélite ≥ 2,5 veces lo habitual (y ≥ 30 focos) | 2, o 3 si son ≥ 4 veces |
 
 **Para no confundir delincuencia con conflicto**, de GDELT solo cuentan los hechos principales de cada noticia (`IsRootEvent`) y la violencia en la que intervienen ejércitos, rebeldes, insurgentes, gobiernos, grupos armados conocidos o dos países distintos. La policía no cuenta como actor político, porque en la prensa casi siempre es crónica de sucesos.
 
@@ -453,15 +458,23 @@ Para no quedarse con la explicación más alarmante, cada ficha incluye lo que h
 
 - **Monedas**: una caída brusca frente al dólar (≥ 8 % en 7 días) suele adelantarse a protestas, escasez o crisis de gobierno.
 - **Elecciones y referendos** en los próximos 45 días, según Wikidata: aparecen en *Fechas clave* y como indicador.
-- Quedan fuera, porque necesitan claves o acuerdos de uso: barcos (AIS), espacio aéreo (OpenSky), incendios por satélite (FIRMS) y desplazamientos (OIM DTM, ACNUR).
+- **Incendios por satélite** (NASA FIRMS, sensor VIIRS) en los países con más conflicto y en las guerras abiertas. Cuenta los focos de calor de las últimas 24 horas y los compara con la mediana de los 30 días anteriores del mismo país, porque las quemas agrícolas cambian mucho según la época. Si hay al menos 30 focos y 2,5 veces lo habitual, suma puntos y enciende un indicador del escenario de escalada: en una zona de combates suelen delatar bombardeos y frentes activos antes que la prensa. Necesita la clave gratuita `FIRMS_KEY`.
+- Quedan fuera, porque necesitan claves o acuerdos de uso: barcos (AIS), espacio aéreo (OpenSky) y desplazamientos (OIM DTM, ACNUR).
 
 ### Pronóstico a 7 días y su acierto
 
-El pronóstico combina la **pendiente** de la última semana (mínimos cuadrados), los escenarios y la escalada, y se expresa con lenguaje estimativo: es *probable*, *posible* o *poco probable* que el país empeore.
+El pronóstico dice si es *probable*, *posible* o *poco probable* que el país **empeore en los 7 días siguientes**: que suba de nivel, o que empiece a empeorar respecto a lo habitual cuando no lo estaba. Seguir empeorando no cuenta, para que no sea un acierto fácil.
 
-Cada pronóstico se guarda en `historico.json`. Siete días después se comprueba si el país subió de nivel o empeoró, y el informe muestra el porcentaje de acierto de los últimos 30 días. Es la única forma honesta de saber si las reglas sirven.
+**Pronóstico aprendido.** [`aprendizaje.py`](scripts/aprendizaje.py) aprende de lo que pasó cuánto pesa cada señal, en vez de fijarlo a mano. Es una regresión logística (en Python estándar, sin librerías) con 14 señales: la puntuación y su nivel habitual, el nivel, si ya empeora, la distancia a lo habitual, la tendencia de la semana, los días seguidos subiendo, la aceleración en 12 horas, qué parte de la cobertura es violencia, los hechos entre países, las protestas, los hechos con ejércitos, la desescalada y los vecinos en alerta.
 
-**Rendimiento.** Además del acierto, se calcula la [puntuación de Brier](https://es.wikipedia.org/wiki/Puntuaci%C3%B3n_de_Brier) de los últimos 60 días (cada grado de pronóstico equivale a una probabilidad: 40, 25 y 10 %) y se compara con dos referencias ingenuas: decir siempre la frecuencia media, y fiarse solo del nivel actual de cada país (persistencia). Si el modelo no mejora a las referencias, las reglas no aportan. La tabla de **calibración** compara la probabilidad que da cada grado con la frecuencia con que el país empeoró de verdad.
+- **Se valida en el tiempo.** Se entrena con los días más antiguos y se mide con el 30 % más reciente, que el modelo no ha visto. **Solo se usa si en esos días acierta más que decir siempre la frecuencia media**; si no, el pronóstico sigue con las reglas fijas y la web dice por qué.
+- **Solo usa señales que existen también en los días reconstruidos** (GDELT y la evolución de la puntuación), para aprender del pasado sin trampas. Los cortes de internet, la censura, los incendios o los avisos de viaje siguen pesando en los escenarios y en la simulación.
+- Se reentrena una vez al día y se guarda en `modelo_aprendido.json`, con sus métricas de validación y lo que más pesa. Con el modelo activo, la ficha de cada país muestra la probabilidad (por ejemplo, *Posible que empeore (25 %)*); *probable* es desde el 40 % y *posible* desde el 20 %. La simulación parte de esa probabilidad.
+- Sin reglas fijas que retocar: basta con reconstruir más días (`retroceso_dias`) para que tenga más de lo que aprender.
+
+Cada pronóstico se guarda en `historico.json` con su probabilidad y sus señales. Siete días después se comprueba qué pasó, y el informe muestra el acierto de los últimos 30 días. Es la única forma honesta de saber si sirve.
+
+**Rendimiento.** Además del acierto, se calcula la [puntuación de Brier](https://es.wikipedia.org/wiki/Puntuaci%C3%B3n_de_Brier) de los últimos 60 días (con la probabilidad del modelo aprendido o, con las reglas fijas, 40, 25 y 10 % según el grado) y se compara con dos referencias ingenuas: decir siempre la frecuencia media, y fiarse solo del nivel actual de cada país (persistencia). Si el modelo no mejora a las referencias, las reglas no aportan. La tabla de **calibración** compara la probabilidad que da cada grado con la frecuencia con que el país empeoró de verdad.
 
 **Versión y errores.** [`data/modelo.json`](data/modelo.json) guarda la versión del modelo, sus cambios y los errores reconocidos y corregidos; la web los muestra en *Cómo se calcula*.
 
@@ -528,6 +541,7 @@ Cada caso muestra **por qué** tiene esas probabilidades, el **contagio** a sus 
 | [Cloudflare Radar](https://radar.cloudflare.com/) | Cortes de internet y su causa | Token |
 | [ReliefWeb](https://reliefweb.int/) | Crisis humanitarias (OCHA) | Nombre de aplicación |
 | [ExchangeRate-API](https://www.exchangerate-api.com/) | Tipos de cambio diarios frente al dólar | Libre |
+| [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) | Incendios y focos de calor por satélite (VIIRS) | Clave gratuita |
 | [Wikidata](https://www.wikidata.org/) | Elecciones y referendos próximos | Libre (SPARQL) |
 | [world.geo.json](https://github.com/johan/world.geo.json) | Fronteras de los países | Dominio público |
 
@@ -542,7 +556,8 @@ Cada caso muestra **por qué** tiene esas probabilidades, el **contagio** a sus 
 - [x] Medir el rendimiento frente a referencias (Brier y calibración).
 - [ ] Barcos (AIS) en las rutas marítimas y espacio aéreo cerrado (OpenSky, EASA).
 - [ ] Alimentos y desplazamientos (WFP, IPC, ACNUR, OIM DTM) como señales tempranas de crisis humanitarias.
-- [ ] Incendios por satélite (NASA FIRMS) en zonas de conflicto.
+- [x] Incendios por satélite (NASA FIRMS) en zonas de conflicto.
+- [x] Pronóstico aprendido de los datos y validado en el tiempo.
 - [ ] Vista de tabla accesible como alternativa al mapa.
 
 ---
