@@ -30,6 +30,7 @@ NOMBRES = {
 MIN_ENTRENAR = 300   # muestras mínimas para entrenar
 MIN_PROBAR = 100     # muestras mínimas para validar
 PARTE_PRUEBA = 0.3   # últimos días reservados para validar
+MEJORA_MINIMA = 0.02  # el modelo solo se usa si mejora al menos un 2 % a la referencia en validación
 L2 = 0.01
 ITERACIONES = 400
 PASO = 0.5
@@ -83,16 +84,16 @@ def rasgos(p, g, vecinos_mal=0):
 
 
 def empeoro(historico, a3, fila, siguientes):
-    """Lo que se quiere predecir: en los 7 días siguientes el país sube de nivel, o empieza a
-    empeorar cuando no lo estaba. (Si ya estaba empeorando, seguir así no cuenta como acierto fácil.)"""
+    """Lo que se quiere predecir: en los 7 días siguientes el país empeora **de forma sostenida**,
+    es decir, al menos dos días seguidos por encima de como estaba: sube de nivel, o empieza a
+    empeorar cuando no lo estaba. Un salto de un solo día suele ser ruido de las noticias, y
+    seguir empeorando cuando ya lo hacía tampoco cuenta, para que no sea un acierto fácil."""
     rango, escalaba = fila[1], fila[2]
+    peor = []
     for d in siguientes:
         otra = historico[d].get(a3)
-        if not otra:
-            continue
-        if otra[1] > rango or (otra[2] and not escalaba):
-            return True
-    return False
+        peor.append(bool(otra) and (otra[1] > rango or (bool(otra[2]) and not escalaba)))
+    return any(x and y for x, y in zip(peor, peor[1:]))
 
 
 def muestras(historico, reconstruidos=()):
@@ -179,7 +180,7 @@ def entrenar(historico, reconstruidos=(), hoy=""):
     resultado["validacion"] = {"desde": corte, "muestras": len(pru), "brier": round(b_modelo, 4),
                                "brier_referencia": round(b_ref, 4), "mejora": round(mejora, 3),
                                "calibracion": calibracion(ps, ys)}
-    if mejora <= 0:
+    if mejora < MEJORA_MINIMA:
         resultado["motivo"] = "En los días de validación no acierta más que la frecuencia media"
         return resultado
     # Validado: se reentrena con todo para usar la información más reciente

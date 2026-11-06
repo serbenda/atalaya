@@ -314,11 +314,12 @@ class TestRetroceso(Base):
 
     def test_rendimiento(self):
         import inteligencia
-        # 20 días, 3 países: el modelo dice "alto" en el que empeora y "bajo" en los demás
+        # 20 días, 3 países: el modelo dice "alto" en el que empeora (dos días de cada cuatro en alerta)
+        # y "bajo" en los que no cambian
         historico = {}
         for i in range(20):
             d = f"2026-10-{i + 1:02d}"
-            historico[d] = {"AAA": [10, i % 2, 0, 2], "BBB": [5, 0, 0, 0], "CCC": [5, 0, 0, 0]}
+            historico[d] = {"AAA": [10, 1 if i % 4 >= 2 else 0, 0, 2], "BBB": [5, 0, 0, 0], "CCC": [5, 0, 0, 0]}
         r = inteligencia.rendimiento(historico)
         self.assertGreater(r["muestras"], 30)
         self.assertGreater(r["mejora_media"], 0)
@@ -489,6 +490,7 @@ class TestInteligencia(Base):
         h = {f"2026-10-{d:02d}": {"MLI": [5, 0, 0, 2 if d == 1 else 0], "CHL": [1, 0, 0, 2 if d == 1 else 0]}
              for d in range(1, 10)}
         h["2026-10-04"]["MLI"] = [20, 2, 1, 0]
+        h["2026-10-05"]["MLI"] = [20, 2, 1, 0]  # empeora de forma sostenida (dos días seguidos)
         f = act.inteligencia.fiabilidad(h)
         self.assertEqual(f["alto"], {"aciertos": 1, "total": 2})
 

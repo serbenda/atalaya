@@ -463,11 +463,11 @@ Para no quedarse con la explicación más alarmante, cada ficha incluye lo que h
 
 ### Pronóstico a 7 días y su acierto
 
-El pronóstico dice si es *probable*, *posible* o *poco probable* que el país **empeore en los 7 días siguientes**: que suba de nivel, o que empiece a empeorar respecto a lo habitual cuando no lo estaba. Seguir empeorando no cuenta, para que no sea un acierto fácil.
+El pronóstico dice si es *probable*, *posible* o *poco probable* que el país **empeore de forma sostenida en los 7 días siguientes**: que suba de nivel, o que empiece a empeorar respecto a lo habitual cuando no lo estaba, **al menos dos días seguidos**. Un salto de un solo día suele ser ruido de las noticias, y seguir empeorando no cuenta, para que no sea un acierto fácil.
 
 **Pronóstico aprendido.** [`aprendizaje.py`](scripts/aprendizaje.py) aprende de lo que pasó cuánto pesa cada señal, en vez de fijarlo a mano. Es una regresión logística (en Python estándar, sin librerías) con 14 señales: la puntuación y su nivel habitual, el nivel, si ya empeora, la distancia a lo habitual, la tendencia de la semana, los días seguidos subiendo, la aceleración en 12 horas, qué parte de la cobertura es violencia, los hechos entre países, las protestas, los hechos con ejércitos, la desescalada y los vecinos en alerta.
 
-- **Se valida en el tiempo.** Se entrena con los días más antiguos y se mide con el 30 % más reciente, que el modelo no ha visto. **Solo se usa si en esos días acierta más que decir siempre la frecuencia media**; si no, el pronóstico sigue con las reglas fijas y la web dice por qué.
+- **Se valida en el tiempo.** Se entrena con los días más antiguos y se mide con el 30 % más reciente, que el modelo no ha visto. **Solo se usa si en esos días acierta al menos un 2 % más que decir siempre la frecuencia media**; si no, el pronóstico sigue con las reglas fijas y la web dice por qué.
 - **Solo usa señales que existen también en los días reconstruidos** (GDELT y la evolución de la puntuación), para aprender del pasado sin trampas. Los cortes de internet, la censura, los incendios o los avisos de viaje siguen pesando en los escenarios y en la simulación.
 - Se reentrena una vez al día y se guarda en `modelo_aprendido.json`, con sus métricas de validación y lo que más pesa. Con el modelo activo, la ficha de cada país muestra la probabilidad (por ejemplo, *Posible que empeore (25 %)*); *probable* es desde el 40 % y *posible* desde el 20 %. La simulación parte de esa probabilidad.
 - Sin reglas fijas que retocar: basta con reconstruir más días (`retroceso_dias`) para que tenga más de lo que aprender.

@@ -1,6 +1,11 @@
 {
-  "version": "2.0",
+  "version": "2.1",
   "cambios": [
+    {"version": "2.1", "fecha": "2026-11-07", "cambios": [
+      "Pronóstico aprendido de los datos (regresión logística) que solo se usa si, validado en días que no ha visto, acierta más que la referencia",
+      "Empeorar se mide como empeorar de forma sostenida: al menos dos días seguidos",
+      "Incendios por satélite (NASA FIRMS) frente a lo habitual en cada país"
+    ]},
     {"version": "2.0", "fecha": "2026-11-02", "cambios": [
       "Cada noticia cuenta una sola vez aunque GDELT saque varios hechos de ella",
       "Los medios estatales de países sin prensa libre cuentan la mitad",
@@ -23,6 +28,7 @@
     {"version": "1.0", "fecha": "2026-11-02", "cambios": ["Primera versión del mapa"]}
   ],
   "errores": [
+    {"fecha": "2026-11-07", "texto": "El pronóstico contaba como empeorar un salto de un solo día, que casi siempre es ruido de las noticias: así parecía acertar más de lo que acertaba. Corregido: solo cuenta si dura al menos dos días."},
     {"fecha": "2026-11-02", "texto": "Ciudades como Nueva York o Washington salían en alerta por crónica de sucesos y noticias de política interior. Corregido: solo cuenta la violencia política y el hecho principal de cada noticia."},
     {"fecha": "2026-11-02", "texto": "Algunas recomendaciones de Exteriores se leían con un nivel equivocado (por ejemplo, «salvo por motivos imprescindibles»). Corregido: se analizan frase a frase."},
     {"fecha": "2026-11-02", "texto": "Un bloqueo crónico de una sola aplicación marcaba censura permanente. Corregido: hacen falta al menos dos aplicaciones."},

@@ -54,11 +54,13 @@ class TestAprendizaje(unittest.TestCase):
         r = aprendizaje.entrenar(historico_sintetico(True, dias=8), hoy="2026-10-15")
         self.assertFalse(r["activo"])
 
-    def test_empeorar_no_cuenta_seguir_empeorando(self):
-        h = {"d1": {"X": [5, 1, 1, 0]}, "d2": {"X": [5, 1, 1, 0]}}
-        self.assertFalse(aprendizaje.empeoro(h, "X", h["d1"]["X"], ["d2"]))
-        h["d2"]["X"] = [9, 2, 1, 0]
-        self.assertTrue(aprendizaje.empeoro(h, "X", h["d1"]["X"], ["d2"]))
+    def test_empeorar_es_sostenido(self):
+        h = {"d0": {"X": [5, 1, 1, 0]}, "d1": {"X": [5, 1, 1, 0]}, "d2": {"X": [9, 2, 1, 0]},
+             "d3": {"X": [5, 1, 1, 0]}, "d4": {"X": [9, 2, 1, 0]}}
+        # seguir empeorando no cuenta; subir un solo día tampoco
+        self.assertFalse(aprendizaje.empeoro(h, "X", h["d0"]["X"], ["d1", "d2", "d3"]))
+        h["d3"]["X"] = [9, 2, 1, 0]  # dos días seguidos en alerta: sí
+        self.assertTrue(aprendizaje.empeoro(h, "X", h["d0"]["X"], ["d1", "d2", "d3"]))
 
     def test_rasgos(self):
         x = aprendizaje.rasgos({"nivel": "rojo", "puntuacion": 20, "escalada": True, "z": 2, "serie": [1, 2, 3, 4],
