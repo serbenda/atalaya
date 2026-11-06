@@ -40,6 +40,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import aprendizaje  # noqa: E402
 import inteligencia  # noqa: E402
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -1367,8 +1368,10 @@ def archivar(alertas, eventos, titulares):
 
     historico = leer("historico.json", {})
     riesgo = {"bajo": 0, "medio": 1, "alto": 2}
+    # [puntuación, nivel, empeora, grado del pronóstico, probabilidad (si hay modelo), señales del modelo]
     historico[HOY] = {a3: [p["puntuacion"], RANGO[p["nivel"]], int(p["escalada"]),
-                           riesgo.get(p.get("pronostico", {}).get("riesgo"), 0)]
+                           riesgo.get(p.get("pronostico", {}).get("riesgo"), 0),
+                           p.get("pronostico", {}).get("probabilidad"), p.get("rasgos")]
                       for a3, p in alertas["paises"].items()}
     escribir("historico.json", dict(sorted(historico.items())))
 
@@ -1631,7 +1634,19 @@ def main():
     for x in extra.get("elecciones", []):
         ctx["elecciones"].setdefault(x["pais"], []).append(x)
     intereses = json.loads((FIJOS / "intereses_espana.json").read_text("utf-8"))
-    inteligencia.enriquecer(alertas, ctx, intereses, leer("historico.json", {}))
+    historico = leer("historico.json", {})
+    # Pronóstico aprendido: se reentrena una vez al día con el histórico (real y reconstruido)
+    modelo = leer("modelo_aprendido.json", {})
+    if modelo.get("entrenado") != HOY:
+        modelo = aprendizaje.entrenar(historico, ctx["reconstruidos"], HOY)
+        escribir("modelo_aprendido.json", modelo)
+        log(f"Modelo aprendido: {'activo' if modelo['activo'] else 'no se usa'} "
+            f"({modelo.get('motivo') or 'mejora ' + str(modelo['validacion']['mejora'])}, {modelo['muestras']} muestras)")
+    ctx["modelo"] = modelo
+    inteligencia.enriquecer(alertas, ctx, intereses, historico)
+    alertas["modelo"] = {k: modelo.get(k) for k in ("activo", "motivo", "muestras", "dias", "validacion", "entrenado")}
+    if modelo.get("activo"):
+        alertas["modelo"]["importancia"] = modelo["importancia"][:6]
 
     escribir("eventos.json", {"actualizado": iso(AHORA), "fuentes": estado, "eventos": eventos,
                               "titulares": extra.get("titulares", []), "analisis": extra.get("analisis", []),

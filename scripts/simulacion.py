@@ -93,31 +93,37 @@ def probabilidades(p, escenario, vecinos_mal, pesos=None):
     pron = p.get("pronostico", {})
     riesgo, pendiente = pron.get("riesgo", "bajo"), pron.get("pendiente", 0)
     acel = p.get("aceleracion") or 1
-    escala = pesos[riesgo]
-    factores = [f"pronóstico: {'probable' if riesgo == 'alto' else 'posible' if riesgo == 'medio' else 'poco probable'} que empeore"]
+    aprendida = pron.get("probabilidad")
+    # Con el modelo aprendido, su probabilidad es el punto de partida y ya incluye la tendencia y la aceleración
+    escala = aprendida if aprendida is not None else pesos[riesgo]
+    factores = [f"pronóstico: {'probable' if riesgo == 'alto' else 'posible' if riesgo == 'medio' else 'poco probable'} que empeore"
+                + (f" ({round(aprendida * 100)} % según el modelo aprendido)" if aprendida is not None else "")]
     if escenario:
         activos = sum(1 for i in escenario["indicadores"] if i["activo"])
         if activos:
             escala += min(0.15, 0.04 * activos)
             factores.append(f"{activos} {'indicador encendido' if activos == 1 else 'indicadores encendidos'}")
-    if pendiente > 0.5:
-        escala += 0.05
-        factores.append("sube en la última semana")
-    elif pendiente < -0.5:
-        escala -= 0.05
-        factores.append("baja en la última semana")
-    if acel >= 1.8:
-        escala += 0.08
-        factores.append(f"se acelera en las últimas 12 horas (×{acel:g})")
-    elif acel <= 0.55:
-        escala -= 0.05
-        factores.append("se frena en las últimas 12 horas")
-    if vecinos_mal:
-        escala += min(0.09, 0.03 * len(vecinos_mal))
-        factores.append(f"{len(vecinos_mal)} {'vecino' if len(vecinos_mal) == 1 else 'vecinos'} en crisis")
-    if p.get("nivel") == "rojo":
-        escala += 0.05
-        factores.append("ya está en alerta")
+    # Tendencia, aceleración, vecinos y nivel ya están dentro de la probabilidad aprendida:
+    # solo se suman a mano cuando se usan las reglas fijas
+    if aprendida is None:
+        if pendiente > 0.5:
+            escala += 0.05
+            factores.append("sube en la última semana")
+        elif pendiente < -0.5:
+            escala -= 0.05
+            factores.append("baja en la última semana")
+        if acel >= 1.8:
+            escala += 0.08
+            factores.append(f"se acelera en las últimas 12 horas (×{acel:g})")
+        elif acel <= 0.55:
+            escala -= 0.05
+            factores.append("se frena en las últimas 12 horas")
+        if vecinos_mal:
+            escala += min(0.09, 0.03 * len(vecinos_mal))
+            factores.append(f"{len(vecinos_mal)} {'vecino' if len(vecinos_mal) == 1 else 'vecinos'} en crisis")
+        if p.get("nivel") == "rojo":
+            escala += 0.05
+            factores.append("ya está en alerta")
     if p.get("desescalada"):
         escala -= 0.08
         factores.append("hay señales de desescalada (alto el fuego o acceso humanitario)")

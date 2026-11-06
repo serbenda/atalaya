@@ -25,6 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import actualizar as act  # noqa: E402
+import aprendizaje  # noqa: E402
 import inteligencia  # noqa: E402
 
 CAMPOS_ESCALABLES = ("total", "conflicto", "protesta", "interestatal", "militar", "disturbios", "desescalada")
@@ -81,9 +82,10 @@ def reconstruir(dias=30, muestras=48, hoy=None):
             riesgo = {"bajo": 0, "medio": 1, "alto": 2}
             fila = {}
             for a3, p in alertas["paises"].items():
-                escs, _ = inteligencia.escenarios(a3, p, ctx)
+                escs, vecinos_mal = inteligencia.escenarios(a3, p, ctx)
                 pron = inteligencia.pronostico(p, escs)
-                fila[a3] = [p["puntuacion"], act.RANGO[p["nivel"]], int(p["escalada"]), riesgo[pron["riesgo"]]]
+                fila[a3] = [p["puntuacion"], act.RANGO[p["nivel"]], int(p["escalada"]), riesgo[pron["riesgo"]],
+                            None, aprendizaje.rasgos(p, gd.get(a3, {}), len(vecinos_mal))]
             historico[dia] = fila
             hecho.append(dia)
     finally:
