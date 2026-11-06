@@ -236,6 +236,7 @@ Settings → Secrets and variables → Actions. All are optional: without them, 
 | Name | Type | Enables | How to get it |
 |---|---|---|---|
 | `UCDP_TOKEN` | Secret | Verified conflict deaths (Uppsala University) | Email the API maintainer ([ucdp.uu.se/apidocs](https://ucdp.uu.se/apidocs/)) |
+| `FIRMS_KEY` | Secret | Satellite fire detection (NASA FIRMS) | Free and instant: [firms.modaps.eosdis.nasa.gov/api/map_key](https://firms.modaps.eosdis.nasa.gov/api/map_key/) |
 | `UCDP_VERSION` | Variable | Monthly UCDP version (default `26.0.9`) | The latest candidate version on the same page |
 | `CLOUDFLARE_TOKEN` | Secret | Cloudflare Radar internet outages, with their cause | API token with Radar read permission |
 | `RELIEFWEB_APPNAME` | Variable | ReliefWeb humanitarian crises (OCHA) | Approved application name at [apidoc.reliefweb.int](https://apidoc.reliefweb.int/) |
@@ -282,6 +283,7 @@ atalaya/
 │   ├── actualizar.py          Sources, normalisation, scoring, alerts and history
 │   ├── inteligencia.py        Scenarios, forecast, regions, Spain and report
 │   ├── simulacion.py          Branches, spillover and impact for Spain
+│   ├── aprendizaje.py         Learned forecast (validated logistic regression)
 │   ├── telegram.py            Telegram alerts and RSS feed
 │   ├── retroceso.py           Reconstruction of the past with GDELT (backtesting)
 │   └── salud.py               Checks the state of the sources
@@ -375,6 +377,8 @@ Everything lives on the `datos` branch, in the `data/` folder:
 | `archivo/indice.json` | The available days | Forever |
 | `avisos.json` and `exteriores.json` | Latest travel advisory level and its changes | Replaced |
 | `divisas_historial.json` | Daily exchange rate against the dollar | 30-day window |
+| `incendios_historial.json` | Daily heat spots per country (FIRMS) | 45-day window |
+| `modelo_aprendido.json` | Learned forecast weights and their validation | Replaced daily |
 | `retroceso.json` | Days reconstructed with GDELT | Forever |
 | `telegram.json`, `rss.json` and `avisos.xml` | What has already been reported (to avoid repeats) and the RSS feed | Replaced |
 
@@ -402,6 +406,7 @@ Each country adds up points from what happened in the last 48 hours (30 days for
 | US raises its travel advisory | 4 per level |
 | Humanitarian crisis on alert (ReliefWeb) | 6 |
 | The currency loses ≥ 8% against the dollar in 7 days | 1.5, or 3 if it loses ≥ 15% |
+| Satellite fires ≥ 2.5 times the usual (and ≥ 30 spots) | 2, or 3 if ≥ 4 times |
 
 **So as not to confuse crime with conflict**, from GDELT only the main event of each story counts (`IsRootEvent`), and only violence involving armies, rebels, insurgents, governments, known armed groups or two different countries. The police do not count as a political actor, because in the press they almost always appear in crime reports.
 
@@ -462,15 +467,22 @@ To avoid settling on the most alarming explanation, each sheet includes what an 
 
 - **Currencies**: a sharp fall against the dollar (≥ 8% in 7 days) often comes before protests, shortages or government crises.
 - **Elections and referendums** in the next 45 days, according to Wikidata: they appear under *Key dates* and as an indicator.
-- Left out, because they require keys or usage agreements: ships (AIS), airspace (OpenSky), satellite fire detection (FIRMS) and displacement (IOM DTM, UNHCR).
+- **Satellite fire detection** (NASA FIRMS, VIIRS sensor) in the countries with the most conflict and in open wars. It counts heat spots in the last 24 hours and compares them with the median of the same country's previous 30 days, because agricultural burning varies a lot with the season. With at least 30 spots and 2.5 times the usual, it adds points and switches on an indicator of the escalation scenario: in a combat zone they often reveal shelling and active front lines before the press does. It needs the free `FIRMS_KEY`.
+- Left out, because they require keys or usage agreements: ships (AIS), airspace (OpenSky) and displacement (IOM DTM, UNHCR).
 
 ### 7-day forecast and its accuracy
 
-The forecast combines last week's **slope** (least squares), the scenarios and escalation, and is expressed in estimative language: it is *likely*, *possible* or *unlikely* that the country will worsen.
+The forecast says whether it is *likely*, *possible* or *unlikely* that the country will **worsen in a sustained way over the next 7 days**: move up a level, or start worsening relative to its normal when it was not, **for at least two days in a row**. A one-day jump is usually news noise, and continuing to worsen does not count, so it cannot score an easy hit.
 
-Each forecast is stored in `historico.json`. Seven days later it checks whether the country moved up a level or worsened, and the report shows the accuracy over the last 30 days. It is the only honest way to know whether the rules work.
+**Learned forecast.** [`aprendizaje.py`](scripts/aprendizaje.py) learns from what happened how much each signal weighs, instead of setting it by hand. It is a logistic regression (standard-library Python, no packages) over 14 signals: the score and its usual level, the level, whether it is already worsening, the distance from normal, the weekly trend, days in a row rising, 12-hour acceleration, the share of coverage that is violence, events between countries, protests, events involving armies, de-escalation and neighbours on alert.
 
-**Performance.** Besides accuracy, the [Brier score](https://en.wikipedia.org/wiki/Brier_score) over the last 60 days is calculated (each forecast grade is equivalent to a probability: 40, 25 and 10%) and compared with two naive baselines: always giving the average frequency, and relying only on each country's current level (persistence). If the model does not beat the baselines, the rules add nothing. The **calibration** table compares the probability each grade gives with how often the country actually worsened.
+- **Validated over time.** It is trained on the oldest days and measured on the most recent 30%, which it has not seen. **It is only used if on those days it does at least 2% better than always giving the average rate**; otherwise the forecast keeps the fixed rules and the website says why.
+- **It only uses signals that also exist on reconstructed days** (GDELT and the evolution of the score), so it can learn from the past without cheating. Internet shutdowns, censorship, fires and travel advisories still weigh in the scenarios and the simulation.
+- It is retrained once a day and stored in `modelo_aprendido.json`, with its validation metrics and what weighs most. With the model active, each country sheet shows the probability; *likely* starts at 40% and *possible* at 20%. The simulation starts from that probability.
+
+Each forecast is stored in `historico.json` with its probability and signals. Seven days later the outcome is checked, and the report shows the accuracy over the last 30 days. It is the only honest way to know whether it works.
+
+**Performance.** Besides accuracy, the [Brier score](https://en.wikipedia.org/wiki/Brier_score) over the last 60 days is calculated (with the learned model's probability or, with the fixed rules, 40, 25 and 10% by grade) and compared with two naive baselines: always giving the average frequency, and relying only on each country's current level (persistence). If the model does not beat the baselines, the rules add nothing. The **calibration** table compares the probability each grade gives with how often the country actually worsened.
 
 **Version and errors.** [`data/modelo.json`](data/modelo.json) stores the model version, its changes and the errors acknowledged and corrected; the website shows them in *How it works*.
 
@@ -537,6 +549,7 @@ Each case shows **why** it has those probabilities, the **spillover** to its nei
 | [Cloudflare Radar](https://radar.cloudflare.com/) | Internet outages and their cause | Token |
 | [ReliefWeb](https://reliefweb.int/) | Humanitarian crises (OCHA) | Application name |
 | [ExchangeRate-API](https://www.exchangerate-api.com/) | Daily exchange rates against the dollar | Open |
+| [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) | Satellite fires and heat spots (VIIRS) | Free key |
 | [Wikidata](https://www.wikidata.org/) | Upcoming elections and referendums | Open (SPARQL) |
 | [world.geo.json](https://github.com/johan/world.geo.json) | Country borders | Public domain |
 
@@ -552,7 +565,8 @@ Each case shows **why** it has those probabilities, the **spillover** to its nei
 - [x] Website in English.
 - [ ] Ships (AIS) on shipping routes and closed airspace (OpenSky, EASA).
 - [ ] Food and displacement (WFP, IPC, UNHCR, IOM DTM) as early signals of humanitarian crises.
-- [ ] Satellite fire detection (NASA FIRMS) in conflict zones.
+- [x] Satellite fire detection (NASA FIRMS) in conflict zones.
+- [x] Forecast learned from the data and validated over time.
 - [ ] Accessible table view as an alternative to the map.
 
 ---
