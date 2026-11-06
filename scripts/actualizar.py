@@ -97,7 +97,9 @@ UCDP_TOKEN = os.environ.get("UCDP_TOKEN", "").strip()
 # NASA FIRMS (incendios por satélite): clave gratuita en firms.modaps.eosdis.nasa.gov/api/map_key/
 FIRMS_KEY = os.environ.get("FIRMS_KEY", "").strip()
 # API de áreas (oeste,sur,este,norte); la de países ya no está documentada
-FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/{clave}/VIIRS_SNPP_NRT/{caja}/1"
+FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/{clave}/{sensor}/{caja}/1"
+# VIIRS en los satélites NOAA-20 y NOAA-21 (el más antiguo, Suomi NPP, puede dejar de emitir)
+FIRMS_SENSORES = ("VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT", "VIIRS_SNPP_NRT")
 # Países que se vigilan aunque la última ejecución no los marque (guerras abiertas)
 FIRMS_FIJOS = ("UKR", "RUS", "SDN", "PSE", "ISR", "MMR", "COD", "SYR", "YEM", "LBN", "SSD", "ETH")
 FIRMS_MAX = 18          # consultas por ejecución (el límite de la API es 5000 cada 10 minutos)
@@ -1521,12 +1523,18 @@ def incendios(paises):
         caja = caja_pais(paises, a3)
         if not caja:
             continue
-        texto = firms_pedir(FIRMS_URL.format(clave=FIRMS_KEY, caja=",".join(f"{x:.2f}" for x in caja)))
+        filas, texto = [], None
+        for sensor in FIRMS_SENSORES:
+            texto = firms_pedir(FIRMS_URL.format(clave=FIRMS_KEY, sensor=sensor, caja=",".join(f"{x:.2f}" for x in caja)))
+            if texto is None:
+                continue
+            exigir(texto.startswith("latitude") or not texto.strip(), f"respuesta inesperada de FIRMS: {texto[:80]!r}")
+            filas = list(csv.DictReader(io.StringIO(texto)))
+            if filas:
+                break  # basta con un satélite: cada uno cubre el planeta al menos dos veces al día
         if texto is None:
             fallos += 1
             continue
-        exigir(texto.startswith("latitude") or not texto.strip(), f"respuesta inesperada de FIRMS: {texto[:80]!r}")
-        filas = list(csv.DictReader(io.StringIO(texto)))
         # La caja incluye trozos de los vecinos: solo cuentan los focos dentro del país
         focos = [f for f in filas if f.get("confidence", "n") != "l"
                  and paises.punto(float(f["longitude"]), float(f["latitude"])) == a3]
