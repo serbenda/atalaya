@@ -236,6 +236,7 @@ Settings → Secrets and variables → Actions. Todos son opcionales: sin ellos,
 |---|---|---|---|
 | `UCDP_TOKEN` | Secreto | Muertes en conflictos verificadas (Universidad de Uppsala) | Email al responsable de la API ([ucdp.uu.se/apidocs](https://ucdp.uu.se/apidocs/)) |
 | `FIRMS_KEY` | Secreto | Incendios por satélite (NASA FIRMS) | Gratis e inmediata: [firms.modaps.eosdis.nasa.gov/api/map_key](https://firms.modaps.eosdis.nasa.gov/api/map_key/) |
+| `EARTHDATA_TOKEN` | Secreto | Luces nocturnas y lluvias (NASA) | Cuenta gratuita en [urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov/); autorizar *LAADS Web*, *LAADS DAAC Cumulus (PROD)* y *GES DISC* en *Applications*, y luego *Generate Token*. Caduca a los 60 días |
 | `UCDP_VERSION` | Variable | Versión mensual de UCDP (por defecto `26.0.9`) | La última versión candidata de la misma página |
 | `CLOUDFLARE_TOKEN` | Secreto | Cortes de internet de Cloudflare Radar, con su causa | Token de API con permiso de lectura de Radar |
 | `RELIEFWEB_APPNAME` | Variable | Crisis humanitarias de ReliefWeb (OCHA) | Nombre de aplicación aprobado en [apidoc.reliefweb.int](https://apidoc.reliefweb.int/) |
@@ -283,6 +284,8 @@ atalaya/
 │   ├── inteligencia.py        Escenarios, pronóstico, regiones, España e informe
 │   ├── simulacion.py          Ramas, contagio e impacto para España
 │   ├── aprendizaje.py         Pronóstico aprendido (regresión logística validada)
+│   ├── luces.py               Apagones por luces nocturnas (NASA Black Marble)
+│   ├── lluvias.py             Lluvias extremas (NASA GPM IMERG)
 │   ├── telegram.py            Avisos por Telegram y feed RSS
 │   ├── retroceso.py           Reconstrucción del pasado con GDELT (backtesting)
 │   └── salud.py               Comprueba el estado de las fuentes
@@ -369,6 +372,8 @@ Todo vive en la rama `datos`, carpeta `data/`:
 | `avisos.json` y `exteriores.json` | Último nivel de los avisos de viaje y sus cambios | Se reemplaza |
 | `divisas_historial.json` | Tipo de cambio diario frente al dólar | Ventana de 30 días |
 | `incendios_historial.json` | Focos de calor diarios por país (FIRMS) | Ventana de 45 días |
+| `luces.json`, `luces_puntos.json`, `luces_historial.json`, `luces_estado.json` | Luz nocturna de cada lugar vigilado, su línea base y los días ya leídos | Ventana de 60 días |
+| `lluvias.json`, `lluvias_dias.json` | Lluvias extremas y celdas con ≥ 50 mm de los últimos días | 4 días |
 | `modelo_aprendido.json` | Pesos del pronóstico aprendido y su validación | Se reemplaza cada día |
 | `retroceso.json` | Días reconstruidos con GDELT | Para siempre |
 | `telegram.json`, `rss.json` y `avisos.xml` | Lo ya avisado (para no repetir) y el feed RSS | Se reemplaza |
@@ -398,6 +403,8 @@ Cada país suma puntos con lo ocurrido en las últimas 48 horas (30 días para e
 | Crisis humanitaria en alerta (ReliefWeb) | 6 |
 | La moneda pierde ≥ 8 % frente al dólar en 7 días | 1,5, o 3 si pierde ≥ 15 % |
 | Incendios por satélite ≥ 2,5 veces lo habitual (y ≥ 30 focos) | 2, o 3 si son ≥ 4 veces |
+| Apagón visto por satélite (luz ≤ 50 % de lo normal dos noches) | 2, o 3 si cae al 30 % o menos |
+| Lluvias extremas sobre ≥ 3 celdas | 2, o 3 si cubren ≥ 2.500 km² |
 
 **Para no confundir delincuencia con conflicto**, de GDELT solo cuentan los hechos principales de cada noticia (`IsRootEvent`) y la violencia en la que intervienen ejércitos, rebeldes, insurgentes, gobiernos, grupos armados conocidos o dos países distintos. La policía no cuenta como actor político, porque en la prensa casi siempre es crónica de sucesos.
 
@@ -459,7 +466,10 @@ Para no quedarse con la explicación más alarmante, cada ficha incluye lo que h
 - **Monedas**: una caída brusca frente al dólar (≥ 8 % en 7 días) suele adelantarse a protestas, escasez o crisis de gobierno.
 - **Elecciones y referendos** en los próximos 45 días, según Wikidata: aparecen en *Fechas clave* y como indicador.
 - **Incendios por satélite** (NASA FIRMS, sensor VIIRS) en los países con más conflicto y en las guerras abiertas. Cuenta los focos de calor de las últimas 24 horas y los compara con la mediana de los 30 días anteriores del mismo país, porque las quemas agrícolas cambian mucho según la época. Si hay al menos 30 focos y 2,5 veces lo habitual, suma puntos y enciende un indicador del escenario de escalada: en una zona de combates suelen delatar bombardeos y frentes activos antes que la prensa. Necesita la clave gratuita `FIRMS_KEY`.
-- Quedan fuera, porque necesitan claves o acuerdos de uso: barcos (AIS), espacio aéreo (OpenSky) y desplazamientos (OIM DTM, ACNUR).
+- **Apagones vistos desde el espacio** (NASA Black Marble, VIIRS del satélite NOAA-20). Cada noche se mide la luz en un círculo de unos 3 km alrededor de los lugares con más violencia de los países en guerra o en alerta (hasta 3 por país). Solo cuentan las noches buenas: sin nubes, con el satélite casi encima (menos de 60°) y sin luna fuerte. Lo normal es la mediana de las noches buenas de los 30 días anteriores. Si la luz cae a la mitad o menos en dos noches buenas seguidas, suma puntos y enciende indicadores de escalada y de emergencia humanitaria: ataques a la red eléctrica, cortes de suministro o una ciudad que se vacía. Llega con unos 2 días de retraso.
+- **Lluvias extremas** (NASA GPM IMERG, versión rápida diaria, celdas de 0,1°). Una celda es extrema con 150 mm en un día o 250 mm en tres; si hay al menos 3 en un país (unos 350 km²), suma puntos y enciende el indicador de emergencia humanitaria. Se ignoran las latitudes por encima de 60° y Groenlandia y la Antártida, donde el satélite mide mal sobre la nieve.
+- Las dos últimas necesitan una cuenta gratuita de NASA Earthdata (`EARTHDATA_TOKEN`) y leen ficheros HDF5, así que van en un paso aparte del workflow con `h5py` y `numpy` ([`luces.py`](scripts/luces.py) y [`lluvias.py`](scripts/lluvias.py)); si fallan, el resto de atalaya sigue igual.
+- Quedan fuera, porque necesitan claves o acuerdos de uso: barcos (AIS), espacio aéreo (OpenSky) y desplazamientos (OIM DTM, ACNUR). La población expuesta (NASA SEDAC) está pendiente.
 
 ### Pronóstico a 7 días y su acierto
 
@@ -542,6 +552,8 @@ Cada caso muestra **por qué** tiene esas probabilidades, el **contagio** a sus 
 | [ReliefWeb](https://reliefweb.int/) | Crisis humanitarias (OCHA) | Nombre de aplicación |
 | [ExchangeRate-API](https://www.exchangerate-api.com/) | Tipos de cambio diarios frente al dólar | Libre |
 | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) | Incendios y focos de calor por satélite (VIIRS) | Clave gratuita |
+| [NASA Black Marble](https://blackmarble.gsfc.nasa.gov/) | Luces nocturnas diarias (VJ146A1, LAADS DAAC) | Cuenta de Earthdata |
+| [NASA GPM IMERG](https://gpm.nasa.gov/data/imerg) | Lluvia diaria por satélite (versión rápida, GES DISC) | Cuenta de Earthdata |
 | [Wikidata](https://www.wikidata.org/) | Elecciones y referendos próximos | Libre (SPARQL) |
 | [world.geo.json](https://github.com/johan/world.geo.json) | Fronteras de los países | Dominio público |
 

@@ -1,6 +1,10 @@
 {
-  "version": "2.1",
+  "version": "2.2",
   "cambios": [
+    {"version": "2.2", "fecha": "2026-11-07", "cambios": [
+      "Apagones vistos por satélite: luces nocturnas de las ciudades en guerra o en alerta frente a su nivel normal (NASA Black Marble)",
+      "Lluvias extremas medidas por satélite como señal temprana de inundaciones (NASA GPM IMERG)"
+    ]},
     {"version": "2.1", "fecha": "2026-11-07", "cambios": [
       "Pronóstico aprendido de los datos (regresión logística) que solo se usa si, validado en días que no ha visto, acierta más que la referencia",
       "Empeorar se mide como empeorar de forma sostenida: al menos dos días seguidos",

@@ -237,6 +237,7 @@ Settings → Secrets and variables → Actions. All are optional: without them, 
 |---|---|---|---|
 | `UCDP_TOKEN` | Secret | Verified conflict deaths (Uppsala University) | Email the API maintainer ([ucdp.uu.se/apidocs](https://ucdp.uu.se/apidocs/)) |
 | `FIRMS_KEY` | Secret | Satellite fire detection (NASA FIRMS) | Free and instant: [firms.modaps.eosdis.nasa.gov/api/map_key](https://firms.modaps.eosdis.nasa.gov/api/map_key/) |
+| `EARTHDATA_TOKEN` | Secret | Night lights and rainfall (NASA) | Free account at [urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov/); authorise *LAADS Web*, *LAADS DAAC Cumulus (PROD)* and *GES DISC* under *Applications*, then *Generate Token*. It expires after 60 days |
 | `UCDP_VERSION` | Variable | Monthly UCDP version (default `26.0.9`) | The latest candidate version on the same page |
 | `CLOUDFLARE_TOKEN` | Secret | Cloudflare Radar internet outages, with their cause | API token with Radar read permission |
 | `RELIEFWEB_APPNAME` | Variable | ReliefWeb humanitarian crises (OCHA) | Approved application name at [apidoc.reliefweb.int](https://apidoc.reliefweb.int/) |
@@ -284,6 +285,8 @@ atalaya/
 │   ├── inteligencia.py        Scenarios, forecast, regions, Spain and report
 │   ├── simulacion.py          Branches, spillover and impact for Spain
 │   ├── aprendizaje.py         Learned forecast (validated logistic regression)
+│   ├── luces.py               Blackouts from night lights (NASA Black Marble)
+│   ├── lluvias.py             Extreme rainfall (NASA GPM IMERG)
 │   ├── telegram.py            Telegram alerts and RSS feed
 │   ├── retroceso.py           Reconstruction of the past with GDELT (backtesting)
 │   └── salud.py               Checks the state of the sources
@@ -378,6 +381,8 @@ Everything lives on the `datos` branch, in the `data/` folder:
 | `avisos.json` and `exteriores.json` | Latest travel advisory level and its changes | Replaced |
 | `divisas_historial.json` | Daily exchange rate against the dollar | 30-day window |
 | `incendios_historial.json` | Daily heat spots per country (FIRMS) | 45-day window |
+| `luces.json`, `luces_puntos.json`, `luces_historial.json`, `luces_estado.json` | Night light at each watched place, its baseline and the days already read | 60-day window |
+| `lluvias.json`, `lluvias_dias.json` | Extreme rainfall and cells with ≥ 50 mm over the last days | 4 days |
 | `modelo_aprendido.json` | Learned forecast weights and their validation | Replaced daily |
 | `retroceso.json` | Days reconstructed with GDELT | Forever |
 | `telegram.json`, `rss.json` and `avisos.xml` | What has already been reported (to avoid repeats) and the RSS feed | Replaced |
@@ -407,6 +412,8 @@ Each country adds up points from what happened in the last 48 hours (30 days for
 | Humanitarian crisis on alert (ReliefWeb) | 6 |
 | The currency loses ≥ 8% against the dollar in 7 days | 1.5, or 3 if it loses ≥ 15% |
 | Satellite fires ≥ 2.5 times the usual (and ≥ 30 spots) | 2, or 3 if ≥ 4 times |
+| Blackout seen by satellite (light ≤ 50% of normal on two nights) | 2, or 3 if it falls to 30% or less |
+| Extreme rainfall over ≥ 3 cells | 2, or 3 if it covers ≥ 2,500 km² |
 
 **So as not to confuse crime with conflict**, from GDELT only the main event of each story counts (`IsRootEvent`), and only violence involving armies, rebels, insurgents, governments, known armed groups or two different countries. The police do not count as a political actor, because in the press they almost always appear in crime reports.
 
@@ -468,7 +475,10 @@ To avoid settling on the most alarming explanation, each sheet includes what an 
 - **Currencies**: a sharp fall against the dollar (≥ 8% in 7 days) often comes before protests, shortages or government crises.
 - **Elections and referendums** in the next 45 days, according to Wikidata: they appear under *Key dates* and as an indicator.
 - **Satellite fire detection** (NASA FIRMS, VIIRS sensor) in the countries with the most conflict and in open wars. It counts heat spots in the last 24 hours and compares them with the median of the same country's previous 30 days, because agricultural burning varies a lot with the season. With at least 30 spots and 2.5 times the usual, it adds points and switches on an indicator of the escalation scenario: in a combat zone they often reveal shelling and active front lines before the press does. It needs the free `FIRMS_KEY`.
-- Left out, because they require keys or usage agreements: ships (AIS), airspace (OpenSky) and displacement (IOM DTM, UNHCR).
+- **Blackouts seen from space** (NASA Black Marble, VIIRS on the NOAA-20 satellite). Every night the light is measured in a circle of about 3 km around the most violent places in countries at war or on alert (up to 3 per country). Only good nights count: no clouds, the satellite almost overhead (under 60°) and no strong moon. Normal is the median of the good nights in the previous 30 days. If light falls to half or less on two good nights in a row, it adds points and switches on escalation and humanitarian-emergency indicators: attacks on the power grid, supply cuts or a city emptying out. It arrives about 2 days late.
+- **Extreme rainfall** (NASA GPM IMERG, daily early run, 0.1° cells). A cell is extreme with 150 mm in one day or 250 mm in three; with at least 3 in a country (about 350 km²) it adds points and switches on the humanitarian-emergency indicator. Latitudes above 60°, Greenland and Antarctica are ignored, as the satellite measures poorly over snow.
+- These two need a free NASA Earthdata account (`EARTHDATA_TOKEN`) and read HDF5 files, so they run in a separate workflow step with `h5py` and `numpy` ([`luces.py`](scripts/luces.py) and [`lluvias.py`](scripts/lluvias.py)); if they fail, the rest of atalaya carries on.
+- Left out, because they require keys or usage agreements: ships (AIS), airspace (OpenSky) and displacement (IOM DTM, UNHCR). Exposed population (NASA SEDAC) is pending.
 
 ### 7-day forecast and its accuracy
 
@@ -550,6 +560,8 @@ Each case shows **why** it has those probabilities, the **spillover** to its nei
 | [ReliefWeb](https://reliefweb.int/) | Humanitarian crises (OCHA) | Application name |
 | [ExchangeRate-API](https://www.exchangerate-api.com/) | Daily exchange rates against the dollar | Open |
 | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) | Satellite fires and heat spots (VIIRS) | Free key |
+| [NASA Black Marble](https://blackmarble.gsfc.nasa.gov/) | Daily night lights (VJ146A1, LAADS DAAC) | Earthdata account |
+| [NASA GPM IMERG](https://gpm.nasa.gov/data/imerg) | Daily satellite rainfall (early run, GES DISC) | Earthdata account |
 | [Wikidata](https://www.wikidata.org/) | Upcoming elections and referendums | Open (SPARQL) |
 | [world.geo.json](https://github.com/johan/world.geo.json) | Country borders | Public domain |
 
