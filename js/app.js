@@ -1119,6 +1119,8 @@
   }
 
   // Versión del modelo, cambios y errores reconocidos (en el diálogo "Cómo se calcula")
+  document.querySelectorAll("[data-anio]").forEach((e) => { e.textContent = String(new Date().getFullYear()); });
+
   async function cargarModelo() {
     try {
       const m = await json("data/modelo.json");

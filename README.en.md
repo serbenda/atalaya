@@ -538,7 +538,7 @@ Each case shows **why** it has those probabilities, the **spillover** to its nei
 | [Travel Advisories](https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html) | US travel advisories | RSS |
 | [USGS](https://earthquake.usgs.gov/), [EMSC](https://www.seismicportal.eu/), [IGN](https://www.ign.es/) | Earthquakes: world, Euro-Mediterranean and Spain | Open |
 | [GDACS](https://www.gdacs.org/) | Disaster alerts (UN and European Commission) | RSS |
-| [Copernicus EMS](https://mapping.emergency.copernicus.eu/) | EU emergency mapping activations | Open |
+| [Copernicus EMS](https://mapping.emergency.copernicus.eu/) | EU emergency mapping activations | Open, with attribution: *Contains modified Copernicus Service information [year]* (Delegated Regulation (EU) 1159/2013, art. 8). The website states it under *How it is calculated*. |
 | [NASA EONET](https://eonet.gsfc.nasa.gov/) | Active natural events | Open |
 | [WHO](https://www.who.int/emergencies/disease-outbreak-news) | Disease outbreaks | Open |
 | [IODA](https://ioda.inetintel.cc.gatech.edu/) | Internet outages by country (Georgia Tech) | Open |

@@ -540,3 +540,5 @@ html[lang="en"] .solo-es, html:not([lang="en"]) .solo-en { display: none; }
 @keyframes llama { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08, 1.14); } }
 #giro { font-size: 16px; min-width: 36px; }
 #giro[aria-pressed="false"] { opacity: 0.6; }
+
+.atribucion { font-size: 13px; color: var(--tinta-suave); }
