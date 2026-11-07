@@ -23,4 +23,15 @@ jobs:
           git fetch --depth=1 origin datos
           git --work-tree=salida checkout FETCH_HEAD -- data/alertas.json data/eventos.json
           git reset -q
-          python scripts/luces.py
+          python - <<'PY'
+          import sys, datetime
+          sys.path.insert(0, "scripts")
+          import luces
+          for prod, dia in (("VJ146A3", datetime.date(2026, 10, 1)), ("VNP46A3", datetime.date(2026, 10, 1)),
+                            ("VJ146A2", datetime.date(2026, 11, 4)), ("VNP46A2", datetime.date(2026, 11, 2)),
+                            ("VJ146A1", datetime.date(2026, 11, 4)), ("VNP46A1", datetime.date(2026, 11, 2))):
+              t = luces.ficheros_del_dia(prod, dia)
+              hs = sorted(t)
+              print(prod, dia, len(t), "h21v07" in t, "h21v05" in t, "h17v04" in t, hs[:3], hs[-3:])
+              vs = sorted({k[3:] for k in t}); print("   filas v:", vs)
+          PY
