@@ -22,6 +22,19 @@ with an alert level for each country, a daily report and scenario simulation.
 
 ---
 
+## Documentation
+
+| If you are going to… | Read |
+|---|---|
+| **Maintain atalaya** (what to touch for each task, periodic tasks, what not to touch) | [Maintainer guide](docs/mantenimiento.en.md) |
+| Understand or fix a **data source** | [Data sources](docs/fuentes.en.md): each source with its URL, key, filters, known failures and how to check it |
+| Understand or tune a **calculation** | [Calculations](docs/calculos.en.md): every formula, with examples and the constants |
+| Set up **Telegram alerts** | [Telegram alerts](docs/telegram.en.md) |
+
+This README gives the overview; the detail is in those guides.
+
+---
+
 ## Contents
 
 - [What it is](#what-it-is)
@@ -291,7 +304,7 @@ atalaya/
 │   ├── retroceso.py           Reconstruction of the past with GDELT (backtesting)
 │   └── salud.py               Checks the state of the sources
 ├── img/atalaya.svg            Website logo (also the favicon)
-├── docs/                      Telegram guide (es, en) and logo
+├── docs/                      Guides: maintenance, sources, calculations and Telegram (es, en), and logo
 ├── tests/                     Tests with sample responses from each source
 └── .github/workflows/         actualizar.yml and pruebas.yml
 ```
@@ -390,6 +403,8 @@ Everything lives on the `datos` branch, in the `data/` folder:
 ---
 
 ## Analysis
+
+> Summary. Every formula, with an example and its constants, is in [docs/calculos.en.md](docs/calculos.en.md).
 
 ### Score
 
@@ -540,6 +555,8 @@ Each case shows **why** it has those probabilities, the **spillover** to its nei
 ---
 
 ## Sources
+
+> Summary. Each source in detail (request, filters, known failures and how to check it) is in [docs/fuentes.en.md](docs/fuentes.en.md).
 
 | Source | Data | Access |
 |---|---|---|

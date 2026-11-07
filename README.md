@@ -22,6 +22,19 @@ con un nivel de alerta por país, un informe diario y simulación de escenarios.
 
 ---
 
+## Documentación
+
+| Si vas a… | Lee |
+|---|---|
+| **Mantener atalaya** (qué tocar para cada tarea, tareas periódicas, qué no tocar) | [Guía para quien mantiene](docs/mantenimiento.md) |
+| Entender o arreglar una **fuente de datos** | [Fuentes de datos](docs/fuentes.md): cada fuente con su URL, clave, filtros, fallos conocidos y cómo comprobarla |
+| Entender o ajustar un **cálculo** | [Cálculos](docs/calculos.md): todas las fórmulas, con ejemplos y las constantes |
+| Configurar los **avisos por Telegram** | [Avisos por Telegram](docs/telegram.md) |
+
+Este README da la visión general; el detalle está en esas guías.
+
+---
+
 ## Índice
 
 - [Qué es](#qué-es)
@@ -290,7 +303,7 @@ atalaya/
 │   ├── retroceso.py           Reconstrucción del pasado con GDELT (backtesting)
 │   └── salud.py               Comprueba el estado de las fuentes
 ├── img/atalaya.svg            Logo de la web (también favicon)
-├── docs/                      Guía de Telegram (es, en) y logo
+├── docs/                      Guías: mantenimiento, fuentes, cálculos y Telegram (es, en), y logo
 ├── tests/                     Pruebas con respuestas de ejemplo de cada fuente
 └── .github/workflows/         actualizar.yml y pruebas.yml
 ```
@@ -381,6 +394,8 @@ Todo vive en la rama `datos`, carpeta `data/`:
 ---
 
 ## Análisis
+
+> Resumen. Cada fórmula, con un ejemplo y sus constantes, está en [docs/calculos.md](docs/calculos.md).
 
 ### Puntuación
 
@@ -532,6 +547,8 @@ Cada caso muestra **por qué** tiene esas probabilidades, el **contagio** a sus 
 ---
 
 ## Fuentes
+
+> Resumen. Cada fuente en detalle (petición, filtros, fallos conocidos y cómo comprobarla) está en [docs/fuentes.md](docs/fuentes.md).
 
 | Fuente | Datos | Acceso |
 |---|---|---|
