@@ -147,7 +147,7 @@ flowchart TB
 | GDELT 2.0 event files | GDELT GEO API | The GEO API returned 404. The files also carry the actor type, which makes it possible to separate political violence from crime. |
 | Share of violence, not volume | Counting news stories | The US or India are always heavily covered. Measuring what share of the coverage is violence corrects that bias. |
 | d3 + SVG | Leaflet or MapLibre with tiles | No map provider or keys; the globe and the style are our own; 180 countries fit easily in SVG. |
-| Transparent rules | Machine learning | With only a few days of data a model would learn nothing reliable; rules can be discussed and corrected, and their accuracy is measured. |
+| Transparent rules, and a learned model only if it proves accurate | Unchecked machine learning | Rules can be discussed and corrected. The learned model (logistic regression) is only used if, on days it has not seen, it beats the baseline; otherwise the rules stay. Everything is measured. |
 | Reading the Spanish Foreign Ministry website | US advisories only | The Ministry has no API, but it is the reference that matters in Spain, and the US advisories also reflect US foreign policy. |
 
 ---
@@ -159,7 +159,8 @@ flowchart TB
 | Workflow | When it runs | What it does |
 |---|---|---|
 | [`actualizar.yml`](.github/workflows/actualizar.yml) | Every 30 min (`7,37 * * * *`), when code changes are merged into `main`, and manually | Recovers the previous data, reconstructs past days if requested, downloads the sources, calculates alerts, sends the alerts and publishes to `datos`. |
-| [`pruebas.yml`](.github/workflows/pruebas.yml) | On every PR and every push to `development` | Runs the tests with `unittest`. |
+| [`pruebas.yml`](.github/workflows/pruebas.yml) | On every PR and every push to `development` | Runs the tests with `unittest` (with `h5py` and `numpy` for the satellite tests). |
+| [`probar-telegram.yml`](.github/workflows/probar-telegram.yml) | By hand | Sends a test message and the daily summary to Telegram, without touching the data. |
 
 ```mermaid
 sequenceDiagram
@@ -364,7 +365,7 @@ Each event has this shape:
 }
 ```
 
-**Adding a source** takes four steps: write the function, add it to `FUENTES`, add a sample response and a test in `tests/`, and document it in the README.
+**Adding a source**: follow the checklist in [docs/fuentes.en.md](docs/fuentes.en.md) (function, `FUENTES`, `PARTE_DE` and `CLAVES_PUNTOS` if it scores, test, translations in `js/i18n.js`, docs and `data/modelo.json`).
 
 ### Frontend
 
@@ -399,7 +400,7 @@ Everything lives on the `datos` branch, in the `data/` folder:
 | `eventos.json` | Events from the last 7 days (30 for epidemics), headlines, analysis and status of each source | Replaced |
 | `alertas.json` | Level, reasons, confidence, scenarios and forecast by country; shipping routes; summary; report; simulation | Replaced |
 | `historial.json` | Daily score by country over the last 30 days, to work out what is usual | 30-day window |
-| `historico.json` | By day and country: `[score, level, worsening, forecast]` | Forever |
+| `historico.json` | By day and country: `[score, level, worsening, forecast grade, model probability, model signals]` | Forever |
 | `archivo/AAAA-MM-DD.json` | Each day's snapshot: levels, report, simulation, routes and the 300 most relevant events | Forever |
 | `archivo/indice.json` | The available days | Forever |
 | `avisos.json` and `exteriores.json` | Latest travel advisory level and its changes | Replaced |
@@ -430,7 +431,7 @@ Each country adds up points from what happened in the last 48 hours (30 days for
 | Copernicus activation (EU) | 5 |
 | NASA EONET events | Between 0.5 and 2 depending on the type |
 | Outbreaks (WHO) | 3, or 8 for a serious disease (Ebola, Marburg, cholera…) |
-| Internet outages (IODA) | `3 × (log10(severity) − 5)`, up to 12. Small outages do not count |
+| Internet outages (IODA) | `3 × (log10(severity + 1) − 5)`, between 0 and 12. Small outages do not count |
 | Internet outages (Cloudflare) | 12 if ordered by the government nationwide, 8 if ordered in part of the country, 3 if technical and nationwide |
 | New messaging block (OONI) | 6 |
 | Spanish Foreign Ministry raises its advice | 5 per level |
@@ -463,11 +464,11 @@ flowchart TD
 
 | Level | Reached if any of these conditions is met |
 |---|---|
-| **Alert** | Score ≥ 40 · official red alert · 3 deviations above usual with ≥ 18 points · 30-day average ≥ 30 · more than 1,000 verified deaths in 90 days |
-| **Watch** | Score ≥ 25 · official orange alert · 1.5 deviations above usual with ≥ 10 points · 3 days in a row rising with ≥ 10 points · average ≥ 18 · open humanitarian crisis · more than 100 verified deaths · Spain or the US advise against travel and there is activity of its own |
+| **Alert** | Score ≥ 40 · official red alert · 3 deviations above usual with ≥ 18 points · 30-day average ≥ 30 · 1,000 or more verified deaths in 90 days |
+| **Watch** | Score ≥ 25 · official orange alert · 1.5 deviations above usual with ≥ 10 points · 3 days in a row rising with ≥ 10 points · average ≥ 18 · open humanitarian crisis · 100 or more verified deaths · Spain or the US advise against travel and there is activity of its own |
 
 - **Escalation**: the country is above what is normal for it, or has been rising for three days. On the map, it pulses.
-- **Confidence** (how well corroborated it is, not how serious): *well corroborated* if two or more source families agree, *corroborated* if there is an official, technical or health source, *press only* if only the news reports it.
+- **Confidence** (how well corroborated it is, not how serious): *well corroborated* if two or more source families agree, *corroborated* if there is a single family other than the press (official, technical, health, humanitarian or academic), *press only* if only the news reports it.
 - Travel advisories **reinforce, but never colour a country on their own**: they also reflect the foreign policy of whoever issues them.
 - During the first week only the absolute thresholds count, because there is no history yet to know what is usual.
 
@@ -477,10 +478,10 @@ This is the *indicators and warnings* method used by early-warning teams: each s
 
 | Scenario | Indicators |
 |---|---|
-| **Military escalation** | **Violence is rising**, **clashes between countries**, events with the army or armed groups, a government raises its advisory, Spain advises against travel, neighbours on alert, shipping route at risk |
+| **Military escalation** | **Violence is rising**, **clashes between countries**, events with the army or armed groups, a government raises its advisory, Spain advises against travel, neighbours on alert, shipping route at risk, satellite fires, **blackout seen by satellite** |
 | **Coup or government crisis** | **Internet outage**, **messaging block**, **the press is talking about a coup**, events with the army, protests on the rise, a government raises its advisory, the currency is plunging, upcoming elections |
 | **Serious unrest** | **Protests on the rise**, **riots**, messaging block, internet outage, violence is rising, the currency is plunging, upcoming elections |
-| **Humanitarian emergency** | **Disaster with an official alert**, **serious outbreak**, **open humanitarian crisis**, intense violence, verified deaths, Spain advises against travel |
+| **Humanitarian emergency** | **Disaster with an official alert**, **serious outbreak**, **open humanitarian crisis**, intense violence, verified deaths, Spain advises against travel, blackout seen by satellite, **extreme rainfall** |
 
 If more than half of the weight is switched on, the scenario is *likely*; with two points, *possible*; otherwise, *unlikely*. Each indicator's thresholds are relative to the country's news volume.
 
@@ -501,7 +502,7 @@ To avoid settling on the most alarming explanation, each sheet includes what an 
 - **Currencies**: a sharp fall against the dollar (≥ 8% in 7 days) often comes before protests, shortages or government crises.
 - **Elections and referendums** in the next 45 days, according to Wikidata: they appear under *Key dates* and as an indicator.
 - **Satellite fire detection** (NASA FIRMS, VIIRS sensor) in the countries with the most conflict and in open wars. It counts heat spots in the last 24 hours and compares them with the median of the same country's previous 30 days, because agricultural burning varies a lot with the season. With at least 30 spots and 2.5 times the usual, it adds points and switches on an indicator of the escalation scenario: in a combat zone they often reveal shelling and active front lines before the press does. It needs the free `FIRMS_KEY`.
-- **Blackouts seen from space** (NASA Black Marble, VIIRS on the NOAA-20 satellite). Every night the light is measured in a circle of about 3 km around the most violent places in countries at war or on alert (up to 3 per country). Only good nights count: no clouds, the satellite almost overhead (under 60°) and no strong moon. Normal is the median of the good nights in the previous 30 days. If light falls to half or less on two good nights in a row, it adds points and switches on escalation and humanitarian-emergency indicators: attacks on the power grid, supply cuts or a city emptying out. It arrives about 2 days late.
+- **Blackouts seen from space** (NASA Black Marble, VIIRS on the NOAA-20 satellite). Every night the light is measured in a 13 × 13 pixel square (about 6 km across) around the most violent places in countries at war or on alert (up to 3 per country). Only good nights count: no clouds, the satellite almost overhead (under 60°) and no strong moon. Normal is the median of the good nights in the previous 30 days. If light on the last good night falls to half or less of normal, and the previous one was also at 60 % or less, it adds points and switches on escalation and humanitarian-emergency indicators: attacks on the power grid, supply cuts or a city emptying out. It arrives about 2 days late.
 - **Extreme rainfall** (NASA GPM IMERG, daily early run, 0.1° cells). A cell is extreme with 150 mm in one day or 250 mm in three; with at least 3 in a country (about 350 km²) it adds points and switches on the humanitarian-emergency indicator. Latitudes above 60°, Greenland and Antarctica are ignored, as the satellite measures poorly over snow.
 - These two need a free NASA Earthdata account (`EARTHDATA_TOKEN`) and read HDF5 files, so they run in a separate workflow step with `h5py` and `numpy` ([`luces.py`](scripts/luces.py) and [`lluvias.py`](scripts/lluvias.py)); if they fail, the rest of atalaya carries on.
 - Left out, because they require keys or usage agreements: ships (AIS), airspace (OpenSky) and displacement (IOM DTM, UNHCR). Exposed population (NASA SEDAC) is pending.

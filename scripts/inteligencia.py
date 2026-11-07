@@ -120,8 +120,11 @@ def analisis(a3, p, ctx, escs):
     if a3 in ctx.get("tregua_en_prensa", ()):
         contra.append(NOMBRE_INDICADOR_CONTRA["tregua_en_prensa"])
     alternativas = []
-    total = g.get("conflicto", 0) + g.get("protesta", 0)
-    if total and g.get("estatal", 0) / max(total, 1) >= 0.3:
+    # Los hechos de medios estatales cuentan la mitad en "conflicto" y "protesta": se deshace ese
+    # peso para comparar filas con filas
+    estatal = g.get("estatal", 0)
+    total = g.get("conflicto", 0) + g.get("protesta", 0) + estatal * 0.5
+    if total and estatal / max(total, 1) >= 0.3:
         alternativas.append("Una parte importante de la cobertura viene de medios estatales: puede ser propaganda")
     if p.get("confianza") == "baja" and p.get("nivel") != "verde":
         alternativas.append("Solo lo recoge la prensa: puede ser un pico mediático por un hecho aislado")

@@ -140,6 +140,8 @@ def probabilidades(p, escenario, vecinos_mal, pesos=None):
     if p.get("desescalada"):
         contiene += 0.10
     contiene = max(0.05, min(0.50, contiene))
+    # Las tres ramas suman 1 y "sigue igual" nunca baja del 5 %
+    contiene = min(contiene, 0.95 - escala)
     igual = 1 - escala - contiene
     ps = {"escala": _redondeo5(escala), "igual": _redondeo5(igual), "contiene": _redondeo5(contiene)}
     ps["igual"] += 100 - sum(ps.values())  # que sumen 100 tras redondear

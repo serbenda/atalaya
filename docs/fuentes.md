@@ -153,8 +153,8 @@ Cuando una fuente falla, `main()` lee el `eventos.json` de la ejecución anterio
 - **Fuentes sin eventos** (`DATOS_DE_FUENTE`): `Titulares` → `titulares`, `Análisis` → `analisis` y `Elecciones (Wikidata)` → `elecciones`. Se reutiliza esa lista entera.
 - **Agregados**: los de GDELT (`gdelt_paises`, `gdelt_pasos`), UCDP, divisas, incendios, luces y lluvias se toman de `eventos.json` anterior si la ejecución actual no los trae. Los avisos de EE. UU. salen de `avisos.json` y los de Exteriores de `exteriores.json`.
 
-> [!WARNING]
-> Las tres fuentes de satélite emiten eventos con un `fuente` distinto de su nombre en `FUENTES` (`NASA FIRMS` frente a `Incendios (NASA FIRMS)`, `NASA Black Marble` frente a `Luces nocturnas (NASA Black Marble)` y `NASA GPM IMERG` frente a `Lluvias (NASA GPM IMERG)`). Por eso, si una de ellas falla, sus eventos anteriores **no** se conservan, aunque sí sus agregados por país.
+> [!NOTE]
+> Las tres fuentes de satélite emiten eventos con un `fuente` distinto de su nombre en `FUENTES` (`NASA FIRMS` frente a `Incendios (NASA FIRMS)`, etc.). La tabla `ETIQUETA_EVENTOS` de `actualizar.py` relaciona los dos nombres para que, si una falla, se conserven también sus eventos anteriores. Si una fuente nueva usa otra etiqueta en sus eventos, añádela ahí.
 
 ### Estado de cada fuente
 
@@ -191,13 +191,13 @@ FIRMS, Black Marble e IMERG tienen su propia función de descarga (`firms_pedir(
 
 1. Lee `fuentes` de `eventos.json`.
 2. Si alguna tiene `fallos_seguidos ≥ FALLOS_PARA_AVISAR` (6 ejecuciones, unas 3 horas), imprime una tabla Markdown (fuente, error, fallos seguidos, último dato bueno y enlace a la ejecución) y sale con código 1.
-3. El workflow busca un issue abierto titulado **Fuentes de datos caídas**. Si existe, añade un comentario con la tabla; si no, lo crea.
+3. El workflow busca un issue abierto titulado **Fuentes de datos caídas**. Con código 1, si existe añade un comentario con la tabla y si no lo crea.
 
 A tener en cuenta:
 
-- Mientras la fuente siga caída, **cada ejecución añade un comentario** al issue (cada 30 minutos).
-- El issue no se cierra solo: ciérralo a mano cuando la fuente vuelva.
-- El mapa sigue mostrando los últimos datos buenos de la fuente (salvo los eventos de satélite, ver el aviso de arriba).
+- Se comenta en el issue cuando una fuente **acaba de llegar** al umbral, y después **una vez al día** (cada `AVISO_CADA = 48` ejecuciones) mientras siga caída. En las demás ejecuciones `salud.py` sale con código 2 y no se hace nada.
+- **El issue se cierra solo** cuando todas las fuentes vuelven a responder (código 0), con un comentario.
+- El mapa sigue mostrando los últimos datos buenos de la fuente.
 - Las fuentes desactivadas (sin clave) nunca abren el issue.
 - Exteriores y Wikidata usan caché de 12 horas y casi nunca llegan a 6 fallos seguidos (ver sus fichas).
 
@@ -1009,7 +1009,7 @@ Si quitas `EARTHDATA_TOKEN` después de haberlo usado, los ficheros siguen en la
 - Solo devuelve `None` si fallan **todos** los países.
 - **Cambio de API**: FIRMS ya no documenta la API por países; el código usa la API de áreas con la caja de cada país. Si vuelves a ver errores de URL, compara con la documentación actual de FIRMS.
 - **Suomi NPP** (`VIIRS_SNPP_NRT`) ya no devuelve datos (observado en operación). Es el último de la lista, así que no afecta mientras NOAA-20 o NOAA-21 respondan.
-- Si falla, sus eventos anteriores no se conservan (ver [el contrato](#cómo-se-conservan-los-datos-anteriores)).
+- Si falla, se conservan sus últimos datos y eventos (ver [el contrato](#cómo-se-conservan-los-datos-anteriores)).
 
 **Comprobar a mano.**
 
@@ -1072,7 +1072,7 @@ Se mide la media de los píxeles buenos en un cuadrado de `RADIO` = 6 píxeles d
 - **HTTP 401 o 403** en LAADS: el script se para con `El token de Earthdata no vale o falta autorizar LAADS DAAC en tu cuenta.` El paso falla, pero el workflow sigue (`continue-on-error`). Si no se arregla, a los 3 días la fuente sale como caída.
 - `Black Marble: no hay un día completo reciente.`: ningún día de los últimos 10 tiene más de 150 baldosas. No escribe `luces.json`.
 - Un 404 de una baldosa se salta sin error.
-- Si falla, sus eventos anteriores no se conservan (ver [el contrato](#cómo-se-conservan-los-datos-anteriores)).
+- Si falla, se conservan sus últimos datos y eventos (ver [el contrato](#cómo-se-conservan-los-datos-anteriores)).
 
 **Comprobar a mano.**
 
@@ -1115,8 +1115,8 @@ En local, con `h5py` y `numpy`: `ATALAYA_SALIDA=/tmp/atalaya-prueba/data ATALAYA
 **Fallos y problemas conocidos.**
 
 - **HTTP 401 o 403**: el script se para con `El token de Earthdata no vale o falta autorizar GES DISC en tu cuenta.`
-- Si GES DISC no responde o no hay días nuevos, el script **reescribe `lluvias.json` con la hora actual** usando los días que ya tenía. La comprobación de 3 días de `actualizar.py` no lo detecta; los eventos viejos salen solos de la puntuación a las 48 horas. Mira `IMERG <día>: … celdas` en el registro del paso *Satélites de la NASA* para ver si llegan días nuevos.
-- Si falla, sus eventos anteriores no se conservan (ver [el contrato](#cómo-se-conservan-los-datos-anteriores)).
+- Si GES DISC no responde o no hay días nuevos, `actualizado` de `lluvias.json` **solo avanza si el último día tiene 3 días o menos**. Así, si dejan de llegar datos, a los 3 días `actualizar.py` ve el fichero caducado y la fuente cuenta como caída. Mira `IMERG <día>: … celdas` en el registro del paso *Satélites de la NASA* para ver si llegan días nuevos.
+- Si falla, se conservan sus últimos datos y eventos (ver [el contrato](#cómo-se-conservan-los-datos-anteriores)).
 
 **Comprobar a mano.**
 
@@ -1157,7 +1157,7 @@ Lista de comprobación. Marca cada paso en la PR.
   - Devuelve `{"eventos": [...]}` y, si aporta datos agregados, añade otra clave con nombre propio (que no choque con las existentes).
   - Si necesita paquetes fuera de la biblioteca estándar, hazla como un script aparte en `scripts/` que escriba un JSON, añádelo al paso *Satélites de la NASA* (o a uno nuevo con `continue-on-error`) y lee ese JSON desde `actualizar.py`, como `luces()` y `lluvias()`.
 - [ ] **2. Da a cada evento todos los campos**: `id` (único y estable entre ejecuciones), `tipo`, `titulo` (en español), `lugar`, `pais` (ISO alfa-3 con `paises.asignar()`, `paises.nombre()` o `paises.punto()`, o `None`), `lat`, `lon`, `fecha` (con `iso()`), `peso`, `nivel` (`verde`, `ambar` o `rojo`), `fuente`, `familia` y `url`.
-  - **`fuente` tiene que ser igual al nombre en `FUENTES`**; si no, sus eventos se pierden cuando la fuente falla.
+  - **`fuente` tiene que ser igual al nombre en `FUENTES`**, o añadir la etiqueta en `ETIQUETA_EVENTOS`; si no, sus eventos se pierden cuando la fuente falla.
   - Usa `ambar` o `rojo` solo para alertas oficiales: suben el nivel mínimo del país.
   - Elige la `familia` con cuidado: cuenta para la confianza.
 - [ ] **3. Añádela a `FUENTES`** con su nombre visible: `("Mi fuente", mi_fuente)`. El orden es el de ejecución.

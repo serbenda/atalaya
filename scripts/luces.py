@@ -9,14 +9,14 @@ Cómo se mide:
   - Se vigilan los lugares con más violencia en GDELT de los países en guerra o en alerta
     (hasta 3 por país), y se guardan para seguirlos aunque dejen de salir en las noticias.
   - Cada día se lee el producto diario VJ146A1 (satélite NOAA-20, con unos 2 días de retraso),
-    en un círculo de unos 3 km alrededor de cada lugar. Los productos ya corregidos de luna y
+    en un cuadrado de 13 × 13 píxeles (unos 6 km de lado) alrededor de cada lugar. Los productos ya corregidos de luna y
     atmósfera (A2 y A3) hoy solo cubren una parte del planeta, así que se filtra a mano: solo
     cuentan los píxeles sin nubes, vistos casi desde arriba (menos de 60°) y con la luna baja
     o poco iluminada, que es cuando la luz de la ciudad se mide bien.
   - Lo normal es la mediana de las noches buenas de los 30 días anteriores en el mismo sitio.
     Al empezar a vigilar un lugar se rellenan sus días pasados poco a poco.
-  - Hay aviso si la luz cae a la mitad o menos de lo normal en dos noches buenas seguidas:
-    una sola noche puede ser una nube mal detectada.
+  - Hay aviso si la última noche buena cae a la mitad o menos de lo normal y la anterior también
+    estaba al 60 % o menos: una sola noche puede ser una nube mal detectada.
 
 Necesita EARTHDATA_TOKEN y los paquetes h5py y numpy (solo este script; el resto de atalaya
 sigue en Python estándar). Escribe luces.json, que actualizar.py lee como una fuente más.
@@ -42,7 +42,7 @@ CAMPOS = "HDFEOS/GRIDS/VIIRS_Grid_DNB_2d/Data Fields/"
 FIJOS = ("UKR", "RUS", "SDN", "PSE", "ISR", "MMR", "COD", "SYR", "YEM", "LBN", "SSD", "ETH")
 MAX_PAISES = 20
 PUNTOS_POR_PAIS = 3
-RADIO = 6               # píxeles de 15" (~460 m): unos 3 km
+RADIO = 6               # píxeles de 15" (~460 m) a cada lado: un cuadrado de 13 × 13, unos 6 km
 MIN_VALIDOS = 0.4       # parte del círculo sin nubes para fiarse del dato
 MIN_BASE = 8.0          # nW/cm²/sr: por debajo, el sitio es demasiado oscuro para juzgar
 MIN_NOCHES = 6          # noches buenas para saber qué es lo normal

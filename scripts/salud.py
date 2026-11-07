@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Revisa el estado de las fuentes tras una actualización.
 
-Sale con código 1 e imprime un informe en Markdown si alguna fuente lleva
-varias ejecuciones seguidas fallando; la Action lo usa para abrir un issue.
+Códigos de salida, que usa la Action para la issue "Fuentes de datos caídas":
+  0: todas responden (si hay una issue abierta, se cierra)
+  1: una fuente acaba de llegar a FALLOS_PARA_AVISAR fallos seguidos, o toca el recordatorio
+     diario: se abre la issue o se comenta en ella
+  2: siguen caídas, pero ya se avisó: no se hace nada
 """
 
 import json
@@ -12,6 +15,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from actualizar import FALLOS_PARA_AVISAR, SALIDA  # noqa: E402
+
+AVISO_CADA = 48  # ejecuciones entre recordatorios (una al día)
 
 
 def main():
@@ -24,6 +29,12 @@ def main():
     if not caidas:
         print("Todas las fuentes responden.")
         return 0
+    # Se avisa cuando una fuente acaba de llegar al umbral, y luego una vez al día mientras siga caída:
+    # así la issue no recibe un comentario cada 30 minutos
+    nuevas = [n for n, f in caidas.items() if (f["fallos_seguidos"] - FALLOS_PARA_AVISAR) % AVISO_CADA == 0]
+    if not nuevas:
+        print("Siguen caídas: " + ", ".join(caidas) + " (ya avisado).")
+        return 2
     print("Estas fuentes llevan al menos "
           f"{FALLOS_PARA_AVISAR} actualizaciones seguidas fallando. El mapa sigue mostrando sus últimos datos buenos.\n")
     print("| Fuente | Error | Fallos seguidos | Último dato bueno |")

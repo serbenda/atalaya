@@ -220,7 +220,7 @@ Hay evento si $\text{caída} \ge 0{,}08$. Se aplica a todos los países que usan
 | Umbrales de OONI | 0,5 ahora, 0,25 antes, 10 medidas | actualizar.py, `ooni` | Más estrictos: menos bloqueos detectados, menos falsos positivos |
 | Peso de OONI | 6 | actualizar.py | Cuánto suma un bloqueo nuevo |
 | Avisos EE. UU. | 4 por nivel | actualizar.py, `avisos_viaje` | Cuánto suma una subida |
-| Exteriores | 5 por nivel, 1 por actualización | actualizar.py, `exteriores` | Cuánto suma una subida; el 1 hace que cualquier actualización sume (ver sección 16) |
+| Exteriores | 5 por nivel que sube, 0 por una actualización sin subida | actualizar.py, `exteriores` | Cuánto suma una subida |
 | `EXTERIORES_CADA` | 12 h | actualizar.py | Cada cuánto se lee la web de Exteriores (197 fichas) |
 | ReliefWeb | 6 en `alert` | actualizar.py | Cuánto suma una crisis en alerta |
 | `CAIDA_DIVISA`, `CAIDA_DIVISA_GRAVE` | 0,08 y 0,15 | actualizar.py | Más bajos: más monedas avisan. El 0,08 está repetido en el indicador `moneda_cae` (sección 15) |
@@ -628,14 +628,14 @@ Código: `analisis`, `informe` e `intereses_espana` en [inteligencia.py](../scri
 |---|---|
 | Señal en contra: desescalada | $D \ge \max(3,\ 0{,}25\,C)$ |
 | Señal en contra: tregua en prensa | un titular del país habla de alto el fuego, tregua, negociaciones o acuerdo de paz, cese de hostilidades o desescalada |
-| Alternativa: propaganda | $\text{estatal}/\max(C + P, 1) \ge 0{,}3$ |
+| Alternativa: propaganda | $\text{estatal}/\max(C + P + 0{,}5\,\text{estatal}, 1) \ge 0{,}3$ |
 | Alternativa: pico mediático | confianza baja y nivel distinto de verde |
 | Alternativa: problema local | la primera región tiene al menos el 70 % de los hechos regionales y no es un conflicto entre países |
 | Alternativa: conflicto exterior | $\text{interestatal}/C \ge 0{,}5$ |
 | Alternativa: crisis que dura | crisis abierta y sin escalada |
 | Qué lo desmentiría | lista fija `DESMENTIRIA` del escenario principal |
 
-Ojo con la propaganda: `estatal` cuenta filas (1 por cada fila de medio estatal) y $C + P$ suma pesos (0,5 por esas filas). Ver sección 16.
+En la propaganda se comparan filas con filas: $C + P + 0{,}5\,\text{estatal}$ deshace el medio peso de esos medios.
 
 ### 8.2 Informe diario
 
@@ -909,7 +909,7 @@ El país X: grado alto, escenario principal disturbios con $k = 4$ indicadores, 
 | `PESOS_RIESGO` | 0,40 / 0,25 / 0,10 | simulacion.py | Punto de partida de "escala". Repetidos en `PROB_PRONOSTICO` (sección 15) |
 | Ajustes de "escala" | 0,04 y tope 0,15; ±0,05; +0,08; −0,05; 0,03 y tope 0,09; +0,05; −0,08 | simulacion.py, `probabilidades` | Cuánto mueve cada señal la probabilidad de escalar |
 | Topes de "escala" | 0,05 a 0,75; 0,40 en disturbios en verde | simulacion.py | Más alto: escaladas casi seguras, poco creíbles en una semana |
-| "Se contiene" | 0,45; $e/2$; +0,10; −0,20; +0,10; tope 0,05 a 0,50 | simulacion.py | Ver el caso límite de la sección 16: con estos valores "sigue igual" puede salir −5 % |
+| "Se contiene" | 0,45; $e/2$; +0,10; −0,20; +0,10; tope 0,05 a 0,50 | simulacion.py | Se limita además a $0{,}95 - e$ para que "sigue igual" no baje del 5 % |
 | `MARGEN` | 5 / 10 / 15 | simulacion.py | Anchura del intervalo según la confianza |
 | `palabras` | 60 / 40 / 20 | simulacion.py | Escala distinta de la del pronóstico (40 / 20) |
 | Contagio | 0,35; fragilidad 1,5; mínimo 0,05; 4 vecinos | simulacion.py, `simular` | Más alto: más vecinos rayados en el mapa |
@@ -1166,22 +1166,19 @@ Algunos valores están escritos en más de un sitio. Si cambias uno, cambia los 
 
 **Los filtros de los satélites.** Las luces solo cuentan noches despejadas, con el satélite casi encima y sin luna fuerte; en épocas nubladas puede no haber noches válidas y el apagón no se detecta, o llega tarde (el producto ya va 2 días por detrás). La ventana es cuadrada, no un círculo. Las lluvias solo guardan las celdas con 50 mm o más al día, así que la suma de 3 días no incluye los días de menos de 50 mm. "En un día" significa el último día disponible, y los 3 días son los 3 últimos disponibles, no necesariamente seguidos. IMERG ignora latitudes por encima de 60°. FIRMS no distingue un bombardeo de una quema agrícola: por eso se compara con la mediana del propio país.
 
+**Corregido tras la revisión de esta guía** (versión 2.2 del modelo): el parte "suben y bajan" se calcula ya después de los ajustes de Exteriores y UCDP; Exteriores en nivel 4 añade la familia *oficial*, como el aviso 4 de EE. UU.; una actualización de Exteriores sin subida ya no suma puntos ni enciende `aviso_sube`; la alternativa "propaganda" compara filas con filas; y en la simulación "sigue igual" nunca baja del 5 % (`contiene` se limita a $0{,}95 - e$).
+
 **Otros límites que conviene conocer:**
 
 - La línea base usa el **máximo** del día (`historial.json`), y la medición usa la **última** ejecución del día (`historico.json`).
-- El parte "suben y bajan" se calcula **antes** de los ajustes de Exteriores y UCDP, así que un cambio de nivel debido solo a ellos no sale en el parte (Telegram sí lo ve).
-- El aviso 4 de EE. UU. añade la familia *oficial* a la confianza; Exteriores en nivel 4 no la añade.
 - Cualquier evento con nivel rojo o ámbar fija el rango de evento, aunque la fuente no sea oficial (Cloudflare, OONI, IODA). El motivo se muestra igual como "Alerta oficial".
-- Una actualización de la ficha de Exteriores sin subida suma 1 punto a "avisos" y enciende `aviso_sube` ("Un gobierno ha subido su aviso de viaje"), aunque no haya subido.
 - Cualquier crisis de ReliefWeb (`alert` o `current`) pone el país en ámbar mientras siga abierta.
 - Un brote grave mantiene el país en ámbar durante 30 días.
 - El ajuste de UCDP solo se aplica a países que ya aparecen en el resultado; un país con muchas muertes verificadas pero sin ninguna otra señal no sale.
 - Los pasos marítimos cuentan hechos sin quitar duplicados por noticia ni rebajar los medios estatales.
-- La alternativa "propaganda" divide filas de medios estatales (contadas de 1 en 1) entre hechos ponderados (esos medios cuentan 0,5), así que sobrestima un poco su proporción.
 - `fiabilidad` no separa días reales y reconstruidos; `rendimiento` y el modelo sí.
 - Los "7 días siguientes" son las 7 entradas siguientes de `historico.json`: si faltan días, la ventana es más larga.
 - La fragilidad 1,5 del contagio casi nunca se aplica: los vecinos que no están en verde suelen estar ya entre los casos simulados, y entonces no hay contagio.
-- **Caso límite de la simulación.** Con "escala" en su tope de 0,75, tendencia a la baja ($\beta < -0{,}5$) y desescalada, sin crisis crónica, "se contiene" vale $0{,}45 - 0{,}375 + 0{,}10 + 0{,}10 = 0{,}275$ y "sigue igual" $1 - 0{,}75 - 0{,}275 = -0{,}025$. Tras el redondeo salen 75, −5 y 30. Es raro (hace falta modelo aprendido o pesos recalibrados altos), pero posible.
 
 ---
 
