@@ -8,11 +8,14 @@ se ve desde el espacio, sin depender de lo que cuente la prensa.
 Cómo se mide:
   - Se vigilan los lugares con más violencia en GDELT de los países en guerra o en alerta
     (hasta 3 por país), y se guardan para seguirlos aunque dejen de salir en las noticias.
-  - Cada día se lee el producto diario corregido de luna, atmósfera y nieve (VJ146A2), que llega
-    con unos 3 días de retraso, en un círculo de unos 3 km alrededor de cada lugar. Solo cuentan
-    los píxeles de calidad alta (sin nubes).
-  - Lo normal es el compuesto mensual del mes anterior (VJ146A3) en el mismo sitio.
-  - Hay aviso si la luz cae a la mitad o menos de lo normal en dos observaciones seguidas:
+  - Cada día se lee el producto diario VJ146A1 (satélite NOAA-20, con unos 2 días de retraso),
+    en un círculo de unos 3 km alrededor de cada lugar. Los productos ya corregidos de luna y
+    atmósfera (A2 y A3) hoy solo cubren una parte del planeta, así que se filtra a mano: solo
+    cuentan los píxeles sin nubes, vistos casi desde arriba (menos de 60°) y con la luna baja
+    o poco iluminada, que es cuando la luz de la ciudad se mide bien.
+  - Lo normal es la mediana de las noches buenas de los 30 días anteriores en el mismo sitio.
+    Al empezar a vigilar un lugar se rellenan sus días pasados poco a poco.
+  - Hay aviso si la luz cae a la mitad o menos de lo normal en dos noches buenas seguidas:
     una sola noche puede ser una nube mal detectada.
 
 Necesita EARTHDATA_TOKEN y los paquetes h5py y numpy (solo este script; el resto de atalaya
@@ -33,7 +36,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 SALIDA = Path(os.environ.get("ATALAYA_SALIDA") or RAIZ / "data")
 TOKEN = os.environ.get("EARTHDATA_TOKEN", "").strip()
 LAADS = "https://ladsweb.modaps.eosdis.nasa.gov/api/v2/content"
-DIARIO, MENSUAL = "VJ146A2", "VJ146A3"
+DIARIO = "VJ146A1"
 CAMPOS = "HDFEOS/GRIDS/VIIRS_Grid_DNB_2d/Data Fields/"
 
 FIJOS = ("UKR", "RUS", "SDN", "PSE", "ISR", "MMR", "COD", "SYR", "YEM", "LBN", "SSD", "ETH")
@@ -41,7 +44,10 @@ MAX_PAISES = 20
 PUNTOS_POR_PAIS = 3
 RADIO = 6               # píxeles de 15" (~460 m): unos 3 km
 MIN_VALIDOS = 0.4       # parte del círculo sin nubes para fiarse del dato
-MIN_BASE = 3.0          # nW/cm²/sr: por debajo, el sitio es demasiado oscuro para juzgar
+MIN_BASE = 8.0          # nW/cm²/sr: por debajo, el sitio es demasiado oscuro para juzgar
+MIN_NOCHES = 6          # noches buenas para saber qué es lo normal
+ATRAS = 30              # días que se miran hacia atrás
+RELLENO_POR_EJECUCION = 3
 CAIDA = 0.5             # aviso si la luz baja a la mitad o menos
 CAIDA_GRAVE = 0.3
 DIAS_HISTORIAL = 60
@@ -165,14 +171,23 @@ def elegir_puntos(puntos):
                for p in puntos.values()):
             continue
         puntos[ide] = {"pais": pais, "lugar": lugar, "lat": round(x["lat"], 4), "lon": round(x["lon"], 4),
-                       "alta": hoy, "visto": hoy, "base": {}}
+                       "alta": hoy, "visto": hoy}
         por_pais[pais] = por_pais.get(pais, 0) + 1
     corte = (AHORA - timedelta(days=DIAS_HISTORIAL)).strftime("%Y-%m-%d")
     return {k: v for k, v in puntos.items() if v.get("visto", "") >= corte}
 
 
-def leer_valores(ruta, campo, calidad, puntos, condicion_calidad):
-    """Media de la luz en el círculo de cada punto, con los píxeles de calidad alta."""
+def mascara_buena(g, sl):
+    """Píxeles medibles: sin nubes, buena calidad, vistos casi desde arriba y sin luna fuerte."""
+    nubes = (g["QF_Cloud_Mask"][sl] >> 6) & 3          # 0 despejado seguro, 1 probablemente despejado
+    calidad = g["QF_DNB"][sl] == 0
+    cenit = g["Sensor_Zenith"][sl] * 0.01 < 60
+    luna = (g["Moon_Illumination_Fraction"][sl] * 0.01 <= 50) | (g["Lunar_Zenith"][sl] * 0.01 >= 90)
+    return (nubes <= 1) & calidad & cenit & luna
+
+
+def leer_valores(ruta, puntos):
+    """Media de la luz en el círculo de cada punto, solo con los píxeles medibles."""
     import h5py
     import numpy as np
     salida = {}
@@ -183,16 +198,32 @@ def leer_valores(ruta, campo, calidad, puntos, condicion_calidad):
             i = int(np.argmin(np.abs(lat - p["lat"])))
             j = int(np.argmin(np.abs(lon - p["lon"])))
             sl = (slice(max(i - RADIO, 0), i + RADIO + 1), slice(max(j - RADIO, 0), j + RADIO + 1))
-            v = g[campo][sl].astype("float64")
-            q = g[calidad][sl]
-            ok = condicion_calidad(q) & (v >= 0)
-            if "Snow_Flag" in g and campo.startswith("DNB"):
-                ok &= g["Snow_Flag"][sl] == 0
+            v = g["DNB_At_Sensor_Radiance"][sl].astype("float64")
+            ok = mascara_buena(g, sl) & (v >= 0) & (v < 10000)
             if ok.mean() >= MIN_VALIDOS:
                 salida[ide] = round(float(v[ok].mean()), 2)
             elif DEPURAR:
-                log(f"    {ide}: {ok.mean():.0%} válido; calidad {sorted(set(q.ravel().tolist()))[:6]}, luz {float(v.max()):.1f}")
+                log(f"    {ide}: {ok.mean():.0%} medible")
     return salida
+
+
+def procesar_dia(dia, lista, puntos, historial, tmp):
+    por_baldosa = {}
+    for k, p in puntos.items():
+        por_baldosa.setdefault(baldosa(p["lat"], p["lon"]), []).append((k, p))
+    leidos = 0
+    for b, grupo in por_baldosa.items():
+        if b not in lista:
+            continue
+        ruta = pedir(lista[b], tmp / f"d_{b}.h5")
+        if not ruta:
+            continue
+        valores = leer_valores(ruta, grupo)
+        ruta.unlink(missing_ok=True)
+        for k, v in valores.items():
+            historial.setdefault(k, {})[dia.isoformat()] = v
+            leidos += 1
+    log(f"Black Marble {dia}: {len(por_baldosa)} baldosas, {leidos} de {len(puntos)} lugares medibles")
 
 
 def principal():
@@ -210,71 +241,50 @@ def principal():
     diatxt = dia.isoformat()
     tmp = SALIDA.parent / "tmp_luces"
     tmp.mkdir(exist_ok=True)
-
-    # 1. Lo normal: compuesto mensual del mes anterior al del dato diario
-    mes = (dia.replace(day=1) - timedelta(days=1)).replace(day=1)
-    clave_mes = mes.strftime("%Y-%m")
-    sin_base = [(k, p) for k, p in puntos.items() if clave_mes not in p.get("base", {})]
-    if sin_base:
-        mensual = ficheros_del_dia(MENSUAL, mes)
-        log(f"Black Marble: {len(mensual)} baldosas mensuales de {clave_mes}")
-        por_baldosa = {}
-        for k, p in sin_base:
-            por_baldosa.setdefault(baldosa(p["lat"], p["lon"]), []).append((k, p))
-        for b, grupo in por_baldosa.items():
-            if b not in mensual:
-                log(f"  falta la baldosa mensual {b}")
-                continue
-            ruta = pedir(mensual[b], tmp / f"m_{b}.h5")
-            if not ruta:
-                continue
-            valores = leer_valores(ruta, "AllAngle_Composite_Snow_Free", "AllAngle_Composite_Snow_Free_Quality",
-                                   grupo, lambda q: q <= 1)
-            ruta.unlink(missing_ok=True)
-            for k, _ in grupo:
-                puntos[k].setdefault("base", {})[clave_mes] = valores.get(k)
-        log(f"Black Marble: línea base de {clave_mes} para {len(sin_base)} lugares")
-
-    # 2. El dato diario (solo si es un día nuevo)
-    if estado.get("dia") != diatxt:
-        por_baldosa = {}
-        for k, p in puntos.items():
-            por_baldosa.setdefault(baldosa(p["lat"], p["lon"]), []).append((k, p))
-        leidos = 0
-        for b, grupo in por_baldosa.items():
-            if b not in lista:
-                continue
-            ruta = pedir(lista[b], tmp / f"d_{b}.h5")
-            if not ruta:
-                continue
-            valores = leer_valores(ruta, "DNB_BRDF-Corrected_NTL", "Mandatory_Quality_Flag", grupo, lambda q: q == 0)
-            ruta.unlink(missing_ok=True)
-            for k, v in valores.items():
-                historial.setdefault(k, {})[diatxt] = v
-                leidos += 1
-        estado["dia"] = diatxt
-        log(f"Black Marble: {diatxt}, {len(por_baldosa)} baldosas, {leidos} de {len(puntos)} lugares sin nubes")
+    hechos = set(estado.get("dias", []))
+    # 1. El día más reciente, si no se ha leído ya
+    if diatxt not in hechos:
+        procesar_dia(dia, lista, puntos, historial, tmp)
+        hechos.add(diatxt)
+    # 2. Rellenar días pasados para los lugares que aún no tienen bastantes noches buenas
+    faltan = [k for k in puntos if len(historial.get(k, {})) < MIN_NOCHES * 2]
+    if faltan:
+        pendientes = [dia - timedelta(days=d) for d in range(1, ATRAS + 1)
+                      if (dia - timedelta(days=d)).isoformat() not in hechos][:RELLENO_POR_EJECUCION]
+        for d in pendientes:
+            procesar_dia(d, ficheros_del_dia(DIARIO, d), {k: puntos[k] for k in faltan}, historial, tmp)
+            hechos.add(d.isoformat())
+    corte = (dia - timedelta(days=ATRAS + 5)).isoformat()
+    estado["dias"] = sorted(x for x in hechos if x >= corte)
     try:
         tmp.rmdir()
     except OSError:
         pass
 
-    # 3. Comparar con lo normal
+    # 3. Comparar con lo normal (mediana de las noches buenas anteriores, sin las dos últimas)
+    import statistics
     corte = (dia - timedelta(days=DIAS_HISTORIAL)).isoformat()
     historial = {k: {d: v for d, v in s.items() if d >= corte} for k, s in historial.items() if k in puntos}
     eventos, paises, medidas = [], {}, {}
     for k, p in puntos.items():
-        base = p.get("base", {}).get(clave_mes)
         obs = sorted(historial.get(k, {}).items())
-        if base is None or base < MIN_BASE or not obs:
+        if len(obs) < MIN_NOCHES + 2:
             continue
         ultima_fecha, ultimo = obs[-1]
+        desde = (date.fromisoformat(ultima_fecha) - timedelta(days=ATRAS)).isoformat()
+        previas = [v for d, v in obs[:-2] if d >= desde]
+        if len(previas) < MIN_NOCHES:
+            continue
+        base = statistics.median(previas)
+        if base < MIN_BASE:
+            continue
         razon = ultimo / base
+        penultima = obs[-2][1] / base
         medidas[k] = {"pais": p["pais"], "lugar": p["lugar"], "lat": p["lat"], "lon": p["lon"],
-                      "fecha": ultima_fecha, "luz": ultimo, "normal": base, "razon": round(razon, 2),
+                      "fecha": ultima_fecha, "luz": ultimo, "normal": round(base, 2), "razon": round(razon, 2),
                       "serie": [[d, round(v / base, 2)] for d, v in obs[-30:]]}
-        recientes = [v / base for d, v in obs if d >= (date.fromisoformat(ultima_fecha) - timedelta(days=7)).isoformat()]
-        if len(recientes) >= 2 and recientes[-1] <= CAIDA and recientes[-2] <= CAIDA + 0.1:
+        cerca = (date.fromisoformat(ultima_fecha) - date.fromisoformat(obs[-2][0])).days <= 7
+        if razon <= CAIDA and penultima <= CAIDA + 0.1 and cerca:
             paises[p["pais"]] = round(min(razon, paises.get(p["pais"], 1)), 2)
             eventos.append({
                 "id": f"luces-{k}-{ultima_fecha}", "tipo": "apagon",
@@ -287,7 +297,7 @@ def principal():
     escribir("luces_puntos.json", puntos)
     escribir("luces_historial.json", historial)
     escribir("luces_estado.json", estado)
-    escribir("luces.json", {"actualizado": AHORA.strftime("%Y-%m-%dT%H:%M:%SZ"), "dia": diatxt, "normal": clave_mes,
+    escribir("luces.json", {"actualizado": AHORA.strftime("%Y-%m-%dT%H:%M:%SZ"), "dia": diatxt,
                             "eventos": eventos, "paises": paises, "lugares": medidas})
     log(f"Black Marble: {len(medidas)} lugares medidos, {len(eventos)} caídas fuertes")
 

@@ -65,54 +65,50 @@ class TestLectoresEnActualizar(Base):
         self.assertEqual(self.act.lluvias(None)["lluvias"]["PAK"]["mm"], 300)
 
 
-def baldosa_h5(ruta, campos, centro=(15.55, 32.53)):
-    """Baldosa de Black Marble de juguete: 100×100 píxeles alrededor de Jartum."""
+def baldosa_h5(ruta, luz, nubes=0, centro=(15.55, 32.53)):
+    """Baldosa VJ146A1 de juguete: 100×100 píxeles alrededor de Jartum."""
     lat = centro[0] + (50 - np.arange(100)) / 240
     lon = centro[1] + (np.arange(100) - 50) / 240
+    campos = {"DNB_At_Sensor_Radiance": (luz, "float32"), "QF_Cloud_Mask": (nubes, "uint16"), "QF_DNB": (0, "uint8"),
+              "Sensor_Zenith": (1500, "int16"), "Moon_Illumination_Fraction": (1000, "uint16"),
+              "Lunar_Zenith": (12000, "int16")}
     with h5py.File(ruta, "w") as h:
         g = h.create_group("HDFEOS/GRIDS/VIIRS_Grid_DNB_2d/Data Fields")
         g["lat"], g["lon"] = lat, lon
-        for nombre, valor in campos.items():
-            g[nombre] = np.full((100, 100), valor, dtype="float32" if isinstance(valor, float) else "uint8")
+        for nombre, (valor, tipo) in campos.items():
+            g[nombre] = np.full((100, 100), valor, dtype=tipo)
 
 
 @unittest.skipUnless(h5py, "necesita h5py y numpy")
 class TestLuces(Base):
-    def preparar(self, luz):
+    def preparar(self, luz, nubes=0, noches_previas=None):
         import luces
         self.luces = importlib.reload(luces)
-        self.escribir("alertas.json", {"paises": {"SDN": {"conflicto": 20}}})
+        self.escribir("alertas.json", {"paises": {"SDN": {"conflicto": 20, "nivel": "rojo"}}})
         self.escribir("eventos.json", {"eventos": [{"tipo": "conflicto", "pais": "SDN", "lugar": "Khartoum, Khartoum, Sudan",
                                                     "lat": 15.55, "lon": 32.53, "hechos": 30}]})
-        self.diario = Path(self.dir) / "diario.h5"
-        self.mensual = Path(self.dir) / "mensual.h5"
-        baldosa_h5(self.diario, {"DNB_BRDF-Corrected_NTL": luz, "Mandatory_Quality_Flag": 0, "Snow_Flag": 0})
-        baldosa_h5(self.mensual, {"AllAngle_Composite_Snow_Free": 40.0, "AllAngle_Composite_Snow_Free_Quality": 0})
+        self.assertEqual(self.luces.baldosa(15.55, 32.53), "h21v07")
+        self.ruta = Path(self.dir) / "diario.h5"
+        baldosa_h5(self.ruta, luz, nubes)
+        hoy = self.luces.AHORA.date() - timedelta(days=1)
+        ide = "sdn-khartoum"
+        if noches_previas:
+            self.escribir("luces_historial.json", {ide: {(hoy - timedelta(days=d)).isoformat(): v
+                                                         for d, v in noches_previas.items()}})
+            # los días previos ya se leyeron: no hace falta rellenar
+            self.escribir("luces_estado.json", {"dias": [(hoy - timedelta(days=d)).isoformat() for d in range(1, 31)]})
         lista = {f"h{i:02d}v{j:02d}": "url" for i in range(36) for j in range(18)}
-        b = self.luces.baldosa(15.55, 32.53)
-        self.assertEqual(b, "h21v07")
 
         def pedir(url, destino=None):
-            fuente = self.mensual if "mensual" in url else self.diario
-            shutil.copy(fuente, destino)
+            shutil.copy(self.ruta, destino)
             return destino
-
-        def ficheros(producto, dia):
-            return {k: ("mensual" if producto == self.luces.MENSUAL else "diario") for k in lista}
-        return mock.patch.multiple(self.luces, pedir=pedir, ficheros_del_dia=ficheros, TOKEN="t", SALIDA=self.salida)
+        return mock.patch.multiple(self.luces, pedir=pedir, ficheros_del_dia=lambda p, d: lista, TOKEN="t",
+                                   SALIDA=self.salida)
 
     def test_apagon_sostenido(self):
-        with self.preparar(10.0):
-            self.luces.principal()                         # primer día: 25 % de lo normal
-            estado = self.leer("luces_estado.json")
-            # segundo día (otra fecha), sigue a oscuras
-            dia = self.leer("luces.json")["dia"]
-            historial = self.leer("luces_historial.json")
-            k = next(iter(historial))
-            anterior = (self.luces.date.fromisoformat(dia) - timedelta(days=1)).isoformat()
-            historial[k][anterior] = 11.0
-            self.escribir("luces_historial.json", historial)
-            self.escribir("luces_estado.json", {"dia": estado["dia"]})
+        normales = {d: 40.0 for d in range(3, 12)}
+        normales[2] = 11.0                                   # la noche anterior ya estaba a oscuras
+        with self.preparar(10.0, noches_previas=normales):
             self.luces.principal()
         r = self.leer("luces.json")
         self.assertEqual(r["paises"], {"SDN": 0.25})
@@ -121,16 +117,25 @@ class TestLuces(Base):
         self.assertEqual(r["eventos"][0]["peso"], 3)
 
     def test_una_noche_no_basta(self):
-        with self.preparar(10.0):
+        with self.preparar(10.0, noches_previas={d: 40.0 for d in range(2, 12)}):
             self.luces.principal()
-        self.assertEqual(self.leer("luces.json")["eventos"], [])  # una sola observación
+        self.assertEqual(self.leer("luces.json")["eventos"], [])
 
-    def test_luz_normal(self):
-        with self.preparar(38.0):
+    def test_luz_normal_y_nubes(self):
+        with self.preparar(38.0, noches_previas={d: 40.0 for d in range(2, 12)}):
             self.luces.principal()
         r = self.leer("luces.json")
         self.assertEqual(r["eventos"], [])
-        self.assertAlmostEqual(next(iter(r["lugares"].values()))["razon"], 0.95)
+        self.assertAlmostEqual(r["lugares"]["sdn-khartoum"]["razon"], 0.95)
+        # con nubes (bits 6-7 = 11) la noche no cuenta
+        with self.preparar(1.0, nubes=0b11000000, noches_previas={d: 40.0 for d in range(2, 12)}):
+            self.luces.principal()
+        self.assertAlmostEqual(self.leer("luces.json")["lugares"]["sdn-khartoum"]["razon"], 1.0)
+
+    def test_rellena_el_pasado(self):
+        with self.preparar(40.0):
+            self.luces.principal()
+        self.assertEqual(len(self.leer("luces_estado.json")["dias"]), 1 + self.luces.RELLENO_POR_EJECUCION)
 
 
 @unittest.skipUnless(h5py, "necesita h5py y numpy")
