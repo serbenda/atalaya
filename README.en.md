@@ -56,6 +56,16 @@ This README gives the overview; the detail is in those guides.
 
 An *atalaya* is a watchtower used to scan the horizon and raise the alarm in time. This project does the same with the world: every 30 minutes it gathers around twenty public sources, detects where things are heating up and explains it in plain language. The website is available in Spanish and English.
 
+It has three faces, each in its own tab:
+
+| Face | What for | What it promises |
+|---|---|---|
+| **Situation viewer** (*Report*, *Countries*, *Events*, *Headlines*) | Knowing what is happening in the world and why, with the evidence for each conclusion | A reliable summary of what the sources say, with how well corroborated it is |
+| **Early warning for Spain** (*Spain*) | Seeing what affects Spain: neighbourhood, migration routes, energy, deployments, Spanish communities, key shipping routes and where the Foreign Ministry advises against travel | All those countries in view, calm or not, with their technical signals |
+| **Lab** (*Lab*) | Trying to get ahead: 7-day forecast and scenario simulation | Nothing: it is an experiment. Every forecast is compared with what happened and the scoreboard is published as it is |
+
+The split is deliberate. With open data, describing the situation works well; predicting whether a country will worsen within a week does not, for now: measured over 90 reconstructed days it does not beat always giving the average rate (see [docs/calculos.en.md](docs/calculos.en.md)). That is why the forecast lives in the Lab with its scoreboard beside it, and carries an *Experimental* tag in each country sheet.
+
 Three ideas guide it:
 
 1. **Severity is not the same as change.** A war that has lasted for months is serious even if it is not getting worse today. A quiet country that suddenly rises is an early signal. atalaya measures both separately.
@@ -67,8 +77,9 @@ Three ideas guide it:
 | Part | What it is for |
 |---|---|
 | **Map** | A 3D globe you can spin (with real day and night) or a flat map. Each country's colour is its level; those getting worse pulse. Dots are events: conflicts, protests, earthquakes, disasters, epidemics, internet outages and censorship. Gold diamonds are strategic shipping routes. |
-| **Report** | What a crisis unit would say: the countries you follow, the bottom line, key judgements with their confidence, what to watch in the next 72 hours, relevance for Spain, regions with most tension, key dates (elections), shipping routes, forecast accuracy and performance, and source status. |
-| **Simulation** | What could happen in 7 days in each crisis: three branches with an approximate probability, spillover to neighbours (hatched on the map) and impact for Spain. Always with its notice that it has no official validity. |
+| **Report** | What a crisis unit would say: the countries you follow, the bottom line, key judgements with their confidence, what to watch in the next 72 hours, relevance for Spain, regions under most tension, key dates (elections), shipping routes and source status. |
+| **Spain** | Early warning for Spain: each type of interest (neighbourhood, migration routes, energy, deployments, communities) with all its countries and their signals, the key shipping routes and where the Foreign Ministry advises against travel. Those countries are highlighted on the map. |
+| **Lab** | The forecasting experiment: accuracy scoreboard (Brier and calibration), the learned forecast's status and the 7-day simulation (three branches with an approximate probability, spillover to neighbours hatched on the map and impact for Spain). Always with its no-official-validity notice. |
 | **Countries** | All countries with activity, sorted by level. |
 | **Events** | Travel advisories, epidemics, internet outages, places with most conflicts and protests, earthquakes and disasters. |
 | **Headlines** | Spanish-language press from the last few hours (Google News, EFE, RTVE and El País). |

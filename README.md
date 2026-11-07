@@ -56,6 +56,16 @@ Este README da la visión general; el detalle está en esas guías.
 
 Una *atalaya* es una torre desde la que se vigila el horizonte para dar la alarma a tiempo. Este proyecto hace lo mismo con el mundo: cada 30 minutos reúne una veintena de fuentes públicas, detecta dónde se está calentando algo y lo explica en castellano.
 
+Tiene tres caras, cada una en su pestaña:
+
+| Cara | Para qué | Qué promete |
+|---|---|---|
+| **Visor de situación** (*Informe*, *Países*, *Eventos*, *Titulares*) | Saber qué está pasando en el mundo y por qué, con las pruebas de cada conclusión | Un resumen fiable de lo que dicen las fuentes, con cuánto está contrastado |
+| **Alerta temprana para España** (*España*) | Ver lo que afecta a España: vecindad, rutas migratorias, energía, despliegues, comunidades españolas, rutas marítimas clave y dónde Exteriores desaconseja viajar | Todos esos países a la vista, estén tranquilos o no, con sus señales técnicas |
+| **Laboratorio** (*Laboratorio*) | Intentar adelantarse: pronóstico a 7 días y simulación de escenarios | Nada: es un experimento. Cada pronóstico se compara con lo que pasó y el marcador se publica tal cual |
+
+La separación es deliberada. Con datos abiertos, describir la situación se hace bien; prever si un país empeorará en una semana, de momento no: la medición con 90 días reconstruidos no gana a decir siempre la frecuencia media (ver [docs/calculos.md](docs/calculos.md)). Por eso el pronóstico vive en el Laboratorio, con su marcador al lado, y en la ficha de cada país lleva la etiqueta *Experimental*.
+
 Tres ideas lo guían:
 
 1. **Gravedad no es lo mismo que cambio.** Una guerra que dura meses es grave aunque hoy no empeore. Un país tranquilo que de repente sube es una señal temprana. atalaya mide las dos cosas por separado.
@@ -67,8 +77,9 @@ Tres ideas lo guían:
 | Parte | Para qué sirve |
 |---|---|
 | **Mapa** | Globo 3D que se gira (con día y noche reales) o mapa plano. El color de cada país es su nivel; los que empeoran laten. Los puntos son eventos: conflictos, protestas, terremotos, desastres, epidemias, cortes de internet y censura. Los rombos dorados son rutas marítimas estratégicas. |
-| **Informe** | Lo que contaría un gabinete de crisis: tus países seguidos, conclusión principal, juicios clave con su confianza, qué vigilar en las próximas 72 horas, interés para España, regiones con más tensión, fechas clave (elecciones), rutas marítimas, acierto y rendimiento de los pronósticos y estado de las fuentes. |
-| **Simulación** | Qué podría pasar en 7 días en cada crisis: tres ramas con probabilidad aproximada, contagio a los vecinos (rayados en el mapa) e impacto para España. Siempre con su aviso de que no tiene validez oficial. |
+| **Informe** | Lo que contaría un gabinete de crisis: tus países seguidos, conclusión principal, juicios clave con su confianza, qué vigilar en las próximas 72 horas, interés para España, regiones con más tensión, fechas clave (elecciones), rutas marítimas y estado de las fuentes. |
+| **España** | Alerta temprana para España: cada tipo de interés (vecindad, rutas migratorias, energía, despliegues, comunidades) con todos sus países y sus señales, las rutas marítimas clave y dónde Exteriores desaconseja viajar. En el mapa se resaltan esos países. |
+| **Laboratorio** | El experimento de prever: marcador de acierto (Brier y calibración), estado del pronóstico aprendido y la simulación a 7 días (tres ramas con probabilidad aproximada, contagio a los vecinos rayado en el mapa e impacto para España). Siempre con su aviso de que no tiene validez oficial. |
 | **Países** | Todos los países con actividad, ordenados por nivel. |
 | **Eventos** | Avisos de viaje, epidemias, cortes de internet, lugares con más conflictos y protestas, terremotos y desastres. |
 | **Titulares** | Prensa en español de las últimas horas (Google Noticias, EFE, RTVE y El País). |
