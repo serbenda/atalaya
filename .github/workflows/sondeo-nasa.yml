@@ -1,0 +1,62 @@
+name: Sondeo NASA
+on:
+  push:
+    branches: [sondeo-nasa]
+permissions:
+  contents: read
+jobs:
+  sondeo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TOKEN: ${{ secrets.EARTHDATA_TOKEN }}
+    steps:
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -q h5py numpy
+      - name: Sondear
+        shell: python
+        run: |
+          import os, json, urllib.request, urllib.error, datetime, re
+          T = os.environ["TOKEN"].strip()
+          print("token presente:", bool(T), "longitud", len(T))
+          def get(url, n=600, guardar=None):
+              req = urllib.request.Request(url, headers={"Authorization": f"Bearer {T}", "User-Agent": "atalaya/1.0"})
+              try:
+                  with urllib.request.urlopen(req, timeout=90) as r:
+                      data = r.read()
+                      print("OK", r.status, url, len(data), "bytes")
+                      if guardar:
+                          open(guardar, "wb").write(data)
+                      return data
+              except urllib.error.HTTPError as e:
+                  print("HTTP", e.code, url, e.read()[:300])
+              except Exception as e:
+                  print("ERR", url, e)
+          hoy = datetime.date.today()
+          for prod in ("VNP46A1", "VNP46A2", "VJ146A1", "VJ146A2", "VNP46A1_NRT", "VJ146A1_NRT"):
+              for d in range(1, 12):
+                  f = hoy - datetime.timedelta(days=d)
+                  url = f"https://ladsweb.modaps.eosdis.nasa.gov/api/v2/content/details/allData/5200/{prod}/{f.year}/{f.timetuple().tm_yday:03d}?format=json"
+                  b = get(url)
+                  if b:
+                      try:
+                          j = json.loads(b)
+                          items = j.get("content", j) if isinstance(j, dict) else j
+                          print("  ", prod, f, "ficheros:", len(items))
+                          if items:
+                              print("   ejemplo:", json.dumps(items[0])[:400])
+                              break
+                      except Exception as e:
+                          print("  no json", b[:200])
+          # NRT LANCE
+          for base in ("https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/details/allData/5200/VNP46A1_NRT",
+                       "https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/details/allData/5200/VJ146A1_NRT"):
+              f = hoy - datetime.timedelta(days=1)
+              get(f"{base}/{f.year}/{f.timetuple().tm_yday:03d}?format=json")
+          # IMERG
+          for prod in ("GPM_3IMERGDE.07", "GPM_3IMERGDL.07", "GPM_3IMERGHHE.07"):
+              f = hoy - datetime.timedelta(days=1)
+              b = get(f"https://gpm1.gesdisc.eosdis.nasa.gov/data/GPM_L3/{prod}/{f.year}/{f.month:02d}/")
+              if b:
+                  print("  ", re.findall(rb'href="([^"]+\.(?:nc4|HDF5|tif))"', b)[-3:])
