@@ -530,7 +530,7 @@ Cada caso muestra **por qué** tiene esas probabilidades, el **contagio** a sus 
 | [Travel Advisories](https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html) | Avisos de viaje de EE. UU. | RSS |
 | [USGS](https://earthquake.usgs.gov/), [EMSC](https://www.seismicportal.eu/), [IGN](https://www.ign.es/) | Terremotos: mundo, Euromediterráneo y España | Libre |
 | [GDACS](https://www.gdacs.org/) | Alertas de desastres (ONU y Comisión Europea) | RSS |
-| [Copernicus EMS](https://mapping.emergency.copernicus.eu/) | Activaciones de cartografía de emergencia de la UE | Libre |
+| [Copernicus EMS](https://mapping.emergency.copernicus.eu/) | Activaciones de cartografía de emergencia de la UE | Libre, citando la fuente: *Contiene información modificada del servicio Copernicus [año]* (Reglamento Delegado (UE) 1159/2013, art. 8). La web lo indica en *Cómo se calcula*. |
 | [NASA EONET](https://eonet.gsfc.nasa.gov/) | Fenómenos naturales activos | Libre |
 | [OMS](https://www.who.int/emergencies/disease-outbreak-news) | Brotes epidémicos | Libre |
 | [IODA](https://ioda.inetintel.cc.gatech.edu/) | Cortes de internet por país (Georgia Tech) | Libre |
