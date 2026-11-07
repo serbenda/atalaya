@@ -531,7 +531,7 @@ Each case shows **why** it has those probabilities, the **spillover** to its nei
 
 ## Security, privacy and ethics
 
-- **No personal data.** The website asks for nothing and uses no cookies or third-party analytics. It only loads d3 from jsDelivr and the font from Google Fonts. The browser only remembers, locally, the countries you follow and the language you chose.
+- **No personal data.** The website asks for nothing and uses no cookies. It only loads d3 from jsDelivr, the font from Google Fonts and an anonymous visit counter from [GoatCounter](https://www.goatcounter.com/), with no cookies and no personal data. The browser only remembers, locally, the countries you follow and the language you chose.
 - **No keys in the browser.** Optional tokens live in GitHub secrets and only the Action uses them.
 - **Respectful reading of websites.** Identified with its own `User-Agent`, spaced-out retries and the Spanish Foreign Ministry at most twice a day.
 - **Neutral language.** It describes facts and mechanisms and does not judge governments or parties.
