@@ -30,7 +30,8 @@ import actualizar as act  # noqa: E402
 
 TOKEN = act.os.environ.get("EARTHDATA_TOKEN", "").strip()
 BASE = "https://gpm1.gesdisc.eosdis.nasa.gov/data/GPM_L3/GPM_3IMERGDE.07"
-MINIMO_GUARDAR = 30      # mm/día
+MINIMO_GUARDAR = 50      # mm/día (lo que se guarda de cada día)
+LAT_MAX = 60             # IMERG es poco fiable sobre nieve y hielo, y en latitudes altas
 EXTREMO_DIA = 150        # mm en un día
 EXTREMO_TRES = 250       # mm en tres días
 CELDAS_MIN = 3
@@ -68,14 +69,14 @@ def ficheros(dia):
 
 
 def celdas_humedas(ruta):
-    """Celdas con al menos MINIMO_GUARDAR mm: [[lat, lon, mm], ...]."""
+    """Celdas con al menos MINIMO_GUARDAR mm entre ±LAT_MAX: [[lat, lon, mm], ...]."""
     import h5py
     import numpy as np
     with h5py.File(ruta, "r") as h:
         lluvia = h["precipitation"][0]          # (lon, lat), mm/día
         lon, lat = h["lon"][:], h["lat"][:]
-    i, j = np.nonzero(lluvia >= MINIMO_GUARDAR)
-    return [[round(float(lat[b]), 2), round(float(lon[a]), 2), round(float(lluvia[a, b]), 1)] for a, b in zip(i, j)]
+    i, j = np.nonzero((lluvia >= MINIMO_GUARDAR) & (np.abs(lat)[None, :] <= LAT_MAX))
+    return [[round(float(lat[b]), 2), round(float(lon[a]), 2), int(round(float(lluvia[a, b])))] for a, b in zip(i, j)]
 
 
 def principal():
@@ -103,7 +104,7 @@ def principal():
         tmp.rmdir()
     except OSError:
         pass
-    dias = {d: v for d, v in sorted(dias.items())[-10:]}
+    dias = {d: v for d, v in sorted(dias.items())[-4:]}
     act.escribir("lluvias_dias.json", dias)
     if not dias:
         return
@@ -120,7 +121,7 @@ def principal():
     por_pais = {}
     for la, lo, mm in extremas:
         a3 = paises.punto(lo, la)
-        if a3:
+        if a3 and a3 not in ("GRL", "ATA"):
             por_pais.setdefault(a3, []).append((la, lo, mm))
     eventos, resumen = [], {}
     import math

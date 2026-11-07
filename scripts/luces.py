@@ -46,6 +46,7 @@ CAIDA = 0.5             # aviso si la luz baja a la mitad o menos
 CAIDA_GRAVE = 0.3
 DIAS_HISTORIAL = 60
 AHORA = datetime.now(timezone.utc)
+DEPURAR = os.environ.get("ATALAYA_DEPURAR") == "1"
 
 
 def log(*a):
@@ -110,14 +111,16 @@ def elegir_puntos(puntos):
     """Añade lugares nuevos con violencia en GDELT; conserva los ya vigilados."""
     alertas = leer("alertas.json", {}).get("paises", {})
     eventos = leer("eventos.json", {}).get("eventos", [])
-    paises = sorted((a for a, p in alertas.items() if (p.get("conflicto") or 0) > 0),
+    paises = sorted((a for a, p in alertas.items() if (p.get("conflicto") or 0) >= 5 and p.get("nivel") in ("rojo", "ambar")),
                     key=lambda a: -(alertas[a].get("conflicto") or 0))[:MAX_PAISES]
     paises += [a for a in FIJOS if a not in paises]
     hoy = AHORA.strftime("%Y-%m-%d")
     lugares = {}
     for e in eventos:
         # Solo lugares concretos ("Jartum, Khartoum, Sudan"); "Sudan" a secas es el centro del país
-        if e.get("tipo") != "conflicto" or e.get("pais") not in paises or "," not in (e.get("lugar") or ""):
+        # Ciudad concreta: "ciudad, región, país" (dos partes suele ser una región entera)
+        partes = [x.strip() for x in (e.get("lugar") or "").split(",")]
+        if e.get("tipo") != "conflicto" or e.get("pais") not in paises or len(partes) < 3 or "(general)" in partes[1]:
             continue
         clave = (e["pais"], e["lugar"].split(",")[0].strip())
         x = lugares.setdefault(clave, {"n": 0, "lat": e["lat"], "lon": e["lon"]})
@@ -162,6 +165,8 @@ def leer_valores(ruta, campo, calidad, puntos, condicion_calidad):
                 ok &= g["Snow_Flag"][sl] == 0
             if ok.mean() >= MIN_VALIDOS:
                 salida[ide] = round(float(v[ok].mean()), 2)
+            elif DEPURAR:
+                log(f"    {ide}: {ok.mean():.0%} válido; calidad {sorted(set(q.ravel().tolist()))[:6]}, luz {float(v.max()):.1f}")
     return salida
 
 
@@ -187,17 +192,19 @@ def principal():
     sin_base = [(k, p) for k, p in puntos.items() if clave_mes not in p.get("base", {})]
     if sin_base:
         mensual = ficheros_del_dia(MENSUAL, mes)
+        log(f"Black Marble: {len(mensual)} baldosas mensuales de {clave_mes}")
         por_baldosa = {}
         for k, p in sin_base:
             por_baldosa.setdefault(baldosa(p["lat"], p["lon"]), []).append((k, p))
         for b, grupo in por_baldosa.items():
             if b not in mensual:
+                log(f"  falta la baldosa mensual {b}")
                 continue
             ruta = pedir(mensual[b], tmp / f"m_{b}.h5")
             if not ruta:
                 continue
             valores = leer_valores(ruta, "AllAngle_Composite_Snow_Free", "AllAngle_Composite_Snow_Free_Quality",
-                                   grupo, lambda q: q == 0)
+                                   grupo, lambda q: q <= 1)
             ruta.unlink(missing_ok=True)
             for k, _ in grupo:
                 puntos[k].setdefault("base", {})[clave_mes] = valores.get(k)
