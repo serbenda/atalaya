@@ -91,18 +91,43 @@ def baldosa(lat, lon):
 
 
 def ficheros_del_dia(producto, dia):
-    datos = pedir(f"{LAADS}/details/allData/5200/{producto}/{dia.year}/{dia.timetuple().tm_yday:03d}?format=json")
-    if not datos:
-        return {}
-    return {x["name"].split(".")[2]: x["downloadsLink"] for x in json.loads(datos).get("content", [])
-            if x.get("name", "").endswith(".h5")}
+    """Baldosas de un día: {"h21v07": enlace}. El listado del archivo trae todas; el de la API v2
+    va por páginas, así que solo se usa de reserva siguiendo sus páginas."""
+    ruta = f"allData/5200/{producto}/{dia.year}/{dia.timetuple().tm_yday:03d}"
+    datos = pedir(f"https://ladsweb.modaps.eosdis.nasa.gov/archive/{ruta}.json")
+    salida = {}
+    if datos:
+        try:
+            contenido = json.loads(datos)
+            contenido = contenido.get("content", contenido) if isinstance(contenido, dict) else contenido
+            for x in contenido:
+                nombre = x.get("name", "")
+                if nombre.endswith(".h5"):
+                    salida[nombre.split(".")[2]] = f"https://ladsweb.modaps.eosdis.nasa.gov/archive/{ruta}/{nombre}"
+        except (ValueError, AttributeError):
+            salida = {}
+    if salida:
+        return salida
+    url = f"{LAADS}/details/{ruta}?format=json"
+    for _ in range(10):
+        datos = pedir(url)
+        if not datos:
+            break
+        j = json.loads(datos)
+        for x in j.get("content", []):
+            if x.get("name", "").endswith(".h5"):
+                salida[x["name"].split(".")[2]] = x["downloadsLink"]
+        url = j.get("nextPageLink") or j.get("next") or (j.get("links") or {}).get("next")
+        if not url:
+            break
+    return salida
 
 
 def ultimo_dia(producto, desde, dias=10):
     for d in range(dias):
         dia = desde - timedelta(days=d)
         lista = ficheros_del_dia(producto, dia)
-        if len(lista) > 150:  # el día está completo (hay unas 190 baldosas con tierra)
+        if len(lista) > 150:  # el día está completo
             return dia, lista
     return None, {}
 
