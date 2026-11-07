@@ -550,7 +550,7 @@ Cada caso muestra **por qué** tiene esas probabilidades, el **contagio** a sus 
 
 ## Seguridad, privacidad y ética
 
-- **Sin datos personales.** La web no pide nada y no usa cookies ni analítica de terceros. Solo carga d3 desde jsDelivr y la tipografía desde Google Fonts.
+- **Sin datos personales.** La web no pide nada y no usa cookies. Solo carga d3 desde jsDelivr, la tipografía desde Google Fonts y un contador de visitas anónimo de [GoatCounter](https://www.goatcounter.com/), sin cookies ni datos personales.
 - **Sin claves en el navegador.** Los tokens opcionales viven en los secretos de GitHub y solo los usa la Action.
 - **Lectura respetuosa de las webs.** Identificación con un `User-Agent` propio, reintentos espaciados y Exteriores como mucho dos veces al día.
 - **Lenguaje neutral.** Describe hechos y mecanismos y no juzga a gobiernos ni a partidos.
