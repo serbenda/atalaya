@@ -24,14 +24,27 @@ jobs:
           git --work-tree=salida checkout FETCH_HEAD -- data/alertas.json data/eventos.json
           git reset -q
           python - <<'PY'
-          import sys, datetime
+          import sys, datetime, time, h5py, numpy as np
           sys.path.insert(0, "scripts")
           import luces
-          for prod, dia in (("VJ146A3", datetime.date(2026, 10, 1)), ("VNP46A3", datetime.date(2026, 10, 1)),
-                            ("VJ146A2", datetime.date(2026, 11, 4)), ("VNP46A2", datetime.date(2026, 11, 2)),
-                            ("VJ146A1", datetime.date(2026, 11, 4)), ("VNP46A1", datetime.date(2026, 11, 2))):
-              t = luces.ficheros_del_dia(prod, dia)
-              hs = sorted(t)
-              print(prod, dia, len(t), "h21v07" in t, "h21v05" in t, "h17v04" in t, hs[:3], hs[-3:])
-              vs = sorted({k[3:] for k in t}); print("   filas v:", vs)
+          from pathlib import Path
+          t = luces.ficheros_del_dia("VJ146A1", datetime.date(2026, 11, 4))
+          t0 = time.time()
+          ruta = luces.pedir(t["h21v07"], Path("a1.h5"))
+          print("descarga", round(time.time() - t0, 1), "s", ruta.stat().st_size)
+          with h5py.File(ruta) as h:
+              def rec(g, p=""):
+                  for k, v in g.items():
+                      if isinstance(v, h5py.Dataset):
+                          print("  ", p + k, v.shape, v.dtype, {a: (str(v.attrs[a])[:80]) for a in list(v.attrs)[:6]})
+                      else:
+                          rec(v, p + k + "/")
+              rec(h)
+              g = h["HDFEOS/GRIDS/VIIRS_Grid_DNB_2d/Data Fields"]
+              lat, lon = g["lat"][:], g["lon"][:]
+              i = int(np.argmin(abs(lat - 15.55))); j = int(np.argmin(abs(lon - 32.53)))
+              for k in g:
+                  if g[k].ndim == 2:
+                      w = g[k][i-3:i+4, j-3:j+4]
+                      print("Jartum", k, w.ravel()[:10])
           PY
