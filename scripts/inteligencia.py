@@ -150,6 +150,60 @@ def analisis(a3, p, ctx, escs):
     return resultado
 
 
+# Pasos marítimos clave para la energía y el comercio de España
+RUTAS_ESPANA = ("gibraltar", "suez", "bab", "ormuz")
+RANGO_NIVEL = {"verde": 0, "ambar": 1, "rojo": 2}
+
+
+def senales_pais(p):
+    """Señales técnicas y oficiales que hay ahora mismo en un país, en frases cortas."""
+    s = []
+    if any(x.get("razon", 1) <= 0.5 for x in p.get("luces", [])):
+        s.append("Apagón visto por satélite")
+    if p.get("internet"):
+        s.append("Corte de internet")
+    if p.get("censura"):
+        s.append("Bloqueo de aplicaciones")
+    if p.get("incendios_veces"):
+        s.append("Incendios muy por encima de lo habitual")
+    if p.get("lluvia_extrema"):
+        s.append("Lluvias extremas")
+    if p.get("divisa_caida"):
+        s.append("La moneda se hunde")
+    if p.get("elecciones"):
+        s.append("Elecciones próximas")
+    if (p.get("exteriores") or {}).get("nivel", 0) >= 3:
+        s.append("Exteriores desaconseja viajar")
+    return s
+
+
+def panel_espana(paises, pasos, intereses, exteriores):
+    """Vista de lo que afecta a España: cada tipo de interés con todos sus países (no solo los que
+    están en alerta), las rutas marítimas clave y dónde Exteriores desaconseja viajar."""
+    tipos = []
+    por_pais = {}
+    for ide, tipo in (intereses or {}).get("tipos", {}).items():
+        filas = []
+        for a3 in tipo.get("paises", []):
+            por_pais.setdefault(a3, []).append(ide)
+            p = paises.get(a3, {})
+            filas.append({"pais": a3, "nivel": p.get("nivel", "verde"), "escalada": bool(p.get("escalada")),
+                          "senales": senales_pais(p) if p else []})
+        filas.sort(key=lambda x: (-RANGO_NIVEL[x["nivel"]], not x["escalada"], -len(x["senales"])))
+        tipos.append({"id": ide, "texto": tipo["texto"], "peso": tipo.get("peso", 1), "paises": filas,
+                      "en_riesgo": sum(1 for x in filas if x["nivel"] != "verde" or x["escalada"])})
+    tipos.sort(key=lambda x: (-x["en_riesgo"], -x["peso"]))
+    rutas = [{"id": x["id"], "nombre": x["nombre"], "nivel": x["nivel"], "hechos": x.get("hechos", 0),
+              "porque": x.get("porque", "")} for x in pasos if x["id"] in RUTAS_ESPANA]
+    viajes = sorted(({"pais": a3, "nivel": e["nivel"], "texto": e.get("texto", "")}
+                     for a3, e in (exteriores or {}).items() if (e or {}).get("nivel", 0) >= 3),
+                    key=lambda x: (-x["nivel"], x["pais"]))
+    afectados = {a3 for t in tipos for x in t["paises"] if x["nivel"] != "verde" or x["escalada"] for a3 in [x["pais"]]}
+    return {"tipos": tipos, "rutas": rutas, "viajes": viajes, "paises": por_pais,
+            "resumen": {"en_riesgo": len(afectados), "rutas_en_riesgo": sum(1 for r in rutas if r["nivel"] != "verde"),
+                        "desaconsejados": len(viajes)}}
+
+
 def calcular_vecinos(paises):
     """Países que comparten frontera, a partir de los vértices comunes de sus polígonos."""
     por_punto = {}
@@ -470,6 +524,7 @@ def enriquecer(alertas, ctx, intereses, historico):
     fechas = [{"pais": a3, **x} for a3, lista in ctx.get("elecciones", {}).items() for x in lista[:1]]
     fechas.sort(key=lambda x: (rango.get(alertas["paises"].get(x["pais"], {}).get("nivel"), 3), x["fecha"]))
     alertas["informe"]["fechas"] = sorted(fechas[:12], key=lambda x: x["fecha"])
+    alertas["espana"] = panel_espana(alertas["paises"], pasos, intereses, ctx.get("exteriores"))
     alertas["fiabilidad"] = fiabilidad(historico)
     alertas["rendimiento"] = rendimiento(historico, set(ctx.get("reconstruidos", ())))
 

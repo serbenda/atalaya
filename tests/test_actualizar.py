@@ -629,6 +629,11 @@ class TestEjecucionCompleta(Base):
         self.assertIn("informe", a)
         self.assertIn("pronostico", a["paises"]["PHL"])
         self.assertEqual(a["informe"]["fechas"][0]["pais"], "PHL")
+        # Vista de España: todos los tipos de interés, con sus países aunque estén tranquilos
+        esp = a["espana"]
+        self.assertTrue(esp["tipos"] and all(t["paises"] for t in esp["tipos"]))
+        self.assertIn("MAR", esp["paises"])
+        self.assertEqual({r["id"] for r in esp["rutas"]} - {"gibraltar", "suez", "bab", "ormuz"}, set())
         self.assertTrue(a["paises"]["PHL"]["elecciones"])
         ext = json.loads((Path(TMP) / "exteriores.json").read_text())
         self.assertEqual(ext["paises"]["SDN"]["nivel"], 4)
