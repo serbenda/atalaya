@@ -51,7 +51,7 @@ PASOS_PAISES = {"ormuz": ["IRN", "OMN", "ARE"], "bab": ["YEM", "DJI", "ERI"], "s
 ESCENARIOS = [
     ("escalada", "Escalada militar", [("violencia_sube", 2), ("interestatal", 2), ("militar", 1),
                                       ("aviso_sube", 1), ("exteriores_alto", 1), ("contagio", 1), ("ruta_cercana", 1),
-                                      ("incendios", 1)]),
+                                      ("incendios", 1), ("apagon", 2)]),
     ("golpe", "Golpe o crisis de gobierno", [("corte_internet", 2), ("censura", 2), ("militar", 1),
                                              ("protestas_suben", 1), ("golpe_en_prensa", 2), ("aviso_sube", 1),
                                              ("moneda_cae", 1), ("eleccion_cercana", 1)]),
@@ -59,7 +59,8 @@ ESCENARIOS = [
                                         ("corte_internet", 1), ("violencia_sube", 1), ("moneda_cae", 1),
                                         ("eleccion_cercana", 1)]),
     ("humanitaria", "Emergencia humanitaria", [("desastre_grave", 2), ("epidemia_grave", 2), ("crisis_humanitaria", 2),
-                                               ("violencia_alta", 1), ("muertes_verificadas", 1), ("exteriores_alto", 1)]),
+                                               ("violencia_alta", 1), ("muertes_verificadas", 1), ("exteriores_alto", 1),
+                                               ("apagon", 1), ("lluvias_extremas", 2)]),
 ]
 TEXTO_INDICADOR = {
     "violencia_sube": "La violencia política sube respecto a lo habitual",
@@ -81,6 +82,8 @@ TEXTO_INDICADOR = {
     "muertes_verificadas": "Muertes en combate verificadas (UCDP)",
     "moneda_cae": "La moneda se hunde frente al dólar",
     "incendios": "Incendios por satélite muy por encima de lo habitual",
+    "apagon": "Apagón visto por satélite: la luz nocturna cae a la mitad o menos",
+    "lluvias_extremas": "Lluvias extremas medidas por satélite: riesgo de inundaciones",
     "eleccion_cercana": "Elecciones o referéndum en las próximas semanas",
 }
 
@@ -206,6 +209,8 @@ def indicadores(a3, p, ctx):
         "muertes_verificadas": ctx["ucdp"].get(a3, 0) >= 25,
         "moneda_cae": ctx.get("divisas", {}).get(a3, 0) >= 0.08,
         "incendios": bool(ctx.get("incendios", {}).get(a3)),
+        "apagon": bool(ctx.get("luces", {}).get(a3)),
+        "lluvias_extremas": bool(ctx.get("lluvias", {}).get(a3)),
         "eleccion_cercana": bool(ctx.get("elecciones", {}).get(a3)),
     }, vecinos_mal
 
@@ -453,6 +458,11 @@ def enriquecer(alertas, ctx, intereses, historico):
             p["divisa_caida"] = ctx["divisas"][a3]
         if ctx.get("incendios", {}).get(a3):
             p["incendios_veces"] = ctx["incendios"][a3]
+        if ctx.get("lluvias", {}).get(a3):
+            p["lluvia_extrema"] = ctx["lluvias"][a3]
+        lugares = [x for x in ctx.get("luces_lugares", {}).values() if x["pais"] == a3]
+        if lugares:
+            p["luces"] = sorted(lugares, key=lambda x: x["razon"])
     pasos = alertas.get("pasos", [])
     alertas["informe"] = informe(alertas["paises"], pasos, intereses, alertas.get("calibrando"))
     # Fechas clave: elecciones próximas, primero en los países que ya están en alerta o para vigilar

@@ -1170,9 +1170,9 @@ def reliefweb(paises):
 # reales: en un país en guerra abierta ronda el 3-7 %; en uno en paz, por debajo del 1 %.
 CUOTA_PLENA = 0.05
 CLAVES_PUNTOS = ("conflicto", "protestas", "desastres", "internet", "censura", "avisos", "epidemias", "humanitaria",
-                 "economia", "incendios")
+                 "economia", "incendios", "apagon", "lluvias")
 PARTE_DE = {"internet": "internet", "censura": "censura", "aviso": "avisos", "epidemia": "epidemias", "crisis": "humanitaria",
-            "economia": "economia", "incendios": "incendios"}
+            "economia": "economia", "incendios": "incendios", "apagon": "apagon", "lluvia": "lluvias"}
 
 
 def aceleracion(g):
@@ -1390,7 +1390,7 @@ def archivar(alertas, eventos, titulares):
                    "pronostico", "region", "espana", "exteriores",
                    "dias_subiendo", "aviso_viaje", "conflicto", "protestas", "desastres", "epidemias",
                    "internet", "avisos", "humanitaria", "cuota_violencia", "hechos_violentos", "protestas_n",
-                   "censura", "economia", "incendios", "analisis", "elecciones", "divisa_caida", "desescalada")
+                   "censura", "economia", "incendios", "apagon", "lluvias", "luces", "lluvia_extrema", "analisis", "elecciones", "divisa_caida", "desescalada")
     campos_evento = ("id", "tipo", "titulo", "lugar", "pais", "lat", "lon", "fecha", "nivel", "peso",
                      "magnitud", "menciones", "hechos", "fuente", "url", "estado")
     del_dia = [e for e in eventos if reciente(e, VENTANA_PUNTUACION) or e["tipo"] in ("epidemia", "crisis")]
@@ -1566,6 +1566,30 @@ def incendios(paises):
     return {"eventos": eventos, "incendios": anomalias}
 
 
+def luces(paises):
+    """Apagones vistos por satélite (NASA Black Marble). Los calcula scripts/luces.py en un paso
+    anterior del workflow, porque necesita leer ficheros HDF5; aquí solo se leen sus resultados."""
+    datos = leer("luces.json", None)
+    if datos is None:
+        return {"eventos": [], "desactivada": True}
+    exigir(isinstance(datos.get("eventos"), list), "luces.json sin eventos")
+    if datos.get("actualizado", "") < iso(AHORA - timedelta(days=3)):
+        return None  # el paso de las luces lleva días sin funcionar: se avisa como fuente caída
+    return {"eventos": datos["eventos"], "luces": datos.get("paises", {}),
+            "luces_lugares": datos.get("lugares", {})}
+
+
+def lluvias(paises):
+    """Lluvias extremas medidas por satélite (NASA GPM IMERG). Las calcula scripts/lluvias.py."""
+    datos = leer("lluvias.json", None)
+    if datos is None:
+        return {"eventos": [], "desactivada": True}
+    exigir(isinstance(datos.get("eventos"), list), "lluvias.json sin eventos")
+    if datos.get("actualizado", "") < iso(AHORA - timedelta(days=3)):
+        return None
+    return {"eventos": datos["eventos"], "lluvias": datos.get("paises", {})}
+
+
 # Elecciones y referendos en los próximos 45 días (Wikidata). Son fechas de riesgo: protestas,
 # cortes de internet y crisis de gobierno se concentran alrededor de ellas.
 WIKIDATA_URL = "https://query.wikidata.org/sparql"
@@ -1624,7 +1648,8 @@ FUENTES = [("USGS", usgs), ("EMSC", emsc), ("IGN", ign), ("GDACS", gdacs), ("Cop
            ("NASA EONET", eonet), ("GDELT", gdelt), ("Titulares", titulares), ("Análisis", analisis),
            ("IODA", ioda), ("Cloudflare Radar", cloudflare), ("OONI", ooni), ("Exteriores (España)", exteriores),
            ("Avisos de viaje EE. UU.", avisos_viaje), ("OMS", oms), ("ReliefWeb", reliefweb), ("UCDP", ucdp),
-           ("Tipos de cambio", divisas), ("Elecciones (Wikidata)", elecciones), ("Incendios (NASA FIRMS)", incendios)]
+           ("Tipos de cambio", divisas), ("Elecciones (Wikidata)", elecciones), ("Incendios (NASA FIRMS)", incendios),
+           ("Luces nocturnas (NASA Black Marble)", luces), ("Lluvias (NASA GPM IMERG)", lluvias)]
 # Fuentes que no aportan eventos sino otros datos: si fallan, se conservan esos datos
 DATOS_DE_FUENTE = {"Titulares": "titulares", "Análisis": "analisis", "Elecciones (Wikidata)": "elecciones"}
 
@@ -1709,6 +1734,9 @@ def main():
            "ucdp": extra.get("ucdp") or anterior.get("ucdp") or {},
            "divisas": extra.get("divisas", anterior.get("divisas") or {}),
            "incendios": extra.get("incendios", anterior.get("incendios") or {}),
+           "luces": extra.get("luces", anterior.get("luces") or {}),
+           "lluvias": extra.get("lluvias", anterior.get("lluvias") or {}),
+           "luces_lugares": extra.get("luces_lugares", anterior.get("luces_lugares") or {}),
            "elecciones": {},
            "reconstruidos": leer("retroceso.json", {}).get("dias", []),
            "exteriores": extra.get("exteriores") or leer("exteriores.json", {}).get("paises") and
@@ -1753,6 +1781,7 @@ def main():
     escribir("eventos.json", {"actualizado": iso(AHORA), "fuentes": estado, "eventos": eventos,
                               "titulares": extra.get("titulares", []), "analisis": extra.get("analisis", []),
                               "ucdp": ctx["ucdp"], "divisas": ctx["divisas"], "incendios": ctx["incendios"],
+                              "luces": ctx["luces"], "luces_lugares": ctx["luces_lugares"], "lluvias": ctx["lluvias"],
                               "elecciones": extra.get("elecciones", []),
                               "gdelt_paises": gdelt_paises, "gdelt_pasos": gdelt_pasos})
     escribir("alertas.json", alertas)

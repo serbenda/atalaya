@@ -542,3 +542,8 @@ html[lang="en"] .solo-es, html:not([lang="en"]) .solo-en { display: none; }
 #giro[aria-pressed="false"] { opacity: 0.6; }
 
 .atribucion { font-size: 13px; color: var(--tinta-suave); }
+
+.luces li.apagado strong { color: var(--rojo, #D9483B); }
+.mini-serie { vertical-align: middle; margin-left: 6px; }
+.mini-serie line { stroke: var(--linea); stroke-dasharray: 2 2; }
+.mini-serie path { fill: none; stroke: #F4C26B; stroke-width: 1.6; }

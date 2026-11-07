@@ -713,6 +713,8 @@
       [t("Crisis humanitarias abiertas"), de("crisis").filter((e) => e.estado === "alert")],
       [t("Monedas que se hunden frente al dólar (7 días)"), de("economia")],
       [t("Incendios por satélite muy por encima de lo habitual"), de("incendios")],
+      [t("Apagones vistos por satélite"), de("apagon")],
+      [t("Lluvias extremas medidas por satélite"), de("lluvia")],
       [t("Cortes de internet grandes en 24 horas"), estado.capas.has("internet") ? de("internet").sort((a, b) => b.peso - a.peso) : []],
       [t("Más noticias de ataques o enfrentamientos"), top("conflicto")],
       [t("Más noticias de protestas"), top("protesta")],
@@ -784,6 +786,8 @@
     if (a.humanitaria) partes.push(t("{n} por crisis humanitaria", { n: n(a.humanitaria) }));
     if (a.economia) partes.push(t("{n} por la caída de su moneda", { n: n(a.economia) }));
     if (a.incendios) partes.push(t("{n} por incendios detectados por satélite", { n: n(a.incendios) }));
+    if (a.apagon) partes.push(t("{n} por apagones vistos por satélite", { n: n(a.apagon) }));
+    if (a.lluvias) partes.push(t("{n} por lluvias extremas", { n: n(a.lluvias) }));
     let texto = partes.length ? t(estado.dia ? "La puntuación de ese día suma {x}." : "La puntuación de hoy suma {x}.", { x: lista(partes) }) : "";
     if (a.tendencia === "sube") texto += t(" Está por encima de lo habitual para este país.");
     else if (a.tendencia === "baja") texto += t(" Está por debajo de lo habitual para este país.");
@@ -793,6 +797,13 @@
     return texto.trim();
   }
 
+  // Gráfica mínima de la luz respecto a lo normal (1 = como siempre)
+  function miniSerie(serie) {
+    const w = 120, h = 26, max = Math.max(1.2, ...serie.map((s) => s[1]));
+    const x = (i) => (i / (serie.length - 1)) * w, y = (v) => h - (v / max) * h;
+    const linea = serie.map((s, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(s[1]).toFixed(1)}`).join("");
+    return ` <svg class="mini-serie" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true"><line x1="0" x2="${w}" y1="${y(1)}" y2="${y(1)}"/><path d="${linea}"/></svg>`;
+  }
   const titulo = (t) => String(t).toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase());
 
   function abrirPais(a3, respaldo, centrar = true) {
@@ -825,9 +836,15 @@
       if (a.vecinos_mal?.length) html += `<p class="explicacion">${esc(t("Vecinos en alerta o empeorando: {x}.", { x: lista(a.vecinos_mal.map((v) => nombrePais(v))) }))}</p>`;
       html += `</div>`;
     }
-    if (a?.elecciones?.length || a?.divisa_caida || a?.incendios_veces) {
+    if (a?.elecciones?.length || a?.divisa_caida || a?.incendios_veces || a?.luces?.length || a?.lluvia_extrema?.mm) {
       html += `<h3 class="grupo">${t("Señales tempranas")}</h3><div class="ficha">`;
       if (a.divisa_caida) html += `<p><strong>${t("Su moneda ha perdido un {p} % frente al dólar en 7 días.", { p: Math.round(a.divisa_caida * 100) })}</strong>${t(" Las caídas bruscas suelen adelantarse a protestas o crisis de gobierno.")}</p>`;
+      if (a.luces?.length) {
+        html += `<p><strong>${t("Luces nocturnas vistas por satélite")}</strong> <span class="detalle-gris">${t("(NASA Black Marble, respecto al mes anterior)")}</span></p><ul class="motivos luces">`
+          + a.luces.slice(0, 3).map((x) => `<li class="${x.razon <= 0.5 ? "apagado" : ""}">${esc(x.lugar)}: <strong>${pct(Math.round(x.razon * 100))}</strong> ${t("de lo normal")} <span class="detalle-gris">(${esc(diaMes(x.fecha))})</span>`
+            + (x.serie?.length > 2 ? miniSerie(x.serie) : "") + `</li>`).join("") + `</ul>`;
+      }
+      if (a.lluvia_extrema?.mm) html += `<p><strong>${t("Lluvias extremas: hasta {mm} mm en 3 días sobre unos {km2} km².", { mm: numero.format(a.lluvia_extrema.mm), km2: numero.format(a.lluvia_extrema.km2) })}</strong>${t(" Riesgo de inundaciones (NASA GPM IMERG).")}</p>`;
       if (a.incendios_veces) html += `<p><strong>${t("El satélite detecta {v} veces más incendios de lo habitual.", { v: numero.format(a.incendios_veces) })}</strong>${t(" En zonas de combate suelen delatar bombardeos o frentes activos; también pueden ser quemas agrícolas.")}</p>`;
       if (a.elecciones?.length) html += `<p><strong>${t("Próximas citas electorales:")}</strong></p><ul class="motivos">${a.elecciones.map((x) => `<li>${esc(diaMes(x.fecha))}: ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.nombre)}</a>` : esc(x.nombre)}</li>`).join("")}</ul>`;
       html += `</div>`;
