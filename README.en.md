@@ -78,6 +78,7 @@ Three ideas guide it:
 |---|---|
 | **Map** | A 3D globe you can spin (with real day and night) or a flat map. Each country's colour is its level; those getting worse pulse. Dots are events: conflicts, protests, earthquakes, disasters, epidemics, internet outages and censorship. Gold diamonds are strategic shipping routes. |
 | **Report** | What a crisis unit would say: the countries you follow, the bottom line, key judgements with their confidence, what to watch in the next 72 hours, relevance for Spain, regions under most tension, key dates (elections), shipping routes and source status. |
+| **Report** | What a crisis unit would say: the countries you follow, the bottom line, key judgements with their confidence, what to watch in the next 72 hours, relevance for Spain, regions under most tension, key dates (elections), shipping routes and source status. |
 | **Spain** | Early warning for Spain: each type of interest (neighbourhood, migration routes, energy, deployments, communities) with all its countries and their signals, the key shipping routes and where the Foreign Ministry advises against travel. Those countries are highlighted on the map. |
 | **Lab** | The forecasting experiment: accuracy scoreboard (Brier and calibration), the learned forecast's status and the 7-day simulation (three branches with an approximate probability, spillover to neighbours hatched on the map and impact for Spain). Always with its no-official-validity notice. |
 | **Countries** | All countries with activity, sorted by level. |

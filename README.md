@@ -78,6 +78,7 @@ Tres ideas lo guían:
 |---|---|
 | **Mapa** | Globo 3D que se gira (con día y noche reales) o mapa plano. El color de cada país es su nivel; los que empeoran laten. Los puntos son eventos: conflictos, protestas, terremotos, desastres, epidemias, cortes de internet y censura. Los rombos dorados son rutas marítimas estratégicas. |
 | **Informe** | Lo que contaría un gabinete de crisis: tus países seguidos, conclusión principal, juicios clave con su confianza, qué vigilar en las próximas 72 horas, interés para España, regiones con más tensión, fechas clave (elecciones), rutas marítimas y estado de las fuentes. |
+| **Informe** | Lo que contaría un gabinete de crisis: tus países seguidos, conclusión principal, juicios clave con su confianza, qué vigilar en las próximas 72 horas, interés para España, regiones con más tensión, fechas clave (elecciones), rutas marítimas y estado de las fuentes. |
 | **España** | Alerta temprana para España: cada tipo de interés (vecindad, rutas migratorias, energía, despliegues, comunidades) con todos sus países y sus señales, las rutas marítimas clave y dónde Exteriores desaconseja viajar. En el mapa se resaltan esos países. |
 | **Laboratorio** | El experimento de prever: marcador de acierto (Brier y calibración), estado del pronóstico aprendido y la simulación a 7 días (tres ramas con probabilidad aproximada, contagio a los vecinos rayado en el mapa e impacto para España). Siempre con su aviso de que no tiene validez oficial. |
 | **Países** | Todos los países con actividad, ordenados por nivel. |
