@@ -22,6 +22,19 @@ con un nivel de alerta por país, un informe diario y simulación de escenarios.
 
 ---
 
+## Documentación
+
+| Si vas a… | Lee |
+|---|---|
+| **Mantener atalaya** (qué tocar para cada tarea, tareas periódicas, qué no tocar) | [Guía para quien mantiene](docs/mantenimiento.md) |
+| Entender o arreglar una **fuente de datos** | [Fuentes de datos](docs/fuentes.md): cada fuente con su URL, clave, filtros, fallos conocidos y cómo comprobarla |
+| Entender o ajustar un **cálculo** | [Cálculos](docs/calculos.md): todas las fórmulas, con ejemplos y las constantes |
+| Configurar los **avisos por Telegram** | [Avisos por Telegram](docs/telegram.md) |
+
+Este README da la visión general; el detalle está en esas guías.
+
+---
+
 ## Índice
 
 - [Qué es](#qué-es)
@@ -43,6 +56,16 @@ con un nivel de alerta por país, un informe diario y simulación de escenarios.
 
 Una *atalaya* es una torre desde la que se vigila el horizonte para dar la alarma a tiempo. Este proyecto hace lo mismo con el mundo: cada 30 minutos reúne una veintena de fuentes públicas, detecta dónde se está calentando algo y lo explica en castellano.
 
+Tiene tres caras, cada una en su pestaña:
+
+| Cara | Para qué | Qué promete |
+|---|---|---|
+| **Visor de situación** (*Informe*, *Países*, *Eventos*, *Titulares*) | Saber qué está pasando en el mundo y por qué, con las pruebas de cada conclusión | Un resumen fiable de lo que dicen las fuentes, con cuánto está contrastado |
+| **Alerta temprana para España** (*España*) | Ver lo que afecta a España: vecindad, rutas migratorias, energía, despliegues, comunidades españolas, rutas marítimas clave y dónde Exteriores desaconseja viajar | Todos esos países a la vista, estén tranquilos o no, con sus señales técnicas |
+| **Laboratorio** (*Laboratorio*) | Intentar adelantarse: pronóstico a 7 días y simulación de escenarios | Nada: es un experimento. Cada pronóstico se compara con lo que pasó y el marcador se publica tal cual |
+
+La separación es deliberada. Con datos abiertos, describir la situación se hace bien; prever si un país empeorará en una semana, de momento no: la medición con 90 días reconstruidos no gana a decir siempre la frecuencia media (ver [docs/calculos.md](docs/calculos.md)). Por eso el pronóstico vive en el Laboratorio, con su marcador al lado, y en la ficha de cada país lleva la etiqueta *Experimental*.
+
 Tres ideas lo guían:
 
 1. **Gravedad no es lo mismo que cambio.** Una guerra que dura meses es grave aunque hoy no empeore. Un país tranquilo que de repente sube es una señal temprana. atalaya mide las dos cosas por separado.
@@ -54,8 +77,9 @@ Tres ideas lo guían:
 | Parte | Para qué sirve |
 |---|---|
 | **Mapa** | Globo 3D que se gira (con día y noche reales) o mapa plano. El color de cada país es su nivel; los que empeoran laten. Los puntos son eventos: conflictos, protestas, terremotos, desastres, epidemias, cortes de internet y censura. Los rombos dorados son rutas marítimas estratégicas. |
-| **Informe** | Lo que contaría un gabinete de crisis: tus países seguidos, conclusión principal, juicios clave con su confianza, qué vigilar en las próximas 72 horas, interés para España, regiones con más tensión, fechas clave (elecciones), rutas marítimas, acierto y rendimiento de los pronósticos y estado de las fuentes. |
-| **Simulación** | Qué podría pasar en 7 días en cada crisis: tres ramas con probabilidad aproximada, contagio a los vecinos (rayados en el mapa) e impacto para España. Siempre con su aviso de que no tiene validez oficial. |
+| **Informe** | Lo que contaría un gabinete de crisis: tus países seguidos, conclusión principal, juicios clave con su confianza, qué vigilar en las próximas 72 horas, interés para España, regiones con más tensión, fechas clave (elecciones), rutas marítimas y estado de las fuentes. |
+| **España** | Alerta temprana para España: cada tipo de interés (vecindad, rutas migratorias, energía, despliegues, comunidades) con todos sus países y sus señales, las rutas marítimas clave y dónde Exteriores desaconseja viajar. En el mapa se resaltan esos países. |
+| **Laboratorio** | El experimento de prever: marcador de acierto (Brier y calibración), estado del pronóstico aprendido y la simulación a 7 días (tres ramas con probabilidad aproximada, contagio a los vecinos rayado en el mapa e impacto para España). Siempre con su aviso de que no tiene validez oficial. |
 | **Países** | Todos los países con actividad, ordenados por nivel. |
 | **Eventos** | Avisos de viaje, epidemias, cortes de internet, lugares con más conflictos y protestas, terremotos y desastres. |
 | **Titulares** | Prensa en español de las últimas horas (Google Noticias, EFE, RTVE y El País). |
@@ -122,7 +146,7 @@ flowchart TB
 | Ficheros de eventos de GDELT 2.0 | API GEO de GDELT | La API GEO devolvía 404. Los ficheros traen además el tipo de actor, lo que permite separar violencia política de delincuencia. |
 | Proporción de violencia, no volumen | Contar noticias | De EE. UU. o India siempre se habla mucho. Medir qué parte de lo que se cuenta es violencia corrige ese sesgo. |
 | d3 + SVG | Leaflet o MapLibre con teselas | Sin proveedor de mapas ni claves; el globo y el estilo son propios; 180 países caben de sobra en SVG. |
-| Reglas transparentes | Aprendizaje automático | Con pocos días de datos un modelo no aprendería nada fiable; las reglas se pueden discutir y corregir, y se mide su acierto. |
+| Reglas transparentes, y un modelo aprendido solo si demuestra acertar | Aprendizaje automático sin control | Las reglas se pueden discutir y corregir. El modelo aprendido (regresión logística) solo se usa si, en días que no ha visto, acierta más que la referencia; si no, siguen las reglas. Todo se mide. |
 | Exteriores leyendo su web | Solo avisos de EE. UU. | Exteriores no tiene API, pero es la referencia que importa en España, y la de EE. UU. también refleja su política exterior. |
 
 ---
@@ -134,7 +158,8 @@ flowchart TB
 | Workflow | Cuándo se ejecuta | Qué hace |
 |---|---|---|
 | [`actualizar.yml`](.github/workflows/actualizar.yml) | Cada 30 min (`7,37 * * * *`), al fusionar cambios de código en `main` y a mano | Recupera los datos anteriores, reconstruye días pasados si se pide, descarga las fuentes, calcula alertas, manda los avisos y publica en `datos`. |
-| [`pruebas.yml`](.github/workflows/pruebas.yml) | En cada PR y en cada push a `development` | Ejecuta las pruebas con `unittest`. |
+| [`pruebas.yml`](.github/workflows/pruebas.yml) | En cada PR y en cada push a `development` | Ejecuta las pruebas con `unittest` (con `h5py` y `numpy` para las de satélites). |
+| [`probar-telegram.yml`](.github/workflows/probar-telegram.yml) | A mano | Manda un mensaje de prueba y el resumen del día a Telegram, sin tocar los datos. |
 
 ```mermaid
 sequenceDiagram
@@ -290,7 +315,7 @@ atalaya/
 │   ├── retroceso.py           Reconstrucción del pasado con GDELT (backtesting)
 │   └── salud.py               Comprueba el estado de las fuentes
 ├── img/atalaya.svg            Logo de la web (también favicon)
-├── docs/                      Guía de Telegram (es, en) y logo
+├── docs/                      Guías: mantenimiento, fuentes, cálculos y Telegram (es, en), y logo
 ├── tests/                     Pruebas con respuestas de ejemplo de cada fuente
 └── .github/workflows/         actualizar.yml y pruebas.yml
 ```
@@ -339,7 +364,7 @@ Cada evento tiene esta forma:
 }
 ```
 
-**Añadir una fuente** son cuatro pasos: escribir la función, añadirla a `FUENTES`, añadir una respuesta de ejemplo y una prueba en `tests/`, y documentarla en este README.
+**Añadir una fuente**: sigue la lista de [docs/fuentes.md](docs/fuentes.md) (función, `FUENTES`, `PARTE_DE` y `CLAVES_PUNTOS` si suma puntos, prueba, traducciones en `js/i18n.js`, documentación y `data/modelo.json`).
 
 ### Frontend
 
@@ -366,7 +391,7 @@ Todo vive en la rama `datos`, carpeta `data/`:
 | `eventos.json` | Eventos de los últimos 7 días (30 para epidemias), titulares, análisis y estado de cada fuente | Se reemplaza |
 | `alertas.json` | Nivel, motivos, confianza, escenarios y pronóstico por país; rutas marítimas; parte; informe; simulación | Se reemplaza |
 | `historial.json` | Puntuación diaria por país de los últimos 30 días, para calcular lo habitual | Ventana de 30 días |
-| `historico.json` | Por día y país: `[puntuación, nivel, empeora, pronóstico]` | Para siempre |
+| `historico.json` | Por día y país: `[puntuación, nivel, empeora, grado del pronóstico, probabilidad del modelo, señales del modelo]` | Para siempre |
 | `archivo/AAAA-MM-DD.json` | La foto de cada día: niveles, informe, simulación, rutas y los 300 eventos más relevantes | Para siempre |
 | `archivo/indice.json` | Los días disponibles | Para siempre |
 | `avisos.json` y `exteriores.json` | Último nivel de los avisos de viaje y sus cambios | Se reemplaza |
@@ -382,6 +407,8 @@ Todo vive en la rama `datos`, carpeta `data/`:
 
 ## Análisis
 
+> Resumen. Cada fórmula, con un ejemplo y sus constantes, está en [docs/calculos.md](docs/calculos.md).
+
 ### Puntuación
 
 Cada país suma puntos con lo ocurrido en las últimas 48 horas (30 días para epidemias):
@@ -395,7 +422,7 @@ Cada país suma puntos con lo ocurrido en las últimas 48 horas (30 días para e
 | Activación de Copernicus (UE) | 5 |
 | Fenómenos de NASA EONET | Entre 0,5 y 2 según el tipo |
 | Brotes (OMS) | 3, u 8 si es una enfermedad grave (ébola, Marburgo, cólera…) |
-| Cortes de internet (IODA) | `3 × (log10(gravedad) − 5)`, hasta 12. Los cortes pequeños no cuentan |
+| Cortes de internet (IODA) | `3 × (log10(gravedad + 1) − 5)`, entre 0 y 12. Los cortes pequeños no cuentan |
 | Cortes de internet (Cloudflare) | 12 si los ordena el gobierno en todo el país, 8 si los ordena en parte, 3 si son técnicos en todo el país |
 | Bloqueo nuevo de mensajería (OONI) | 6 |
 | Exteriores sube su recomendación | 5 por cada nivel |
@@ -428,11 +455,11 @@ flowchart TD
 
 | Nivel | Se alcanza si se cumple alguna de estas condiciones |
 |---|---|
-| **Alerta** | Puntuación ≥ 40 · alerta oficial roja · 3 desviaciones sobre lo habitual con ≥ 18 puntos · media de 30 días ≥ 30 · más de 1.000 muertes verificadas en 90 días |
-| **Vigilar** | Puntuación ≥ 25 · alerta oficial naranja · 1,5 desviaciones sobre lo habitual con ≥ 10 puntos · 3 días seguidos subiendo con ≥ 10 puntos · media ≥ 18 · crisis humanitaria abierta · más de 100 muertes verificadas · Exteriores o EE. UU. desaconsejan viajar y hay actividad propia |
+| **Alerta** | Puntuación ≥ 40 · alerta oficial roja · 3 desviaciones sobre lo habitual con ≥ 18 puntos · media de 30 días ≥ 30 · 1.000 o más muertes verificadas en 90 días |
+| **Vigilar** | Puntuación ≥ 25 · alerta oficial naranja · 1,5 desviaciones sobre lo habitual con ≥ 10 puntos · 3 días seguidos subiendo con ≥ 10 puntos · media ≥ 18 · crisis humanitaria abierta · 100 o más muertes verificadas · Exteriores o EE. UU. desaconsejan viajar y hay actividad propia |
 
 - **Escalada**: el país está por encima de lo que es normal para él o lleva tres días subiendo. En el mapa, late.
-- **Confianza** (cuánto está contrastado, no lo grave que es): *muy contrastado* si coinciden dos o más familias de fuente, *contrastado* si hay una fuente oficial, técnica o sanitaria, *solo prensa* si únicamente lo cuentan las noticias.
+- **Confianza** (cuánto está contrastado, no lo grave que es): *muy contrastado* si coinciden dos o más familias de fuente, *contrastado* si hay una sola familia que no es la prensa (oficial, técnica, sanitaria, humanitaria o académica), *solo prensa* si únicamente lo cuentan las noticias.
 - Los avisos de viaje **refuerzan, pero no colorean solos** un país: también reflejan la política exterior de quien los emite.
 - Durante la primera semana solo cuentan los umbrales absolutos, porque aún no hay histórico para saber qué es lo habitual.
 
@@ -442,10 +469,10 @@ Es el método de *indicadores y alertas* de los equipos de alerta temprana: cada
 
 | Escenario | Indicadores |
 |---|---|
-| **Escalada militar** | **La violencia sube**, **enfrentamientos entre países**, hechos con ejército o grupos armados, un gobierno sube su aviso, España desaconseja viajar, vecinos en alerta, ruta marítima en riesgo |
+| **Escalada militar** | **La violencia sube**, **enfrentamientos entre países**, hechos con ejército o grupos armados, un gobierno sube su aviso, España desaconseja viajar, vecinos en alerta, ruta marítima en riesgo, incendios por satélite, **apagón visto por satélite** |
 | **Golpe o crisis de gobierno** | **Corte de internet**, **bloqueo de mensajería**, **la prensa habla de golpe**, hechos con ejército, protestas al alza, un gobierno sube su aviso, la moneda se hunde, elecciones próximas |
 | **Disturbios graves** | **Protestas al alza**, **disturbios**, bloqueo de mensajería, corte de internet, la violencia sube, la moneda se hunde, elecciones próximas |
-| **Emergencia humanitaria** | **Desastre con alerta oficial**, **brote grave**, **crisis humanitaria abierta**, violencia intensa, muertes verificadas, España desaconseja viajar |
+| **Emergencia humanitaria** | **Desastre con alerta oficial**, **brote grave**, **crisis humanitaria abierta**, violencia intensa, muertes verificadas, España desaconseja viajar, apagón visto por satélite, **lluvias extremas** |
 
 Si se enciende más de la mitad del peso, el escenario es *probable*; con dos puntos, *posible*; si no, *poco probable*. Los umbrales de cada indicador son relativos al volumen de noticias del país.
 
@@ -466,7 +493,7 @@ Para no quedarse con la explicación más alarmante, cada ficha incluye lo que h
 - **Monedas**: una caída brusca frente al dólar (≥ 8 % en 7 días) suele adelantarse a protestas, escasez o crisis de gobierno.
 - **Elecciones y referendos** en los próximos 45 días, según Wikidata: aparecen en *Fechas clave* y como indicador.
 - **Incendios por satélite** (NASA FIRMS, sensor VIIRS) en los países con más conflicto y en las guerras abiertas. Cuenta los focos de calor de las últimas 24 horas y los compara con la mediana de los 30 días anteriores del mismo país, porque las quemas agrícolas cambian mucho según la época. Si hay al menos 30 focos y 2,5 veces lo habitual, suma puntos y enciende un indicador del escenario de escalada: en una zona de combates suelen delatar bombardeos y frentes activos antes que la prensa. Necesita la clave gratuita `FIRMS_KEY`.
-- **Apagones vistos desde el espacio** (NASA Black Marble, VIIRS del satélite NOAA-20). Cada noche se mide la luz en un círculo de unos 3 km alrededor de los lugares con más violencia de los países en guerra o en alerta (hasta 3 por país). Solo cuentan las noches buenas: sin nubes, con el satélite casi encima (menos de 60°) y sin luna fuerte. Lo normal es la mediana de las noches buenas de los 30 días anteriores. Si la luz cae a la mitad o menos en dos noches buenas seguidas, suma puntos y enciende indicadores de escalada y de emergencia humanitaria: ataques a la red eléctrica, cortes de suministro o una ciudad que se vacía. Llega con unos 2 días de retraso.
+- **Apagones vistos desde el espacio** (NASA Black Marble, VIIRS del satélite NOAA-20). Cada noche se mide la luz en un cuadrado de 13 × 13 píxeles (unos 6 km de lado) alrededor de los lugares con más violencia de los países en guerra o en alerta (hasta 3 por país). Solo cuentan las noches buenas: sin nubes, con el satélite casi encima (menos de 60°) y sin luna fuerte. Lo normal es la mediana de las noches buenas de los 30 días anteriores. Si la luz de la última noche buena cae a la mitad o menos de lo normal, y la anterior también estaba al 60 % o menos, suma puntos y enciende indicadores de escalada y de emergencia humanitaria: ataques a la red eléctrica, cortes de suministro o una ciudad que se vacía. Llega con unos 2 días de retraso.
 - **Lluvias extremas** (NASA GPM IMERG, versión rápida diaria, celdas de 0,1°). Una celda es extrema con 150 mm en un día o 250 mm en tres; si hay al menos 3 en un país (unos 350 km²), suma puntos y enciende el indicador de emergencia humanitaria. Se ignoran las latitudes por encima de 60° y Groenlandia y la Antártida, donde el satélite mide mal sobre la nieve.
 - Las dos últimas necesitan una cuenta gratuita de NASA Earthdata (`EARTHDATA_TOKEN`) y leen ficheros HDF5, así que van en un paso aparte del workflow con `h5py` y `numpy` ([`luces.py`](scripts/luces.py) y [`lluvias.py`](scripts/lluvias.py)); si fallan, el resto de atalaya sigue igual.
 - Quedan fuera, porque necesitan claves o acuerdos de uso: barcos (AIS), espacio aéreo (OpenSky) y desplazamientos (OIM DTM, ACNUR). La población expuesta (NASA SEDAC) está pendiente.
@@ -532,6 +559,8 @@ Cada caso muestra **por qué** tiene esas probabilidades, el **contagio** a sus 
 ---
 
 ## Fuentes
+
+> Resumen. Cada fuente en detalle (petición, filtros, fallos conocidos y cómo comprobarla) está en [docs/fuentes.md](docs/fuentes.md).
 
 | Fuente | Datos | Acceso |
 |---|---|---|

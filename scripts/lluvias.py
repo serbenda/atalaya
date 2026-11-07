@@ -7,7 +7,7 @@ una alerta oficial o imágenes de los daños.
 
 Cómo se mide:
   - Cada día se descarga el último IMERG diario rápido ("Early") y se guardan solo las celdas
-    con 30 mm o más (lo demás no puede sumar una lluvia extrema).
+    con 50 mm o más (lo demás no puede sumar una lluvia extrema).
   - Una celda es extrema si en un día cae 150 mm o más, o si en tres días suma 250 mm o más.
     Son umbrales altos a propósito, porque en los trópicos 100 mm en un día es frecuente.
   - Se agrupan por país en tierra. Hay aviso si al menos 3 celdas (unos 350 km²) son extremas.
@@ -140,7 +140,12 @@ def principal():
             "fecha": f"{ultimos[-1]}T23:59:00Z", "peso": 3 if km2 >= 2500 else 2, "nivel": "verde",
             "fuente": "NASA GPM IMERG", "familia": "tecnica", "url": "https://gpm.nasa.gov/data/imerg",
         })
-    act.escribir("lluvias.json", {"actualizado": act.iso(act.AHORA), "dias": ultimos, "eventos": eventos, "paises": resumen})
+    # "actualizado" solo avanza si hay un día reciente: si GES DISC deja de dar datos, actualizar.py lo
+    # ve caducado a los 3 días y lo avisa como fuente caída
+    reciente = ultimos[-1] >= (hoy - timedelta(days=3)).isoformat()
+    previo = act.leer("lluvias.json", {}).get("actualizado", "")
+    act.escribir("lluvias.json", {"actualizado": act.iso(act.AHORA) if reciente else previo, "dias": ultimos,
+                                  "eventos": eventos, "paises": resumen})
     act.log(f"IMERG: {len(extremas)} celdas extremas, {len(eventos)} países con lluvias extremas")
 
 

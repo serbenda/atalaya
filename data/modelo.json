@@ -3,7 +3,9 @@
   "cambios": [
     {"version": "2.2", "fecha": "2026-11-07", "cambios": [
       "Apagones vistos por satélite: luces nocturnas de las ciudades en guerra o en alerta frente a su nivel normal (NASA Black Marble)",
-      "Lluvias extremas medidas por satélite como señal temprana de inundaciones (NASA GPM IMERG)"
+      "Lluvias extremas medidas por satélite como señal temprana de inundaciones (NASA GPM IMERG)",
+      "Tres caras: visor de situación, alerta temprana para España y laboratorio de predicción con su marcador",
+      "Exteriores en nivel 4 cuenta como fuente oficial para la confianza, igual que el aviso 4 de EE. UU."
     ]},
     {"version": "2.1", "fecha": "2026-11-07", "cambios": [
       "Pronóstico aprendido de los datos (regresión logística) que solo se usa si, validado en días que no ha visto, acierta más que la referencia",
@@ -32,6 +34,9 @@
     {"version": "1.0", "fecha": "2026-11-02", "cambios": ["Primera versión del mapa"]}
   ],
   "errores": [
+    {"fecha": "2026-11-07", "texto": "Una actualización de las recomendaciones de Exteriores sin subida sumaba un punto y encendía «un gobierno ha subido su aviso». Corregido: solo cuentan las subidas."},
+    {"fecha": "2026-11-07", "texto": "En casos extremos la simulación podía dar una probabilidad negativa a «sigue igual». Corregido: nunca baja del 5 %."},
+    {"fecha": "2026-11-07", "texto": "El parte de cambios de nivel no recogía los cambios debidos solo a Exteriores o a UCDP. Corregido."},
     {"fecha": "2026-11-07", "texto": "El pronóstico contaba como empeorar un salto de un solo día, que casi siempre es ruido de las noticias: así parecía acertar más de lo que acertaba. Corregido: solo cuenta si dura al menos dos días."},
     {"fecha": "2026-11-02", "texto": "Ciudades como Nueva York o Washington salían en alerta por crónica de sucesos y noticias de política interior. Corregido: solo cuenta la violencia política y el hecho principal de cada noticia."},
     {"fecha": "2026-11-02", "texto": "Algunas recomendaciones de Exteriores se leían con un nivel equivocado (por ejemplo, «salvo por motivos imprescindibles»). Corregido: se analizan frase a frase."},

@@ -547,3 +547,15 @@ html[lang="en"] .solo-es, html:not([lang="en"]) .solo-en { display: none; }
 .mini-serie { vertical-align: middle; margin-left: 6px; }
 .mini-serie line { stroke: var(--linea); stroke-dasharray: 2 2; }
 .mini-serie path { fill: none; stroke: #F4C26B; stroke-width: 1.6; }
+
+/* España: resalta sus países de interés en el mapa */
+body.lente-espana .pais.fuera-espana { opacity: 0.22; }
+.cuenta { display: inline-block; min-width: 1.4em; padding: 0 6px; margin-left: 6px; border-radius: 999px;
+  background: var(--paso); color: #0B1A22; font-size: 12px; text-align: center; }
+
+/* Laboratorio: lo experimental se distingue */
+.pestana-lab { font-style: italic; }
+.etiqueta-lab { display: inline-block; padding: 1px 7px; margin-right: 4px; border: 1px dashed var(--tinta-suave);
+  border-radius: 999px; font-size: 11px; letter-spacing: .03em; text-transform: uppercase; color: var(--tinta-suave); }
+.nota-lab { margin-top: 18px; font-size: 13px; color: var(--tinta-suave); }
+.enlace { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }

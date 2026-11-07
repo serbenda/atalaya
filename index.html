@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/estilo.css?v=14">
+  <link rel="stylesheet" href="css/estilo.css?v=15">
   <meta name="atalaya-datos" content="https://raw.githubusercontent.com/serbenda/atalaya/datos/data/">
 </head>
 <body>
@@ -84,13 +84,15 @@
       <div class="panel-cuerpo" id="panel-cuerpo">
         <nav class="pestanas" role="tablist">
           <button role="tab" aria-selected="true" data-pestana="parte" data-i18n>Informe</button>
-          <button role="tab" aria-selected="false" data-pestana="simulacion" data-i18n>Simulación</button>
+          <button role="tab" aria-selected="false" data-pestana="espana" data-i18n>España</button>
           <button role="tab" aria-selected="false" data-pestana="paises" data-i18n>Países</button>
           <button role="tab" aria-selected="false" data-pestana="eventos" data-i18n>Eventos</button>
           <button role="tab" aria-selected="false" data-pestana="titulares" data-i18n>Titulares</button>
+          <button role="tab" aria-selected="false" data-pestana="laboratorio" class="pestana-lab" data-i18n>Laboratorio</button>
         </nav>
         <section class="vista" id="vista-parte" role="tabpanel"></section>
-        <section class="vista" id="vista-simulacion" role="tabpanel" hidden></section>
+        <section class="vista" id="vista-espana" role="tabpanel" hidden></section>
+        <section class="vista" id="vista-laboratorio" role="tabpanel" hidden></section>
         <section class="vista" id="vista-paises" role="tabpanel" hidden></section>
         <section class="vista" id="vista-eventos" role="tabpanel" hidden></section>
         <section class="vista" id="vista-titulares" role="tabpanel" hidden></section>
@@ -193,8 +195,8 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="js/i18n.js?v=14"></script>
-  <script src="js/app.js?v=14"></script>
+  <script src="js/i18n.js?v=15"></script>
+  <script src="js/app.js?v=15"></script>
 <!-- Contador de visitas anónimo (GoatCounter): sin cookies ni datos personales. Las rutas se cuentan como /atalaya/… para no mezclarse con las de bendi.dev -->
 <script>window.goatcounter = { path: p => '/atalaya' + p };</script>
 <script data-goatcounter="https://serbenda.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>

@@ -923,7 +923,8 @@ def exteriores(paises):
         eventos.append({
             "id": f"exteriores-{c['pais']}-{c['fecha'][:10]}", "tipo": "aviso", "titulo": titulo,
             "lugar": c.get("notas", "")[:160], "pais": c["pais"], "lat": lat, "lon": lon, "fecha": c["fecha"],
-            "peso": 5 * ((c["a"] or 0) - (c["de"] or 0)) if sube else 1,
+            # Una actualización sin subida se muestra, pero no suma: si no, encendería "ha subido su aviso"
+            "peso": 5 * ((c["a"] or 0) - (c["de"] or 0)) if sube else 0,
             "nivel": "ambar" if sube and c["a"] >= 3 else "verde", "fuente": "Exteriores (España)",
             "familia": "oficial", "url": c["url"],
         })
@@ -1650,6 +1651,14 @@ FUENTES = [("USGS", usgs), ("EMSC", emsc), ("IGN", ign), ("GDACS", gdacs), ("Cop
            ("Avisos de viaje EE. UU.", avisos_viaje), ("OMS", oms), ("ReliefWeb", reliefweb), ("UCDP", ucdp),
            ("Tipos de cambio", divisas), ("Elecciones (Wikidata)", elecciones), ("Incendios (NASA FIRMS)", incendios),
            ("Luces nocturnas (NASA Black Marble)", luces), ("Lluvias (NASA GPM IMERG)", lluvias)]
+# Cuando el nombre de la fuente no coincide con el que llevan sus eventos en "fuente", para
+# recuperar sus últimos eventos si falla
+ETIQUETA_EVENTOS = {
+    "Incendios (NASA FIRMS)": ("NASA FIRMS",),
+    "Luces nocturnas (NASA Black Marble)": ("NASA Black Marble",),
+    "Lluvias (NASA GPM IMERG)": ("NASA GPM IMERG",),
+    "Tipos de cambio": ("Tipos de cambio",),
+}
 # Fuentes que no aportan eventos sino otros datos: si fallan, se conservan esos datos
 DATOS_DE_FUENTE = {"Titulares": "titulares", "Análisis": "analisis", "Elecciones (Wikidata)": "elecciones"}
 
@@ -1691,7 +1700,8 @@ def main():
         if error:
             log(f"  {nombre}: {error}")
             # Se conservan los últimos datos buenos de la fuente
-            resultado = {"eventos": [e for e in anterior["eventos"] if e.get("fuente") == nombre]}
+            propias = {nombre, *ETIQUETA_EVENTOS.get(nombre, ())}
+            resultado = {"eventos": [e for e in anterior["eventos"] if e.get("fuente") in propias]}
             if nombre in DATOS_DE_FUENTE:
                 resultado = {DATOS_DE_FUENTE[nombre]: anterior.get(DATOS_DE_FUENTE[nombre], [])}
         cuantos = len(resultado.get("eventos", resultado.get(DATOS_DE_FUENTE.get(nombre, ""), [])))
@@ -1719,8 +1729,6 @@ def main():
     avisos = extra.get("avisos") or leer("avisos.json", {}).get("niveles") or {}
     alertas = calcular_alertas(puntos, historial, avisos)
     alertas["pasos"] = calcular_pasos(gdelt_pasos)
-    alertas["parte"], referencia = parte(alertas, alertas_previas)
-    alertas["dia"], alertas["niveles_ayer"] = HOY, referencia
 
     # Capa de análisis: escenarios, pronóstico, contagio regional e interés para España
     ctx = {"gdelt": gdelt_paises, "pasos": {p["id"]: p["nivel"] for p in alertas["pasos"]},
@@ -1750,6 +1758,10 @@ def main():
             p["motivos"].append("Exteriores desaconseja viajar")
         elif p and f["nivel"] >= 4:
             p["motivos"].append("Exteriores desaconseja viajar")
+        # Igual que el aviso de nivel 4 de EE. UU., cuenta como fuente oficial para la confianza
+        if p and f["nivel"] >= 4 and "oficial" not in p.get("familias", []):
+            p["familias"] = p.get("familias", []) + ["oficial"]
+            p["confianza"] = confianza(p["familias"])
     for a3, n in ctx["ucdp"].items():
         p = alertas["paises"].get(a3)
         if p and n >= 25:
@@ -1761,6 +1773,9 @@ def main():
             if "academica" not in p.get("familias", []):
                 p["familias"] = p.get("familias", []) + ["academica"]
                 p["confianza"] = confianza(p["familias"])
+    # El parte de cambios va después de los ajustes de Exteriores y UCDP, para que también los recoja
+    alertas["parte"], referencia = parte(alertas, alertas_previas)
+    alertas["dia"], alertas["niveles_ayer"] = HOY, referencia
     for x in extra.get("elecciones", []):
         ctx["elecciones"].setdefault(x["pais"], []).append(x)
     intereses = json.loads((FIJOS / "intereses_espana.json").read_text("utf-8"))

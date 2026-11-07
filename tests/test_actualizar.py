@@ -355,6 +355,21 @@ class TestIncendios(Base):
             self.assertTrue(act.incendios(self.paises)["desactivada"])
 
 
+class TestSalud(Base):
+    def correr(self, fallos):
+        import salud
+        act.escribir("eventos.json", {"fuentes": {"GDELT": {"fallos_seguidos": fallos, "error": "x"}}})
+        with mock.patch.object(salud, "SALIDA", Path(TMP)), mock.patch("sys.stdout", new_callable=io.StringIO):
+            return salud.main()
+
+    def test_avisa_al_llegar_y_un_recordatorio_al_dia(self):
+        n = act.FALLOS_PARA_AVISAR
+        self.assertEqual(self.correr(0), 0)
+        self.assertEqual(self.correr(n), 1)            # acaba de llegar al umbral
+        self.assertEqual(self.correr(n + 1), 2)        # ya avisado: no se repite
+        self.assertEqual(self.correr(n + 48), 1)       # recordatorio diario
+
+
 class TestSenalesTempranas(Base):
     def test_divisa_que_se_hunde(self):
         hace8 = (act.AHORA - timedelta(days=8)).strftime("%Y-%m-%d")
@@ -629,6 +644,11 @@ class TestEjecucionCompleta(Base):
         self.assertIn("informe", a)
         self.assertIn("pronostico", a["paises"]["PHL"])
         self.assertEqual(a["informe"]["fechas"][0]["pais"], "PHL")
+        # Vista de España: todos los tipos de interés, con sus países aunque estén tranquilos
+        esp = a["espana"]
+        self.assertTrue(esp["tipos"] and all(t["paises"] for t in esp["tipos"]))
+        self.assertIn("MAR", esp["paises"])
+        self.assertEqual({r["id"] for r in esp["rutas"]} - {"gibraltar", "suez", "bab", "ormuz"}, set())
         self.assertTrue(a["paises"]["PHL"]["elecciones"])
         ext = json.loads((Path(TMP) / "exteriores.json").read_text())
         self.assertEqual(ext["paises"]["SDN"]["nivel"], 4)

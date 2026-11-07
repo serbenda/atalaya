@@ -230,8 +230,9 @@
         const a = estado.alertas[f.id];
         const simulado = document.body.classList.contains("simulando") ? estado.simulacion?.contagio?.[f.id] : null;
         const caso = document.body.classList.contains("simulando") && estado.simulacion?.casos?.some((c) => c.pais === f.id);
+        const fuera = document.body.classList.contains("lente-espana") && !estado.espana?.paises?.[f.id];
         return ["pais", a?.nivel, a?.escalada && !reducirMovimiento ? "escalada" : "", f.id === estado.elegido ? "elegido" : "",
-          simulado ? "contagio-simulado" : "", caso ? "caso-simulado" : ""].join(" ");
+          simulado ? "contagio-simulado" : "", caso ? "caso-simulado" : "", fuera ? "fuera-espana" : ""].join(" ");
       })
       .on("click", (ev, f) => { ev.stopPropagation(); abrirPais(f.id, f.properties.name); })
       .on("mousemove", (ev, f) => {
@@ -459,13 +460,16 @@
 
   // ----------------------------------------------------------------- panel
 
-  const vistas = ["parte", "simulacion", "paises", "eventos", "titulares", "pais"];
+  const vistas = ["parte", "espana", "paises", "eventos", "titulares", "laboratorio", "pais"];
   function mostrarVista(nombre) {
+    if (nombre === "simulacion") nombre = "laboratorio";  // enlaces antiguos
     for (const v of vistas) $(`#vista-${v}`).hidden = v !== nombre;
-    // En la pestaña Simulación el mapa muestra el contagio simulado
-    const simulando = nombre === "simulacion";
-    if (simulando !== document.body.classList.contains("simulando")) {
+    // En el Laboratorio el mapa muestra el contagio simulado; en España, resalta sus países de interés
+    const simulando = nombre === "laboratorio";
+    const espana = nombre === "espana";
+    if (simulando !== document.body.classList.contains("simulando") || espana !== document.body.classList.contains("lente-espana")) {
       document.body.classList.toggle("simulando", simulando);
+      document.body.classList.toggle("lente-espana", espana);
       dibujarPaises();
     }
     document.querySelectorAll(".pestanas button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.pestana === nombre)));
@@ -523,7 +527,7 @@
         const p = estado.alertas[a3];
         return `<button class="fila" data-pais="${a3}"><span class="punto ${p ? p.nivel : "neutro"}"></span>
           <span class="nombre">${esc(nombrePais(a3))}${p?.escalada ? `<span class="empeora">${t("Empeora")}</span>` : ""}
-          <span class="detalle">${p ? esc(mayuscula(resumenPais(p, a3))) : t("Sin eventos recientes")}${p?.pronostico && p.pronostico.riesgo !== "bajo" ? `. ${esc(tb(p.pronostico.texto))}` : ""}</span></span>
+          <span class="detalle">${p ? esc(mayuscula(resumenPais(p, a3))) : t("Sin eventos recientes")}</span></span>
           <span class="cifra"></span></button>`;
       }).join("");
     }
@@ -531,8 +535,7 @@
       html += `<h3 class="grupo">${t("Juicios clave")}</h3>` + inf.juicios.map((j) => `<button class="fila juicio" data-pais="${j.pais}">
         <span class="punto ${j.nivel}"></span>
         <span class="nombre">${esc(nombrePais(j.pais))}${etiquetaConfianza(j.confianza)}
-          <span class="detalle"><strong>${esc(tb(j.escenario || j.pronostico || ""))}</strong>${j.porque?.length ? `. ${esc(j.porque.map(tb).join(". "))}.` : ""}</span>
-          ${j.escenario && j.pronostico ? `<span class="detalle">${esc(tb(j.pronostico))}.</span>` : ""}</span>
+          <span class="detalle"><strong>${esc(tb(j.escenario || j.pronostico || ""))}</strong>${j.porque?.length ? `. ${esc(j.porque.map(tb).join(". "))}.` : ""}</span></span>
         <span class="cifra"></span></button>`).join("");
     }
     if (inf.vigilar?.length) {
@@ -575,8 +578,21 @@
         <span class="cifra ${p.nivel !== "verde" ? "sube" : ""}">${p.hechos ? plural(p.hechos, "hecho", "hechos") : t("Sin hechos")}</span></div>`).join("");
     }
 
+    html += `<p class="nota-lab">${t("Los pronósticos y la simulación están en el")} <button class="enlace" data-pestana="laboratorio">${t("Laboratorio")}</button>: ${t("son experimentales y se enseñan junto a su acierto medido.")}</p>`;
+
+    const fuentes = Object.entries(estado.fuentes);
+    if (fuentes.length) {
+      html += `<h3 class="grupo">${t("Estado de las fuentes")}</h3><ul class="fuentes">` + fuentes.map(([n, fu]) =>
+        `<li class="${fu.ok ? "" : "caida"}">${esc(tb(n))}: ${fu.ok ? t("al día") : `${t("sin respuesta")}${fu.ultimo_ok ? t(", datos de {t}", { t: haceCuanto(fu.ultimo_ok) }) : ""}`}</li>`).join("") + "</ul>";
+    }
+    el.innerHTML = html;
+  }
+
+  // Laboratorio: pronóstico y simulación como experimento público, siempre con su acierto medido
+  function marcadorHtml() {
+    let html = "";
     const f = estado.fiabilidad || {};
-    html += `<h3 class="grupo">${t("Acierto de los pronósticos")}</h3><p class="resumen">${f.alto?.total
+    html += `<h3 class="grupo">${t("Marcador: ¿acierta?")}</h3><p class="resumen">${f.alto?.total
       ? t("De {n} de empeoramiento probable en los últimos 30 días, se cumplieron {a} ({p} %).", { n: plural(f.alto.total, "pronóstico", "pronósticos"), a: f.alto.aciertos, p: Math.round(100 * f.alto.aciertos / f.alto.total) })
         + (f.bajo?.total ? t(" De los poco probables, empeoró el {p} %.", { p: Math.round(100 * f.bajo.aciertos / f.bajo.total) }) : "")
       : t("Se medirá cuando haya más de una semana de histórico: cada pronóstico se compara con lo que pasó en los 7 días siguientes.")}</p>`;
@@ -604,19 +620,53 @@
       html += `</div>`;
     }
 
-    const fuentes = Object.entries(estado.fuentes);
-    if (fuentes.length) {
-      html += `<h3 class="grupo">${t("Estado de las fuentes")}</h3><ul class="fuentes">` + fuentes.map(([n, fu]) =>
-        `<li class="${fu.ok ? "" : "caida"}">${esc(tb(n))}: ${fu.ok ? t("al día") : `${t("sin respuesta")}${fu.ultimo_ok ? t(", datos de {t}", { t: haceCuanto(fu.ultimo_ok) }) : ""}`}</li>`).join("") + "</ul>";
+    return html;
+  }
+
+  // España: lo que afecta a España, con todos sus países de interés aunque estén tranquilos
+  function pintarEspana() {
+    const el = $("#vista-espana");
+    const esp = estado.espana;
+    if (!esp) {
+      el.innerHTML = `<p class="vacio">${t("Todavía no hay datos. La primera actualización automática los descargará en unos minutos.")}</p>`;
+      return;
     }
+    const r = esp.resumen || {};
+    let html = `<p class="seccion-informe">${t("Alerta temprana para España")}</p>
+      <h2 class="titular-parte">${esc(r.en_riesgo ? t("{n} con interés para España en alerta, para vigilar o empeorando", { n: plural(r.en_riesgo, "país", "países") }) : t("Ningún país de interés para España en alerta"))}</h2>
+      <p class="resumen">${t("Vecindad, rutas migratorias, energía, despliegues militares y comunidades españolas. En el mapa se resaltan estos países.")}
+      ${r.rutas_en_riesgo ? esc(t(" {n} en riesgo.", { n: plural(r.rutas_en_riesgo, "ruta marítima clave", "rutas marítimas clave") })) : ""}</p>`;
+    if (esp.rutas?.length) {
+      html += `<h3 class="grupo">${t("Rutas clave para la energía y el comercio")}</h3>` + esp.rutas.map((p) => `<div class="fila">
+        <span class="punto ${p.nivel === "verde" ? "neutro" : p.nivel}"></span>
+        <span class="nombre">${esc(tb(p.nombre))}<span class="detalle">${esc(tb(p.porque))}</span></span>
+        <span class="cifra ${p.nivel !== "verde" ? "sube" : ""}">${p.hechos ? plural(p.hechos, "hecho", "hechos") : t("Sin hechos")}</span></div>`).join("");
+    }
+    for (const tipo of esp.tipos || []) {
+      html += `<h3 class="grupo">${esc(tb(tipo.texto))}${tipo.en_riesgo ? ` <span class="cuenta">${tipo.en_riesgo}</span>` : ""}</h3>` + tipo.paises.map((x) => `<button class="fila" data-pais="${x.pais}">
+        <span class="punto ${x.nivel === "verde" && !estado.alertas[x.pais] ? "neutro" : x.nivel}"></span>
+        <span class="nombre">${esc(nombrePais(x.pais))}${x.escalada ? `<span class="empeora">${t("Empeora")}</span>` : ""}
+          <span class="detalle">${x.senales.length ? esc(x.senales.map(tb).join(" · ")) : estado.alertas[x.pais] ? esc(mayuscula(resumenPais(estado.alertas[x.pais], x.pais))) : t("Sin eventos recientes")}</span></span>
+        <span class="cifra"></span></button>`).join("");
+    }
+    if (esp.viajes?.length) {
+      html += `<h3 class="grupo">${t("Donde Exteriores desaconseja viajar")}</h3>` + esp.viajes.map((v) => `<button class="fila" data-pais="${v.pais}">
+        <span class="punto ${v.nivel >= 4 ? "rojo" : "ambar"}"></span>
+        <span class="nombre">${esc(nombrePais(v.pais))}<span class="detalle">${esc(tb(v.texto))}</span></span>
+        <span class="cifra"></span></button>`).join("") + `<p class="detalle-gris nota">${t("Según las recomendaciones de viaje del Ministerio de Asuntos Exteriores. Consulta siempre la ficha oficial antes de viajar.")}</p>`;
+    }
+    html += `<p class="detalle-gris nota">${t("La lista de intereses es orientativa y se puede revisar en data/intereses_espana.json.")}</p>`;
     el.innerHTML = html;
   }
 
-  // Simulación de escenarios: siempre con el aviso de que no tiene validez oficial
-  function pintarSimulacion() {
-    const el = $("#vista-simulacion");
+  function pintarLaboratorio() {
+    const el = $("#vista-laboratorio");
     const sim = estado.simulacion || {};
-    let html = `<div class="aviso-simulacion" role="note"><strong>${t("Esto es una simulación.")}</strong> ${esc(sim.aviso ? tb(sim.aviso) : t("Simulación automática basada en noticias y datos públicos. No tiene ninguna validez oficial."))}</div>`;
+    let html = `<p class="seccion-informe">${t("Laboratorio")}</p>
+      <h2 class="titular-parte">${t("¿Se pueden prever las crisis con datos abiertos?")}</h2>
+      <p class="resumen">${t("Aquí atalaya intenta adelantarse: pronostica qué países pueden empeorar en 7 días y simula qué podría pasar. Es un experimento: cada pronóstico se guarda y se compara con lo que pasó, y el marcador se publica tal cual, salga bien o mal.")}</p>`
+      + marcadorHtml() + `<h3 class="grupo">${t("Simulación a 7 días")}</h3><div class="aviso-simulacion" role="note"><strong>${t("Esto es una simulación.")}</strong> ${esc(sim.aviso ? tb(sim.aviso) : t("Simulación automática basada en noticias y datos públicos. No tiene ninguna validez oficial."))}`;
+    html += `</div>`;
     if (!sim.casos?.length) {
       el.innerHTML = html + `<p class="vacio">${t("No hay crisis con datos suficientes para simular ahora mismo.")}</p>`;
       return;
@@ -826,7 +876,7 @@
     html += `</div>`;
     if (a?.pronostico || a?.escenarios?.length) {
       html += `<h3 class="grupo">${t("Pronóstico y escenarios")}</h3><div class="ficha">`;
-      if (a.pronostico) html += `<p class="pronostico riesgo-${a.pronostico.riesgo}"><strong>${esc(tb(a.pronostico.texto))}${a.pronostico.probabilidad != null ? ` (${pct(Math.round(a.pronostico.probabilidad * 100))})` : ""}.</strong>${a.pronostico.probabilidad != null ? ` <span class="detalle-gris">${t("Probabilidad del modelo aprendido de los datos.")}</span>` : ""} <span class="detalle-gris">${t("Estimación automática, sin validez oficial.")}</span>${a.pronostico.pendiente ? t(" Tendencia de la última semana: {n} puntos al día.", { n: (a.pronostico.pendiente > 0 ? "+" : "") + numero.format(a.pronostico.pendiente) }) : ""}</p>`;
+      if (a.pronostico) html += `<p class="pronostico riesgo-${a.pronostico.riesgo}"><span class="etiqueta-lab">${t("Experimental")}</span> <strong>${esc(tb(a.pronostico.texto))}${a.pronostico.probabilidad != null ? ` (${pct(Math.round(a.pronostico.probabilidad * 100))})` : ""}.</strong>${a.pronostico.probabilidad != null ? ` <span class="detalle-gris">${t("Probabilidad del modelo aprendido de los datos.")}</span>` : ""} <span class="detalle-gris">${t("Estimación automática, sin validez oficial.")}</span>${a.pronostico.pendiente ? t(" Tendencia de la última semana: {n} puntos al día.", { n: (a.pronostico.pendiente > 0 ? "+" : "") + numero.format(a.pronostico.pendiente) }) : ""}</p>`;
       const relevantes = (a.escenarios || []).filter((e) => e.riesgo !== "bajo");
       if (!relevantes.length) html += `<p class="explicacion">${t("Ningún escenario de crisis tiene indicadores suficientes ahora mismo.")}</p>`;
       for (const e of relevantes) {
@@ -1051,6 +1101,7 @@
       estado.simulacion = alertas.simulacion || {};
       estado.fiabilidad = alertas.fiabilidad || {};
       estado.rendimiento = alertas.rendimiento || {};
+      estado.espana = alertas.espana || null;
       estado.modeloAprendido = alertas.modelo || null;
       estado.analisis = eventos.analisis || [];
       estado.calibrando = alertas.calibrando;
@@ -1066,7 +1117,8 @@
     dibujarPaises();
     dibujarEventos();
     pintarParte();
-    pintarSimulacion();
+    pintarLaboratorio();
+    pintarEspana();
     pintarPaises();
     pintarEventos();
     pintarTitulares();
@@ -1079,7 +1131,8 @@
     dibujarPaises();
     dibujarEventos();
     pintarParte();
-    pintarSimulacion();
+    pintarLaboratorio();
+    pintarEspana();
     pintarPaises();
     pintarEventos();
     pintarTitulares();

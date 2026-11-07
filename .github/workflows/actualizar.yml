@@ -122,15 +122,15 @@ jobs:
         env:
           ENLACE_EJECUCION: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if python scripts/salud.py > salud.md; then
-            cat salud.md
-            exit 0
-          fi
+          codigo=0
+          python scripts/salud.py > salud.md || codigo=$?
           cat salud.md
           titulo="Fuentes de datos caídas"
           numero=$(gh issue list --state open --search "\"$titulo\" in:title" --json number --jq '.[0].number')
-          if [ -n "$numero" ]; then
+          if [ "$codigo" = 0 ] && [ -n "$numero" ]; then
+            gh issue close "$numero" --comment "Todas las fuentes vuelven a responder."
+          elif [ "$codigo" = 1 ] && [ -n "$numero" ]; then
             gh issue comment "$numero" --body-file salud.md
-          else
+          elif [ "$codigo" = 1 ]; then
             gh issue create --title "$titulo" --body-file salud.md
           fi
