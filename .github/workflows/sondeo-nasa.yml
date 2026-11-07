@@ -34,29 +34,36 @@ jobs:
               except Exception as e:
                   print("ERR", url, e)
           hoy = datetime.date.today()
-          for prod in ("VNP46A1", "VNP46A2", "VJ146A1", "VJ146A2", "VNP46A1_NRT", "VJ146A1_NRT"):
-              for d in range(1, 12):
+          import h5py
+          def listar(base, prod, maxdias=6):
+              for d in range(0, maxdias):
                   f = hoy - datetime.timedelta(days=d)
-                  url = f"https://ladsweb.modaps.eosdis.nasa.gov/api/v2/content/details/allData/5200/{prod}/{f.year}/{f.timetuple().tm_yday:03d}?format=json"
-                  b = get(url)
+                  b = get(f"{base}/api/v2/content/details/allData/5200/{prod}/{f.year}/{f.timetuple().tm_yday:03d}?format=json")
                   if b:
-                      try:
-                          j = json.loads(b)
-                          items = j.get("content", j) if isinstance(j, dict) else j
-                          print("  ", prod, f, "ficheros:", len(items))
-                          if items:
-                              print("   ejemplo:", json.dumps(items[0])[:400])
-                              break
-                      except Exception as e:
-                          print("  no json", b[:200])
-          # NRT LANCE
-          for base in ("https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/details/allData/5200/VNP46A1_NRT",
-                       "https://nrt3.modaps.eosdis.nasa.gov/api/v2/content/details/allData/5200/VJ146A1_NRT"):
-              f = hoy - datetime.timedelta(days=1)
-              get(f"{base}/{f.year}/{f.timetuple().tm_yday:03d}?format=json")
-          # IMERG
-          for prod in ("GPM_3IMERGDE.07", "GPM_3IMERGDL.07", "GPM_3IMERGHHE.07"):
-              f = hoy - datetime.timedelta(days=1)
-              b = get(f"https://gpm1.gesdisc.eosdis.nasa.gov/data/GPM_L3/{prod}/{f.year}/{f.month:02d}/")
-              if b:
-                  print("  ", re.findall(rb'href="([^"]+\.(?:nc4|HDF5|tif))"', b)[-3:])
+                      items = json.loads(b).get("content", [])
+                      if items:
+                          return f, items
+              return None, []
+          def recorrer(h, prefijo=""):
+              for k, v in h.items():
+                  if isinstance(v, h5py.Dataset):
+                      print("   ", prefijo + k, v.shape, v.dtype, dict(list(v.attrs.items())[:4]))
+                  else:
+                      recorrer(v, prefijo + k + "/")
+          for base, prod in (("https://nrt3.modaps.eosdis.nasa.gov", "VJ146A1_NRT"), ("https://ladsweb.modaps.eosdis.nasa.gov", "VJ146A2")):
+              f, items = listar(base, prod)
+              print(prod, f, len(items), "ficheros")
+              tile = next((x for x in items if ".h21v05." in x["name"]), items[0] if items else None)  # Oriente Próximo
+              if tile:
+                  print("  tamaño", tile.get("size"), tile["name"])
+                  if get(tile["downloadsLink"], guardar="t.h5"):
+                      with h5py.File("t.h5") as h:
+                          recorrer(h)
+          b = get("https://gpm1.gesdisc.eosdis.nasa.gov/data/GPM_L3/GPM_3IMERGDE.07/2026/11/")
+          nombres = sorted(set(re.findall(rb'href="(3B-DAY-E[^"]+\.nc4)"', b or b"")))
+          print("IMERG", nombres[-2:])
+          if nombres:
+              url = "https://gpm1.gesdisc.eosdis.nasa.gov/data/GPM_L3/GPM_3IMERGDE.07/2026/11/" + nombres[-1].decode()
+              if get(url, guardar="i.nc4"):
+                  with h5py.File("i.nc4") as h:
+                      recorrer(h)
